@@ -225,8 +225,8 @@ export function EntryScreen() {
   const canConfirm   = hasAmount && hasWallet && (!subRequired || hasSub)
 
   // Progressive confirm button glow (0–3 readiness levels)
-  const readinessLevel     = (hasAmount ? 1 : 0) + (hasWallet ? 1 : 0) + (!subRequired || hasSub ? 1 : 0)
-  const confirmOpacity     = [0.18, 0.42, 0.70, 1][readinessLevel]
+  const readinessLevel      = (hasAmount ? 1 : 0) + (hasWallet ? 1 : 0) + (!subRequired || hasSub ? 1 : 0)
+  const confirmOpacity      = [0.18, 0.42, 0.70, 1][readinessLevel]
   const confirmGlowStrength = [0, 0.15, 0.35, 1][readinessLevel]
   const confirmBg = readinessLevel === 3
     ? `linear-gradient(135deg, ${accent}, ${accent}bb)`
@@ -258,7 +258,7 @@ export function EntryScreen() {
     ? 'Today'
     : `${txDate.getDate()} ${MONTH_NAMES[txDate.getMonth()]} ${txDate.getFullYear()}`
 
-  // The selected subcategory label (for inline chip display)
+  // The selected subcategory label (for inline chip display below amount)
   const selectedSubLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
 
   const handleConfirm = useCallback(async () => {
@@ -346,13 +346,21 @@ export function EntryScreen() {
         }}>{dateLabel}</div>
       </div>
 
-      {/* ── AMOUNT AREA (flex: 1, centres amount + inline status chips) ── */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          AMOUNT ZONE  (flex:1 — absorbs all leftover height)
+          • Big amount display
+          • Inline status chips (wallet + selected sub) below amount
+          • Error message
+          • ▼ EXPAND PANELS open here — slides into this space, never compresses bottom
+      ══════════════════════════════════════════════════════════════════════ */}
       <div style={{
         position: 'relative', zIndex: 1,
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        paddingInline: 20, paddingBottom: 8, minHeight: 0,
+        paddingInline: 16, paddingBottom: 8,
+        minHeight: 0, overflow: 'hidden',
       }}>
+
         {/* Big amount */}
         <motion.div
           key={raw}
@@ -367,12 +375,13 @@ export function EntryScreen() {
             textShadow: amountValue > 0 ? `0 0 40px ${glow}, 0 0 80px ${glow}` : 'none',
             lineHeight: 1,
             transition: 'font-size 0.15s ease, color 0.2s ease',
+            flexShrink: 0,
           }}
         >{formattedDisplay}</motion.div>
 
         {/*
-          ── INLINE STATUS ROW: wallet chip + selected sub chip, single line ──
-          Shown only when at least one is set. Both sit on the same row.
+          ── INLINE STATUS ROW: wallet chip + selected sub chip in one line ──
+          Appears below the amount as soon as either is set.
         */}
         <AnimatePresence>
           {(walletLabel || selectedSubLabel) && (
@@ -383,12 +392,11 @@ export function EntryScreen() {
               exit={{ opacity: 0, y: -5 }}
               transition={{ duration: 0.18 }}
               style={{
-                marginTop: 12,
+                marginTop: 12, flexShrink: 0,
                 display: 'flex', alignItems: 'center',
                 gap: 6, flexWrap: 'nowrap',
               }}
             >
-              {/* Wallet chip */}
               {walletLabel && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 5,
@@ -400,7 +408,6 @@ export function EntryScreen() {
                   <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{walletLabel}</span>
                 </div>
               )}
-              {/* Selected subcategory chip */}
               {selectedSubLabel && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.85 }}
@@ -430,7 +437,8 @@ export function EntryScreen() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
               style={{
-                marginTop: 10, fontSize: 12, fontWeight: 600,
+                marginTop: 10, flexShrink: 0,
+                fontSize: 12, fontWeight: 600,
                 color: '#F87171', background: 'rgba(239,68,68,0.12)',
                 border: '1px solid rgba(239,68,68,0.25)',
                 borderRadius: 10, padding: '5px 14px',
@@ -438,25 +446,25 @@ export function EntryScreen() {
             >{errMsg}</motion.div>
           )}
         </AnimatePresence>
-      </div>
 
-      {/* ── BOTTOM SECTION (fixed height, never scrolls) ── */}
-      <div style={{
-        position: 'relative', zIndex: 1, flexShrink: 0,
-        display: 'flex', flexDirection: 'column', gap: 0,
-        paddingBottom: 'env(safe-area-inset-bottom, 12px)',
-      }}>
-
-        {/* ── EXPAND PANELS (note / wallet / calendar) ── */}
-        <div style={{ paddingInline: 16, paddingBottom: 6 }}>
-          <AnimatePresence mode="wait">
-            {activePanel === 'note' && (
-              <motion.div
-                key="note-panel"
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              >
+        {/*
+          ── EXPAND PANELS — float here in the amount zone ──
+          They open UPWARD into this flex space.
+          The bottom section (toolbar → subcats → numpad → confirm) NEVER moves.
+        */}
+        <AnimatePresence mode="wait">
+          {activePanel !== null && (
+            <motion.div
+              key={activePanel}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                width: '100%', marginTop: 16, flexShrink: 0,
+              }}
+            >
+              {activePanel === 'note' && (
                 <textarea
                   ref={noteRef}
                   value={note}
@@ -473,58 +481,45 @@ export function EntryScreen() {
                     lineHeight: 1.5, caretColor: accent,
                   }}
                 />
-              </motion.div>
-            )}
-            {activePanel === 'wallet' && (
-              <WalletPanel
-                key="wallet-panel"
-                wallets={wallets} loading={walletsLoading}
-                selectedId={walletId}
-                onSelect={(id, label) => {
-                  setWalletId(id); setWalletLabel(label); setActivePanel(null)
-                }}
-                accent={accent}
-              />
-            )}
-            {activePanel === 'calendar' && (
-              <DatePickerPanel
-                key="cal-panel"
-                value={txDate}
-                onChange={d => { setTxDate(d); setActivePanel(null) }}
-                accent={accent}
-              />
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* ── SUBCATEGORY PILLS — just above the action toolbar ── */}
-        {subs.length > 0 && (
-          <div style={{
-            paddingInline: 16, paddingBottom: 8,
-            display: 'flex', flexWrap: 'wrap', gap: 6,
-          }}>
-            {subs.map(sub => {
-              const isSelected = selectedSub === sub.id
-              return (
-                <motion.button
-                  key={sub.id}
-                  whileTap={{ scale: 0.92 }}
-                  onClick={() => setSelectedSub(isSelected ? null : sub.id)}
-                  style={{
-                    height: 30, paddingInline: 12, borderRadius: 20,
-                    border: `1px solid ${isSelected ? accent : 'rgba(255,255,255,0.12)'}`,
-                    background: isSelected ? `${accent}22` : 'rgba(255,255,255,0.05)',
-                    color: isSelected ? accent : 'rgba(255,255,255,0.60)',
-                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    whiteSpace: 'nowrap', transition: 'all 0.15s ease',
+              )}
+              {activePanel === 'wallet' && (
+                <WalletPanel
+                  wallets={wallets} loading={walletsLoading}
+                  selectedId={walletId}
+                  onSelect={(id, label) => {
+                    setWalletId(id); setWalletLabel(label); setActivePanel(null)
                   }}
-                >{sub.label}</motion.button>
-              )
-            })}
-          </div>
-        )}
+                  accent={accent}
+                />
+              )}
+              {activePanel === 'calendar' && (
+                <DatePickerPanel
+                  value={txDate}
+                  onChange={d => { setTxDate(d); setActivePanel(null) }}
+                  accent={accent}
+                />
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* ── ACTION BAR (Note · Wallet · Calendar) ── */}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          BOTTOM SECTION — FIXED HEIGHT, NEVER MOVES
+          Order (top → bottom):
+            1. ACTION TOOLBAR  (Note · Wallet · Calendar)
+            2. SUBCATEGORY CHIPS  (below toolbar, right above numpad)
+            3. NUMPAD
+            4. CONFIRM BUTTON
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div style={{
+        position: 'relative', zIndex: 1, flexShrink: 0,
+        display: 'flex', flexDirection: 'column', gap: 0,
+        paddingBottom: 'env(safe-area-inset-bottom, 12px)',
+      }}>
+
+        {/* ── 1. ACTION TOOLBAR (Note · Wallet · Calendar) ── */}
         <div style={{ display: 'flex', gap: 8, paddingInline: 16, paddingBottom: 8 }}>
           {([
             { id: 'note'     as const, icon: '✏️', label: note ? 'Note ✓' : 'Note' },
@@ -556,7 +551,34 @@ export function EntryScreen() {
           })}
         </div>
 
-        {/* ── NUMPAD ── */}
+        {/* ── 2. SUBCATEGORY CHIPS — below toolbar, right above numpad ── */}
+        {subs.length > 0 && (
+          <div style={{
+            paddingInline: 16, paddingBottom: 8,
+            display: 'flex', flexWrap: 'wrap', gap: 6,
+          }}>
+            {subs.map(sub => {
+              const isSelected = selectedSub === sub.id
+              return (
+                <motion.button
+                  key={sub.id}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setSelectedSub(isSelected ? null : sub.id)}
+                  style={{
+                    height: 30, paddingInline: 12, borderRadius: 20,
+                    border: `1px solid ${isSelected ? accent : 'rgba(255,255,255,0.12)'}`,
+                    background: isSelected ? `${accent}22` : 'rgba(255,255,255,0.05)',
+                    color: isSelected ? accent : 'rgba(255,255,255,0.60)',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    whiteSpace: 'nowrap', transition: 'all 0.15s ease',
+                  }}
+                >{sub.label}</motion.button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* ── 3. NUMPAD ── */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
           gap: 8, paddingInline: 16, paddingBottom: 8,
@@ -580,7 +602,7 @@ export function EntryScreen() {
           ))}
         </div>
 
-        {/* ── CONFIRM BUTTON ── */}
+        {/* ── 4. CONFIRM BUTTON — always pinned at the bottom ── */}
         <div style={{ paddingInline: 16, paddingBottom: 8 }}>
           <AnimatePresence>
             {success ? (
@@ -634,6 +656,7 @@ export function EntryScreen() {
             )}
           </AnimatePresence>
         </div>
+
       </div>
     </div>
   )
