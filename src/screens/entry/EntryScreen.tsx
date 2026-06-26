@@ -1,17 +1,30 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useCategories } from '../../hooks/useCategories'
+import { useWallets } from '../../hooks/useWallets'
+import { useTransactions } from '../../hooks/useTransactions'
 import { useUser } from '../../context/UserContext'
-import { supabase } from '../../lib/supabase'
 
+// ─── Key layout ──────────────────────────────────────────────────────────────
+const KEY_ROWS = [
+  ['7', '8', '9'],
+  ['4', '5', '6'],
+  ['1', '2', '3'],
+  ['.', '0', '⌫'],
+]
+
+// ─── Inline Date Picker ───────────────────────────────────────────────────────
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-function DatePickerInline({
-  value, onChange,
+function DatePickerPanel({
+  value,
+  onChange,
+  accent,
 }: {
   value: Date
   onChange: (d: Date) => void
+  accent: string
 }) {
   const [y, setY] = useState(value.getFullYear())
   const [m, setM] = useState(value.getMonth())
@@ -21,302 +34,584 @@ function DatePickerInline({
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
 
-  const confirm = (dy: number, dm: number, dd: number) => {
-    const safeD = Math.min(dd, new Date(dy, dm + 1, 0).getDate())
-    onChange(new Date(dy, dm, safeD))
-    setD(safeD)
-  }
+  const confirm = useCallback((dy: number, dm: number, dd: number) => {
+    const safe = Math.min(dd, new Date(dy, dm + 1, 0).getDate())
+    setD(safe)
+    onChange(new Date(dy, dm, safe))
+  }, [onChange])
 
   return (
     <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-      style={{ overflow: 'hidden' }}
-    >
-      <div style={{
-        margin: '8px 0 4px',
-        borderRadius: 16,
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      style={{
+        borderRadius: 18,
         background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.10)',
-        padding: '12px 14px',
+        border: `1px solid ${accent}33`,
+        padding: '14px 14px 10px',
         display: 'flex',
         flexDirection: 'column',
         gap: 10,
-      }}>
-        {/* Month row */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-          {MONTH_NAMES.map((mn, i) => (
-            <motion.button key={mn} whileTap={{ scale: 0.88 }}
-              onClick={() => { setM(i); confirm(y, i, d) }}
-              style={{
-                flexShrink: 0,
-                height: 32, minWidth: 44,
-                borderRadius: 10,
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 12, fontWeight: 700,
-                background: m === i ? 'rgba(251,191,36,0.22)' : 'rgba(255,255,255,0.05)',
-                color: m === i ? '#FBBF24' : 'rgba(255,255,255,0.55)',
-              }}
-            >{mn}</motion.button>
-          ))}
-        </div>
-        {/* Day row */}
-        <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2 }}>
-          {days.map(dd2 => (
-            <motion.button key={dd2} whileTap={{ scale: 0.85 }}
-              onClick={() => { setD(dd2); confirm(y, m, dd2) }}
-              style={{
-                flexShrink: 0,
-                width: 34, height: 34,
-                borderRadius: 10,
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 12, fontWeight: 700,
-                background: d === dd2 ? 'linear-gradient(135deg,#F59E0B,#FBBF24)' : 'rgba(255,255,255,0.05)',
-                color: d === dd2 ? '#000' : 'rgba(255,255,255,0.55)',
-                boxShadow: d === dd2 ? '0 2px 8px rgba(251,191,36,0.4)' : 'none',
-              }}
-            >{dd2}</motion.button>
-          ))}
-        </div>
-        {/* Year row */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {years.map(yr => (
-            <motion.button key={yr} whileTap={{ scale: 0.88 }}
-              onClick={() => { setY(yr); confirm(yr, m, d) }}
-              style={{
-                flexShrink: 0,
-                height: 30, padding: '0 10px',
-                borderRadius: 10,
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: 12, fontWeight: 700,
-                background: y === yr ? 'rgba(251,191,36,0.22)' : 'rgba(255,255,255,0.05)',
-                color: y === yr ? '#FBBF24' : 'rgba(255,255,255,0.55)',
-              }}
-            >{yr}</motion.button>
-          ))}
-        </div>
+      }}
+    >
+      {/* Month row */}
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+        {MONTH_NAMES.map((mn, i) => (
+          <motion.button
+            key={mn}
+            whileTap={{ scale: 0.88 }}
+            onClick={() => { setM(i); confirm(y, i, d) }}
+            style={{
+              flexShrink: 0,
+              height: 32, minWidth: 44,
+              borderRadius: 10,
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 11, fontWeight: 700,
+              background: m === i ? `${accent}33` : 'rgba(255,255,255,0.05)',
+              color: m === i ? accent : 'rgba(255,255,255,0.50)',
+            }}
+          >{mn}</motion.button>
+        ))}
+      </div>
+      {/* Day row */}
+      <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2 }}>
+        {days.map(dd2 => (
+          <motion.button
+            key={dd2}
+            whileTap={{ scale: 0.85 }}
+            onClick={() => { setD(dd2); confirm(y, m, dd2) }}
+            style={{
+              flexShrink: 0,
+              width: 34, height: 34,
+              borderRadius: 10,
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 12, fontWeight: 700,
+              background: d === dd2 ? `linear-gradient(135deg,${accent},${accent}bb)` : 'rgba(255,255,255,0.05)',
+              color: d === dd2 ? '#000' : 'rgba(255,255,255,0.55)',
+              boxShadow: d === dd2 ? `0 2px 8px ${accent}55` : 'none',
+            }}
+          >{dd2}</motion.button>
+        ))}
+      </div>
+      {/* Year row */}
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+        {years.map(yr => (
+          <motion.button
+            key={yr}
+            whileTap={{ scale: 0.88 }}
+            onClick={() => { setY(yr); confirm(yr, m, d) }}
+            style={{
+              height: 28, minWidth: 52,
+              borderRadius: 8,
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 11, fontWeight: 700,
+              background: y === yr ? `${accent}33` : 'rgba(255,255,255,0.05)',
+              color: y === yr ? accent : 'rgba(255,255,255,0.45)',
+            }}
+          >{yr}</motion.button>
+        ))}
       </div>
     </motion.div>
   )
 }
 
-const KEY_ROWS = [
-  ['1','2','3'],
-  ['4','5','6'],
-  ['7','8','9'],
-  ['.','0','⌫'],
-]
+// ─── Wallet Panel ─────────────────────────────────────────────────────────────
+function WalletPanel({
+  wallets,
+  loading,
+  selectedId,
+  onSelect,
+  accent,
+}: {
+  wallets: { id: string; label: string; type: 'cash' | 'credit'; balance: number; owner: string }[]
+  loading: boolean
+  selectedId: string | null
+  onSelect: (id: string | null, label: string) => void
+  accent: string
+}) {
+  const walletIcon = (type: 'cash' | 'credit') => type === 'credit' ? '💳' : '👛'
 
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      style={{
+        borderRadius: 18,
+        background: 'rgba(255,255,255,0.04)',
+        border: `1px solid ${accent}33`,
+        padding: '14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.40)', letterSpacing: '0.08em', marginBottom: 2 }}>
+        SELECT WALLET / CARD
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '8px 0' }}>Loading…</div>
+      ) : wallets.length === 0 ? (
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '8px 0', lineHeight: 1.5 }}>
+          No wallets yet. Add them in the<br />
+          <span style={{ color: accent, fontWeight: 700 }}>Wallet &amp; Credit</span> screen.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* None option */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => onSelect(null, '')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '9px 12px',
+              borderRadius: 12,
+              border: `1px solid ${selectedId === null ? accent : 'rgba(255,255,255,0.08)'}`,
+              background: selectedId === null ? `${accent}18` : 'rgba(255,255,255,0.03)',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🚫</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: selectedId === null ? accent : 'rgba(255,255,255,0.60)' }}>
+              No wallet
+            </span>
+          </motion.button>
+
+          {wallets.map(w => (
+            <motion.button
+              key={w.id}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => onSelect(w.id, w.label)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px',
+                borderRadius: 12,
+                border: `1px solid ${selectedId === w.id ? accent : 'rgba(255,255,255,0.08)'}`,
+                background: selectedId === w.id ? `${accent}18` : 'rgba(255,255,255,0.03)',
+                cursor: 'pointer',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{walletIcon(w.type)}</span>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: selectedId === w.id ? accent : '#F5F5F5' }}>
+                  {w.label}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', marginTop: 1 }}>
+                  {w.type === 'credit' ? 'Credit Card' : 'Cash / UPI'} · {w.owner}
+                </div>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.45)' }}>
+                ₹{w.balance.toLocaleString('en-IN')}
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// ─── Main EntryScreen ─────────────────────────────────────────────────────────
 export function EntryScreen() {
-  const { type, categoryId } = useParams<{ type: string; categoryId: string }>()
   const navigate = useNavigate()
+  const { type, categoryId } = useParams<{ type: string; categoryId: string }>()
+  const { activeUser } = useUser()
   const { expenseCategories, incomeCategories, subcategories } = useCategories()
-  const { user } = useUser()
+  const { wallets, loading: walletsLoading } = useWallets()
+  const { addTransaction } = useTransactions()
 
-  const allCats = type === 'income' ? incomeCategories : expenseCategories
-  const category = allCats.find(c => c.id === categoryId)
-  const catSubs = category ? (subcategories[category.id] ?? []) : []
-
-  const [amount, setAmount] = useState('0')
-  const [selectedSub, setSelectedSub] = useState<string | null>(null)
-  const [noteOpen, setNoteOpen] = useState(false)
-  const [note, setNote] = useState('')
-  const [dateOpen, setDateOpen] = useState(false)
-  const [txDate, setTxDate] = useState(new Date())
-  const [walletOpen, setWalletOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [shake, setShake] = useState(false)
-  const [success, setSuccess] = useState(false)
+  // ── Derive category ──────────────────────────────────────────────────────
+  const allCategories = [...expenseCategories, ...incomeCategories]
+  const category = allCategories.find(c => c.id === categoryId)
+  const subs = category ? (subcategories[category.id] ?? []) : []
 
   const accent = category?.accent ?? '#FBBF24'
-  const glow = category?.glow ?? 'rgba(251,191,36,0.22)'
-  const bg = category?.bg ?? 'rgba(251,191,36,0.08)'
+  const glow   = category?.glow   ?? 'rgba(251,191,36,0.22)'
 
+  // ── Entry state ──────────────────────────────────────────────────────────
+  const [raw, setRaw]           = useState('0')       // raw numeric string
+  const [selectedSub, setSelectedSub] = useState<string | null>(null)
+  const [note, setNote]         = useState('')
+  const [txDate, setTxDate]     = useState(new Date())
+  const [walletId, setWalletId] = useState<string | null>(null)
+  const [walletLabel, setWalletLabel] = useState('')
+
+  // ── Panel open state (only one at a time) ────────────────────────────────
+  const [activePanel, setActivePanel] = useState<'note' | 'wallet' | 'calendar' | null>(null)
+  const togglePanel = (p: 'note' | 'wallet' | 'calendar') =>
+    setActivePanel(prev => (prev === p ? null : p))
+
+  // ── Save state ───────────────────────────────────────────────────────────
+  const [saving, setSaving]   = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [errMsg, setErrMsg]   = useState<string | null>(null)
+
+  const noteRef = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    if (activePanel === 'note') {
+      setTimeout(() => noteRef.current?.focus(), 80)
+    }
+  }, [activePanel])
+
+  // ── Keypad logic ─────────────────────────────────────────────────────────
   const handleKey = useCallback((k: string) => {
-    if (k === '⌫') {
-      setAmount(prev => {
-        if (prev.length <= 1) return '0'
+    setRaw(prev => {
+      if (k === '⌫') {
         const next = prev.slice(0, -1)
         return next === '' ? '0' : next
-      })
-      return
-    }
-    if (k === '.') {
-      setAmount(prev => prev.includes('.') ? prev : prev + '.')
-      return
-    }
-    setAmount(prev => {
+      }
+      if (k === '.') {
+        if (prev.includes('.')) return prev
+        return prev + '.'
+      }
       if (prev === '0') return k
       if (prev.includes('.')) {
         const [, dec] = prev.split('.')
-        if (dec && dec.length >= 2) return prev
+        if (dec.length >= 2) return prev
       }
+      if (prev.replace('.', '').length >= 9) return prev
       return prev + k
     })
   }, [])
 
-  const handleConfirm = async () => {
-    const num = parseFloat(amount)
-    if (!num || num <= 0) {
-      setShake(true)
-      setTimeout(() => setShake(false), 500)
-      return
-    }
-    if (!category || !user) return
-    setSaving(true)
-    const { error } = await supabase.from('transactions').insert({
-      amount: num,
-      type: type as 'expense' | 'income',
-      category: category.label,
-      subcategory: selectedSub ?? null,
-      description: note.trim() || null,
-      created_at: txDate.toISOString(),
-      created_by: user.name,
-    })
-    setSaving(false)
-    if (error) return
-    setSuccess(true)
-    setTimeout(() => navigate(-1), 680)
-  }
+  const amountValue = parseFloat(raw) || 0
 
+  // ── Format display ────────────────────────────────────────────────────────
+  const formattedDisplay = (() => {
+    const [int, dec] = raw.split('.')
+    const intFormatted = parseInt(int || '0', 10).toLocaleString('en-IN')
+    if (dec !== undefined) return `₹${intFormatted}.${dec}`
+    return `₹${intFormatted}`
+  })()
+
+  // ── Date display ──────────────────────────────────────────────────────────
+  const today = new Date()
   const isToday =
-    txDate.toDateString() === new Date().toDateString()
-
+    txDate.getDate() === today.getDate() &&
+    txDate.getMonth() === today.getMonth() &&
+    txDate.getFullYear() === today.getFullYear()
   const dateLabel = isToday
     ? 'Today'
     : `${txDate.getDate()} ${MONTH_NAMES[txDate.getMonth()]} ${txDate.getFullYear()}`
 
-  if (!category) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(255,255,255,0.5)' }}>
-        Category not found
-      </div>
-    )
-  }
+  // ── Confirm ───────────────────────────────────────────────────────────────
+  const handleConfirm = useCallback(async () => {
+    if (amountValue <= 0) { setErrMsg('Enter an amount first.'); return }
+    if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
 
+    setSaving(true)
+    setErrMsg(null)
+
+    const subLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
+    const descParts = [subLabel, note].filter(Boolean)
+
+    try {
+      await addTransaction({
+        amount: amountValue,
+        description: descParts.join(' · ') || category.label,
+        category: category.label,
+        created_by: activeUser,
+        type: (type as 'income' | 'expense') ?? 'expense',
+      })
+      setSaving(false)
+      setSuccess(true)
+      setTimeout(() => navigate(-1), 1500)
+    } catch (e) {
+      setSaving(false)
+      setErrMsg(e instanceof Error ? e.message : 'Failed to save. Try again.')
+    }
+  }, [amountValue, category, activeUser, selectedSub, note, subs, addTransaction, type, navigate])
+
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        background: '#0a0804',
+        background: '#000000',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 80,
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        overflow: 'hidden',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
+      {/* Ambient glow from category accent */}
+      <div
+        style={{
+          position: 'absolute',
+          top: -80,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 320,
+          height: 280,
+          background: `radial-gradient(ellipse at center, ${accent}28 0%, transparent 70%)`,
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
       {/* ── HEADER ── */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '16px 20px 12px',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 14,
-            background: bg, border: `1px solid ${accent}30`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 22, boxShadow: `0 2px 12px ${glow}`,
-          }}>
-            {category.icon}
-          </div>
-          <span style={{ fontSize: 17, fontWeight: 800, color: accent, letterSpacing: '-0.01em' }}>
-            {category.label}
-          </span>
-        </div>
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          paddingTop: 'env(safe-area-inset-top, 16px)',
+          paddingInline: 20,
+          paddingBottom: 12,
+          flexShrink: 0,
+        }}
+      >
+        {/* Back button */}
         <motion.button
-          whileTap={{ scale: 0.85 }}
+          whileTap={{ scale: 0.88 }}
           onClick={() => navigate(-1)}
           style={{
-            width: 36, height: 36, borderRadius: '50%',
+            width: 40, height: 40,
+            borderRadius: 12,
             background: 'rgba(255,255,255,0.07)',
             border: '1px solid rgba(255,255,255,0.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: 'rgba(255,255,255,0.55)', fontSize: 15,
+            cursor: 'pointer', flexShrink: 0,
+            color: '#fff', fontSize: 18,
           }}
-        >✕</motion.button>
+          aria-label="Go back"
+        >
+          ←
+        </motion.button>
+
+        {/* Category info */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
+          {category && (
+            <div
+              style={{
+                width: 36, height: 36,
+                borderRadius: 11,
+                background: category.bg,
+                border: `1px solid ${accent}44`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, flexShrink: 0,
+              }}
+            >
+              {category.icon}
+            </div>
+          )}
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#FFFFFF', lineHeight: 1.2 }}>
+              {category?.label ?? 'New Entry'}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.38)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              {type === 'income' ? 'Income' : 'Expense'} · {activeUser}
+            </div>
+          </div>
+        </div>
+
+        {/* Date badge */}
+        <div
+          style={{
+            padding: '5px 10px',
+            borderRadius: 10,
+            background: `${accent}18`,
+            border: `1px solid ${accent}33`,
+            fontSize: 11, fontWeight: 700, color: accent,
+          }}
+        >
+          {dateLabel}
+        </div>
       </div>
 
       {/* ── AMOUNT DISPLAY ── */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 0,
-      }}>
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingInline: 20,
+          paddingBottom: 8,
+          minHeight: 0,
+        }}
+      >
         <motion.div
-          animate={shake ? { x: [-8, 8, -6, 6, -3, 3, 0] } : { x: 0 }}
-          transition={{ duration: 0.42 }}
+          key={raw}
+          initial={{ scale: 0.96, opacity: 0.7 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
           style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: 6,
+            fontSize: raw.length > 8 ? 42 : raw.length > 6 ? 52 : 64,
+            fontWeight: 900,
+            color: amountValue > 0 ? accent : 'rgba(255,255,255,0.20)',
+            letterSpacing: '-0.03em',
+            textShadow: amountValue > 0 ? `0 0 40px ${glow}, 0 0 80px ${glow}` : 'none',
+            lineHeight: 1,
+            transition: 'font-size 0.15s ease, color 0.2s ease',
           }}
         >
-          <span style={{ fontSize: 28, fontWeight: 700, color: accent, opacity: 0.7 }}>₹</span>
-          <span style={{
-            fontSize: 'clamp(52px, 14vw, 80px)',
-            fontWeight: 900,
-            color: '#F5F5F5',
-            letterSpacing: '-0.03em',
-            lineHeight: 1,
-            textShadow: `0 0 40px ${glow}`,
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {amount}
-          </span>
+          {formattedDisplay}
         </motion.div>
+
+        {/* Wallet chip (if selected) */}
+        <AnimatePresence>
+          {walletLabel && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              style={{
+                marginTop: 10,
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '4px 12px',
+                borderRadius: 20,
+                background: `${accent}18`,
+                border: `1px solid ${accent}33`,
+              }}
+            >
+              <span style={{ fontSize: 13 }}>💳</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{walletLabel}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Error message */}
+        <AnimatePresence>
+          {errMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              style={{
+                marginTop: 10,
+                fontSize: 12, fontWeight: 600,
+                color: '#F87171',
+                background: 'rgba(239,68,68,0.12)',
+                border: '1px solid rgba(239,68,68,0.25)',
+                borderRadius: 10,
+                padding: '5px 14px',
+              }}
+            >
+              {errMsg}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* ── PLACEHOLDER BAR ── */}
-      <div style={{
-        height: 6,
-        marginInline: 20,
-        borderRadius: 99,
-        background: `linear-gradient(90deg, ${accent}33, ${accent}11)`,
-        border: `1px solid ${accent}22`,
-        flexShrink: 0,
-        marginBottom: 14,
-      }} />
-
-      {/* ── SUBCATEGORY PILLS ── */}
-      {catSubs.length > 0 && (
-        <div style={{
-          paddingInline: 20,
-          marginBottom: 12,
+      {/* ── BOTTOM SECTION (subcategories + toolbar + panels + keypad) ── */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
           flexShrink: 0,
-        }}>
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 7,
-          }}>
-            {catSubs.map(sub => {
-              const active = selectedSub === sub.label
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0,
+          paddingBottom: 'env(safe-area-inset-bottom, 12px)',
+        }}
+      >
+        {/* ── PANELS (note / wallet / calendar) ── */}
+        <div style={{ paddingInline: 16, paddingBottom: 6 }}>
+          <AnimatePresence mode="wait">
+            {activePanel === 'note' && (
+              <motion.div
+                key="note-panel"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              >
+                <textarea
+                  ref={noteRef}
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="Add a note for this transaction…"
+                  maxLength={200}
+                  rows={2}
+                  style={{
+                    width: '100%',
+                    borderRadius: 16,
+                    padding: '12px 14px',
+                    fontSize: 13, fontWeight: 500,
+                    background: 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${accent}44`,
+                    color: '#F5F5F5',
+                    outline: 'none',
+                    resize: 'none',
+                    lineHeight: 1.5,
+                    caretColor: accent,
+                  }}
+                />
+              </motion.div>
+            )}
+            {activePanel === 'wallet' && (
+              <WalletPanel
+                key="wallet-panel"
+                wallets={wallets}
+                loading={walletsLoading}
+                selectedId={walletId}
+                onSelect={(id, label) => {
+                  setWalletId(id)
+                  setWalletLabel(label)
+                  setActivePanel(null)
+                }}
+                accent={accent}
+              />
+            )}
+            {activePanel === 'calendar' && (
+              <DatePickerPanel
+                key="cal-panel"
+                value={txDate}
+                onChange={d => {
+                  setTxDate(d)
+                  setActivePanel(null)
+                }}
+                accent={accent}
+              />
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* ── SUBCATEGORY PILLS ── */}
+        {subs.length > 0 && (
+          <div
+            style={{
+              paddingInline: 16,
+              paddingBottom: 8,
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+            }}
+          >
+            {subs.map(sub => {
+              const isSelected = selectedSub === sub.id
               return (
                 <motion.button
                   key={sub.id}
-                  whileTap={{ scale: 0.90 }}
-                  onClick={() => setSelectedSub(active ? null : sub.label)}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setSelectedSub(isSelected ? null : sub.id)}
                   style={{
-                    height: 30, padding: '0 12px',
-                    borderRadius: 99,
-                    border: `1px solid ${active ? accent : 'rgba(255,255,255,0.12)'}`,
-                    background: active ? `${accent}22` : 'rgba(255,255,255,0.05)',
-                    color: active ? accent : 'rgba(255,255,255,0.60)',
+                    height: 30,
+                    paddingInline: 12,
+                    borderRadius: 20,
+                    border: `1px solid ${isSelected ? accent : 'rgba(255,255,255,0.12)'}`,
+                    background: isSelected ? `${accent}22` : 'rgba(255,255,255,0.05)',
+                    color: isSelected ? accent : 'rgba(255,255,255,0.60)',
                     fontSize: 12, fontWeight: 700,
                     cursor: 'pointer',
-                    boxShadow: active ? `0 2px 8px ${glow}` : 'none',
-                    transition: 'all 0.18s ease',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   {sub.label}
@@ -324,63 +619,74 @@ export function EntryScreen() {
               )
             })}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ── ACTION ROW ── */}
-      <div style={{
-        paddingInline: 20,
-        marginBottom: 4,
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Note icon */}
+        {/* ── TOOLBAR (Note | Wallet | Calendar | Confirm) ── */}
+        <div
+          style={{
+            paddingInline: 16,
+            paddingBottom: 10,
+            display: 'flex',
+            gap: 8,
+          }}
+        >
+          {/* Note button */}
           <motion.button
-            whileTap={{ scale: 0.85 }}
-            onClick={() => { setNoteOpen(v => !v); setDateOpen(false); setWalletOpen(false) }}
+            whileTap={{ scale: 0.90 }}
+            onClick={() => togglePanel('note')}
             style={{
-              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-              background: noteOpen ? `${accent}22` : 'rgba(255,255,255,0.06)',
-              border: `1px solid ${noteOpen ? accent : 'rgba(255,255,255,0.10)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', fontSize: 17,
+              flex: 1, height: 44,
+              borderRadius: 14,
+              background: activePanel === 'note' ? `${accent}22` : 'rgba(255,255,255,0.07)',
+              border: `1px solid ${activePanel === 'note' ? accent : 'rgba(255,255,255,0.12)'}`,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 1,
+              cursor: 'pointer',
             }}
-            title="Add note"
-          >📝</motion.button>
-
-          {/* Wallet icon */}
-          <motion.button
-            whileTap={{ scale: 0.85 }}
-            onClick={() => { setWalletOpen(v => !v); setNoteOpen(false); setDateOpen(false) }}
-            style={{
-              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-              background: walletOpen ? `${accent}22` : 'rgba(255,255,255,0.06)',
-              border: `1px solid ${walletOpen ? accent : 'rgba(255,255,255,0.10)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', fontSize: 17,
-            }}
-            title="Wallet / Card"
-          >💳</motion.button>
-
-          {/* Date icon */}
-          <motion.button
-            whileTap={{ scale: 0.85 }}
-            onClick={() => { setDateOpen(v => !v); setNoteOpen(false); setWalletOpen(false) }}
-            style={{
-              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-              background: dateOpen ? `${accent}22` : 'rgba(255,255,255,0.06)',
-              border: `1px solid ${dateOpen ? accent : 'rgba(255,255,255,0.10)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', fontSize: 17,
-            }}
-            title="Select date"
           >
-            <span style={{ fontSize: 12, fontWeight: 700, color: dateOpen ? accent : 'rgba(255,255,255,0.55)', lineHeight: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
-              📅
-              {!isToday && <span style={{ fontSize: 10, color: accent }}>{txDate.getDate()}/{txDate.getMonth()+1}</span>}
+            <span style={{ fontSize: 16, lineHeight: 1 }}>📝</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: activePanel === 'note' ? accent : 'rgba(255,255,255,0.45)', letterSpacing: '0.04em' }}>
+              {note ? '✓ Note' : 'NOTE'}
+            </span>
+          </motion.button>
+
+          {/* Wallet button */}
+          <motion.button
+            whileTap={{ scale: 0.90 }}
+            onClick={() => togglePanel('wallet')}
+            style={{
+              flex: 1, height: 44,
+              borderRadius: 14,
+              background: activePanel === 'wallet' ? `${accent}22` : 'rgba(255,255,255,0.07)',
+              border: `1px solid ${activePanel === 'wallet' ? accent : 'rgba(255,255,255,0.12)'}`,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 1,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>💳</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: activePanel === 'wallet' ? accent : 'rgba(255,255,255,0.45)', letterSpacing: '0.04em' }}>
+              {walletLabel ? walletLabel.slice(0, 8).toUpperCase() : 'WALLET'}
+            </span>
+          </motion.button>
+
+          {/* Calendar button */}
+          <motion.button
+            whileTap={{ scale: 0.90 }}
+            onClick={() => togglePanel('calendar')}
+            style={{
+              flex: 1, height: 44,
+              borderRadius: 14,
+              background: activePanel === 'calendar' ? `${accent}22` : 'rgba(255,255,255,0.07)',
+              border: `1px solid ${activePanel === 'calendar' ? accent : 'rgba(255,255,255,0.12)'}`,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 1,
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>📅</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: activePanel === 'calendar' ? accent : 'rgba(255,255,255,0.45)', letterSpacing: '0.04em' }}>
+              {isToday ? 'TODAY' : `${txDate.getDate()}/${txDate.getMonth() + 1}`}
             </span>
           </motion.button>
 
@@ -390,104 +696,85 @@ export function EntryScreen() {
             onClick={() => void handleConfirm()}
             disabled={saving || success}
             style={{
-              flex: 1, height: 40, borderRadius: 12,
+              flex: 2, height: 44,
+              borderRadius: 14,
               background: success
                 ? 'linear-gradient(135deg,#34D399,#10B981)'
-                : `linear-gradient(135deg, ${accent}, ${accent}cc)`,
+                : `linear-gradient(135deg, ${accent}, ${accent}bb)`,
               border: 'none',
               color: '#000',
-              fontSize: 14, fontWeight: 800,
-              cursor: 'pointer',
-              boxShadow: `0 3px 16px ${glow}`,
+              fontSize: 13, fontWeight: 900,
+              cursor: saving || success ? 'default' : 'pointer',
+              boxShadow: success ? '0 3px 20px rgba(52,211,153,0.45)' : `0 3px 20px ${glow}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              transition: 'box-shadow 0.2s ease',
             }}
           >
-            {success ? '✓ Saved!' : saving ? '…' : (
+            {success ? (
+              <motion.span
+                initial={{ scale: 0.6 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Saved!
+              </motion.span>
+            ) : saving ? (
+              <span style={{ opacity: 0.7 }}>Saving…</span>
+            ) : (
               <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                Confirm
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                CONFIRM
               </>
             )}
           </motion.button>
         </div>
 
-        {/* Note inline input */}
-        <AnimatePresence>
-          {noteOpen && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22 }} style={{ overflow: 'hidden' }}>
-              <input
-                autoFocus
-                value={note}
-                onChange={e => setNote(e.target.value)}
-                placeholder="Add a note…"
-                maxLength={120}
-                style={{
-                  width: '100%', height: 38, borderRadius: 12,
-                  padding: '0 14px',
-                  fontSize: 13, fontWeight: 500,
-                  background: 'rgba(255,255,255,0.06)',
-                  border: `1px solid ${accent}40`,
-                  color: '#F5F5F5',
-                  outline: 'none',
-                }}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Wallet placeholder */}
-        <AnimatePresence>
-          {walletOpen && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22 }} style={{ overflow: 'hidden' }}>
-              <div style={{ padding: '10px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', fontSize: 12, color: 'rgba(255,255,255,0.45)', fontWeight: 600 }}>
-                💡 Wallet &amp; Card selection — coming soon
+        {/* ── KEYPAD ── */}
+        <div style={{ paddingInline: 16, paddingBottom: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {KEY_ROWS.map((row, ri) => (
+              <div
+                key={ri}
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}
+              >
+                {row.map(k => (
+                  <motion.button
+                    key={k}
+                    whileTap={{ scale: 0.87, backgroundColor: k === '⌫' ? 'rgba(239,68,68,0.20)' : `${accent}22` }}
+                    onClick={() => handleKey(k)}
+                    style={{
+                      height: 56,
+                      borderRadius: 16,
+                      background: k === '⌫'
+                        ? 'rgba(239,68,68,0.08)'
+                        : 'rgba(255,255,255,0.06)',
+                      border: k === '⌫'
+                        ? '1px solid rgba(239,68,68,0.18)'
+                        : '1px solid rgba(255,255,255,0.09)',
+                      color: k === '⌫' ? '#F87171' : '#F5F5F5',
+                      fontSize: k === '⌫' ? 22 : 22,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transition: 'background 0.12s ease',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                    }}
+                  >
+                    {k}
+                  </motion.button>
+                ))}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Date picker */}
-        <AnimatePresence>
-          {dateOpen && (
-            <DatePickerInline value={txDate} onChange={d => { setTxDate(d); setDateOpen(false) }} />
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* ── KEYPAD ── */}
-      <div style={{
-        paddingInline: 20,
-        paddingBottom: 12,
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {KEY_ROWS.map((row, ri) => (
-            <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-              {row.map(k => (
-                <motion.button
-                  key={k}
-                  whileTap={{ scale: 0.88, backgroundColor: `${accent}33` }}
-                  onClick={() => handleKey(k)}
-                  style={{
-                    height: 56,
-                    borderRadius: 16,
-                    background: k === '⌫' ? 'rgba(239,68,68,0.10)' : 'rgba(255,255,255,0.06)',
-                    border: k === '⌫' ? '1px solid rgba(239,68,68,0.20)' : '1px solid rgba(255,255,255,0.09)',
-                    color: k === '⌫' ? '#F87171' : '#F5F5F5',
-                    fontSize: k === '⌫' ? 20 : 22,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'background 0.15s ease',
-                  }}
-                >
-                  {k}
-                </motion.button>
-              ))}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>
