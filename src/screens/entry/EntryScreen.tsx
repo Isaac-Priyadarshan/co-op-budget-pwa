@@ -273,7 +273,6 @@ export function EntryScreen() {
 
   // ── Progressive glow level (0–3) — each param adds one level ────────────
   const readinessLevel = (hasAmount ? 1 : 0) + (hasWallet ? 1 : 0) + (!subRequired || hasSub ? 1 : 0)
-  // Maps 0→nearly invisible, 1→faint, 2→medium, 3→full bright
   const confirmOpacity = [0.18, 0.42, 0.70, 1][readinessLevel]
   const confirmGlowStrength = [0, 0.15, 0.35, 1][readinessLevel]
   const confirmBg = readinessLevel === 3
@@ -473,40 +472,7 @@ export function EntryScreen() {
           {formattedDisplay}
         </motion.div>
 
-        {/* ── REQUIREMENT INDICATOR DOTS (dots only, no labels) ── */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
-          {/* Dot 1: Amount */}
-          <motion.div
-            animate={{
-              backgroundColor: hasAmount ? accent : 'rgba(255,255,255,0.18)',
-              boxShadow: hasAmount ? `0 0 8px ${accent}, 0 0 16px ${accent}66` : 'none',
-            }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            style={{ width: 8, height: 8, borderRadius: '50%' }}
-          />
-          {/* Dot 2: Wallet */}
-          <motion.div
-            animate={{
-              backgroundColor: hasWallet ? accent : 'rgba(255,255,255,0.18)',
-              boxShadow: hasWallet ? `0 0 8px ${accent}, 0 0 16px ${accent}66` : 'none',
-            }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            style={{ width: 8, height: 8, borderRadius: '50%' }}
-          />
-          {/* Dot 3: Subcategory — only shown if subs exist */}
-          {subRequired && (
-            <motion.div
-              animate={{
-                backgroundColor: hasSub ? accent : 'rgba(255,255,255,0.18)',
-                boxShadow: hasSub ? `0 0 8px ${accent}, 0 0 16px ${accent}66` : 'none',
-              }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              style={{ width: 8, height: 8, borderRadius: '50%' }}
-            />
-          )}
-        </div>
-
-        {/* Wallet chip */}
+        {/* ── WALLET CHIP — shown once wallet is selected ── */}
         <AnimatePresence>
           {walletLabel && (
             <motion.div
@@ -515,7 +481,7 @@ export function EntryScreen() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18 }}
               style={{
-                marginTop: 10,
+                marginTop: 12,
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '4px 12px',
                 borderRadius: 20,
@@ -528,6 +494,48 @@ export function EntryScreen() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ── SUBCATEGORY PILLS — shown below wallet chip if subs exist ── */}
+        {subs.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              marginTop: 12,
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 6,
+              justifyContent: 'center',
+              paddingInline: 20,
+            }}
+          >
+            {subs.map(sub => {
+              const isSelected = selectedSub === sub.id
+              return (
+                <motion.button
+                  key={sub.id}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setSelectedSub(isSelected ? null : sub.id)}
+                  style={{
+                    height: 30,
+                    paddingInline: 12,
+                    borderRadius: 20,
+                    border: `1px solid ${isSelected ? accent : 'rgba(255,255,255,0.12)'}`,
+                    background: isSelected ? `${accent}22` : 'rgba(255,255,255,0.05)',
+                    color: isSelected ? accent : 'rgba(255,255,255,0.60)',
+                    fontSize: 12, fontWeight: 700,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  {sub.label}
+                </motion.button>
+              )
+            })}
+          </motion.div>
+        )}
 
         {/* Error message */}
         <AnimatePresence>
@@ -627,211 +635,155 @@ export function EntryScreen() {
           </AnimatePresence>
         </div>
 
-        {/* ── SUBCATEGORY PILLS ── */}
-        {subs.length > 0 && (
-          <div
-            style={{
-              paddingInline: 16,
-              paddingBottom: 8,
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 6,
-            }}
-          >
-            {subs.map(sub => {
-              const isSelected = selectedSub === sub.id
-              return (
-                <motion.button
-                  key={sub.id}
-                  whileTap={{ scale: 0.92 }}
-                  onClick={() => setSelectedSub(isSelected ? null : sub.id)}
-                  style={{
-                    height: 30,
-                    paddingInline: 12,
-                    borderRadius: 20,
-                    border: `1px solid ${isSelected ? accent : 'rgba(255,255,255,0.12)'}`,
-                    background: isSelected ? `${accent}22` : 'rgba(255,255,255,0.05)',
-                    color: isSelected ? accent : 'rgba(255,255,255,0.60)',
-                    fontSize: 12, fontWeight: 700,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  {sub.label}
-                </motion.button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* ── TOOLBAR ── */}
+        {/* ── ACTION BAR (Note · Wallet · Calendar) ── */}
         <div
           style={{
-            paddingInline: 16,
-            paddingBottom: 10,
             display: 'flex',
             gap: 8,
+            paddingInline: 16,
+            paddingBottom: 8,
           }}
         >
-          {/* Note button */}
-          <motion.button
-            whileTap={{ scale: 0.90 }}
-            onClick={() => togglePanel('note')}
-            style={{
-              flex: 1, height: 44,
-              borderRadius: 14,
-              background: activePanel === 'note' ? `${accent}22` : 'rgba(255,255,255,0.07)',
-              border: `1px solid ${activePanel === 'note' ? accent : 'rgba(255,255,255,0.12)'}`,
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 1,
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: 16, lineHeight: 1 }}>📝</span>
-            <span style={{ fontSize: 9, fontWeight: 700, color: activePanel === 'note' ? accent : 'rgba(255,255,255,0.45)', letterSpacing: '0.04em' }}>
-              {note ? '✓ Note' : 'NOTE'}
-            </span>
-          </motion.button>
-
-          {/* Wallet button */}
-          <motion.button
-            whileTap={{ scale: 0.90 }}
-            onClick={() => togglePanel('wallet')}
-            style={{
-              flex: 1, height: 44,
-              borderRadius: 14,
-              background: activePanel === 'wallet' ? `${accent}22` : 'rgba(255,255,255,0.07)',
-              border: `1px solid ${activePanel === 'wallet' ? accent : 'rgba(255,255,255,0.12)'}`,
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 1,
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: 16, lineHeight: 1 }}>💳</span>
-            <span style={{ fontSize: 9, fontWeight: 700, color: activePanel === 'wallet' ? accent : 'rgba(255,255,255,0.45)', letterSpacing: '0.04em' }}>
-              {walletLabel ? walletLabel.slice(0, 8).toUpperCase() : 'WALLET'}
-            </span>
-          </motion.button>
-
-          {/* Calendar button */}
-          <motion.button
-            whileTap={{ scale: 0.90 }}
-            onClick={() => togglePanel('calendar')}
-            style={{
-              flex: 1, height: 44,
-              borderRadius: 14,
-              background: activePanel === 'calendar' ? `${accent}22` : 'rgba(255,255,255,0.07)',
-              border: `1px solid ${activePanel === 'calendar' ? accent : 'rgba(255,255,255,0.12)'}`,
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 1,
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: 16, lineHeight: 1 }}>📅</span>
-            <span style={{ fontSize: 9, fontWeight: 700, color: activePanel === 'calendar' ? accent : 'rgba(255,255,255,0.45)', letterSpacing: '0.04em' }}>
-              {isToday ? 'TODAY' : `${txDate.getDate()}/${txDate.getMonth() + 1}`}
-            </span>
-          </motion.button>
-
-          {/* ── CONFIRM BUTTON — progressive glow, no lock icon ── */}
-          <motion.button
-            whileTap={canConfirm && !saving && !success ? { scale: 0.94 } : {}}
-            onClick={() => void handleConfirm()}
-            disabled={saving || success}
-            style={{
-              flex: 2, height: 44,
-              borderRadius: 14,
-              background: success
-                ? 'linear-gradient(135deg,#34D399,#10B981)'
-                : saving
-                  ? `${accent}88`
-                  : confirmBg,
-              border: success || saving ? 'none' : confirmBorder,
-              color: success
-                ? '#000'
-                : saving
-                  ? '#000'
-                  : confirmTextColor,
-              fontSize: 13, fontWeight: 900,
-              cursor: (saving || success) ? 'not-allowed' : canConfirm ? 'pointer' : 'default',
-              boxShadow: success
-                ? '0 3px 20px rgba(52,211,153,0.45)'
-                : saving
-                  ? `0 3px 16px ${glow}`
-                  : confirmShadow,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              opacity: confirmOpacity,
-              transition: 'background 0.3s ease, box-shadow 0.3s ease, color 0.3s ease, opacity 0.3s ease, border 0.3s ease',
-            }}
-          >
-            {success ? (
-              <motion.span
-                initial={{ scale: 0.6 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-                style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+          {[
+            { id: 'note' as const,     icon: '✏️', label: note ? 'Note ✓' : 'Note' },
+            { id: 'wallet' as const,   icon: '💳', label: walletLabel || 'Wallet' },
+            { id: 'calendar' as const, icon: '📅', label: dateLabel },
+          ].map(btn => {
+            const isActive = activePanel === btn.id
+            const isDone = (btn.id === 'note' && !!note) || (btn.id === 'wallet' && !!walletId)
+            return (
+              <motion.button
+                key={btn.id}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => togglePanel(btn.id)}
+                style={{
+                  flex: 1,
+                  height: 38,
+                  borderRadius: 12,
+                  border: `1px solid ${isActive ? accent : isDone ? `${accent}55` : 'rgba(255,255,255,0.10)'}`,
+                  background: isActive ? `${accent}22` : isDone ? `${accent}10` : 'rgba(255,255,255,0.04)',
+                  color: isActive ? accent : isDone ? `${accent}cc` : 'rgba(255,255,255,0.50)',
+                  fontSize: 11, fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  letterSpacing: '0.02em',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  paddingInline: 6,
+                }}
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Saved!
-              </motion.span>
-            ) : saving ? (
-              <span>Saving…</span>
-            ) : (
-              <>
-                {readinessLevel === 3 && (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-                CONFIRM
-              </>
-            )}
-          </motion.button>
+                <span style={{ fontSize: 13 }}>{btn.icon}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 70 }}>{btn.label}</span>
+              </motion.button>
+            )
+          })}
         </div>
 
-        {/* ── KEYPAD ── */}
+        {/* ── NUMPAD ── */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 8,
+            paddingInline: 16,
+            paddingBottom: 8,
+          }}
+        >
+          {KEY_ROWS.flat().map(k => (
+            <motion.button
+              key={k}
+              whileTap={{ scale: 0.88 }}
+              onClick={() => handleKey(k)}
+              style={{
+                height: 58,
+                borderRadius: 16,
+                border: 'none',
+                background: k === '⌫'
+                  ? `${accent}18`
+                  : k === '.'
+                    ? 'rgba(255,255,255,0.06)'
+                    : 'rgba(255,255,255,0.07)',
+                color: k === '⌫' ? accent : '#FFFFFF',
+                fontSize: k === '⌫' ? 20 : 22,
+                fontWeight: k === '⌫' ? 700 : 600,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'background 0.12s ease',
+              }}
+            >
+              {k}
+            </motion.button>
+          ))}
+        </div>
+
+        {/* ── CONFIRM BUTTON ── */}
         <div style={{ paddingInline: 16, paddingBottom: 8 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {KEY_ROWS.map((row, ri) => (
-              <div
-                key={ri}
-                style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}
+          <AnimatePresence>
+            {success ? (
+              <motion.div
+                key="success"
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                style={{
+                  height: 56,
+                  borderRadius: 18,
+                  background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 18, fontWeight: 800, color: '#fff',
+                  gap: 8,
+                  boxShadow: '0 4px 24px rgba(34,197,94,0.4)',
+                }}
               >
-                {row.map(k => (
-                  <motion.button
-                    key={k}
-                    whileTap={{ scale: 0.87, backgroundColor: k === '⌫' ? 'rgba(239,68,68,0.20)' : `${accent}22` }}
-                    onClick={() => handleKey(k)}
-                    style={{
-                      height: 56,
-                      borderRadius: 16,
-                      background: k === '⌫'
-                        ? 'rgba(239,68,68,0.08)'
-                        : 'rgba(255,255,255,0.06)',
-                      border: k === '⌫'
-                        ? '1px solid rgba(239,68,68,0.18)'
-                        : '1px solid rgba(255,255,255,0.09)',
-                      color: k === '⌫' ? '#F87171' : '#F5F5F5',
-                      fontSize: 22,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      transition: 'background 0.12s ease',
-                      userSelect: 'none',
-                      WebkitUserSelect: 'none',
-                    }}
-                  >
-                    {k}
-                  </motion.button>
-                ))}
-              </div>
-            ))}
-          </div>
+                ✓ Saved
+              </motion.div>
+            ) : (
+              <motion.button
+                key="confirm"
+                whileTap={canConfirm ? { scale: 0.97 } : {}}
+                onClick={handleConfirm}
+                disabled={saving}
+                style={{
+                  width: '100%',
+                  height: 56,
+                  borderRadius: 18,
+                  border: confirmBorder,
+                  background: confirmBg,
+                  color: confirmTextColor,
+                  fontSize: 16, fontWeight: 800,
+                  cursor: canConfirm ? 'pointer' : 'default',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: confirmShadow,
+                  transition: 'all 0.25s ease',
+                  opacity: confirmOpacity,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                {saving ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                    style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${accent}44`, borderTopColor: accent }}
+                  />
+                ) : (
+                  <>
+                    <span>{canConfirm ? '✓' : '○'}</span>
+                    <span>
+                      {!hasAmount
+                        ? 'Enter amount'
+                        : !hasWallet
+                          ? 'Select wallet'
+                          : subRequired && !hasSub
+                            ? 'Select subcategory'
+                            : `Save ₹${amountValue.toLocaleString('en-IN')}`}
+                    </span>
+                  </>
+                )}
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>
