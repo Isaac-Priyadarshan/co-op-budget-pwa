@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 import type { AppUser } from './types'
 
-// ── Transactions ──────────────────────────────────────────────
+// ── Transactions ──────────────────────────────────────────────────────────────
 export interface Transaction {
   id: string; amount: number; description: string; category: string
   created_by: AppUser; type: 'income' | 'expense'; created_at: string
@@ -20,7 +20,7 @@ export async function deleteTransaction(id: string): Promise<void> {
   if (error) throw error
 }
 
-// ── Borrowed ──────────────────────────────────────────────────
+// ── Borrowed ──────────────────────────────────────────────────────────────────
 export interface BorrowedEntry {
   id: string; person: string; amount: number; description: string
   borrowed_by: AppUser; settled: boolean; created_at: string
@@ -43,7 +43,7 @@ export async function deleteBorrowed(id: string): Promise<void> {
   if (error) throw error
 }
 
-// ── Lent ──────────────────────────────────────────────────────
+// ── Lent ──────────────────────────────────────────────────────────────────────
 export interface LentEntry {
   id: string; person: string; amount: number; description: string
   lent_by: AppUser; settled: boolean; created_at: string
@@ -66,7 +66,7 @@ export async function deleteLent(id: string): Promise<void> {
   if (error) throw error
 }
 
-// ── Wallets ───────────────────────────────────────────────────
+// ── Wallets ───────────────────────────────────────────────────────────────────
 export interface WalletEntry {
   id: string; owner: AppUser; type: 'cash' | 'credit'
   label: string; balance: number; updated_at: string
@@ -87,7 +87,7 @@ export async function deleteWallet(id: string): Promise<void> {
   if (error) throw error
 }
 
-// ── Loans ─────────────────────────────────────────────────────
+// ── Loans ─────────────────────────────────────────────────────────────────────
 export interface LoanEntry {
   id: string; label: string; principal: number; outstanding: number
   emi_amount: number; interest_rate: number; owner: AppUser
@@ -111,7 +111,7 @@ export async function deleteLoan(id: string): Promise<void> {
   if (error) throw error
 }
 
-// ── Assets ────────────────────────────────────────────────────
+// ── Assets ────────────────────────────────────────────────────────────────────
 export interface AssetEntry {
   id: string; label: string; category: string
   value: number; owner: string; notes: string; created_at: string
@@ -127,5 +127,29 @@ export async function insertAsset(entry: NewAsset): Promise<AssetEntry> {
 }
 export async function deleteAsset(id: string): Promise<void> {
   const { error } = await supabase.from('assets').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ── Recurring Payments ────────────────────────────────────────────────────────
+export interface RecurringEntry {
+  id: string; label: string; amount: number; category: string
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+  next_due: string; owner: string; active: boolean; notes: string; created_at: string
+}
+export type NewRecurring = Omit<RecurringEntry, 'id' | 'created_at' | 'active'>
+export async function fetchRecurring(): Promise<RecurringEntry[]> {
+  const { data, error } = await supabase.from('recurring_payments').select('*').order('next_due', { ascending: true })
+  if (error) throw error; return data as RecurringEntry[]
+}
+export async function insertRecurring(entry: NewRecurring): Promise<RecurringEntry> {
+  const { data, error } = await supabase.from('recurring_payments').insert({ ...entry, active: true }).select().single()
+  if (error) throw error; return data as RecurringEntry
+}
+export async function toggleRecurring(id: string, active: boolean): Promise<void> {
+  const { error } = await supabase.from('recurring_payments').update({ active }).eq('id', id)
+  if (error) throw error
+}
+export async function deleteRecurring(id: string): Promise<void> {
+  const { error } = await supabase.from('recurring_payments').delete().eq('id', id)
   if (error) throw error
 }
