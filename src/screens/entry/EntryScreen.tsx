@@ -131,7 +131,7 @@ function WalletPanel({
   wallets: { id: string; label: string; type: 'cash' | 'credit'; balance: number; owner: string }[]
   loading: boolean
   selectedId: string | null
-  onSelect: (id: string | null, label: string) => void
+  onSelect: (id: string, label: string) => void
   accent: string
 }) {
   const walletIcon = (type: 'cash' | 'credit') => type === 'credit' ? '💳' : '👛'
@@ -165,25 +165,6 @@ function WalletPanel({
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {/* None option */}
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => onSelect(null, '')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '9px 12px',
-              borderRadius: 12,
-              border: `1px solid ${selectedId === null ? accent : 'rgba(255,255,255,0.08)'}`,
-              background: selectedId === null ? `${accent}18` : 'rgba(255,255,255,0.03)',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ fontSize: 16 }}>🚫</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: selectedId === null ? accent : 'rgba(255,255,255,0.60)' }}>
-              No wallet
-            </span>
-          </motion.button>
-
           {wallets.map(w => (
             <motion.button
               key={w.id}
