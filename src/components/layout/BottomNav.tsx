@@ -22,6 +22,14 @@ const ICONS: Record<string, string> = {
   settings: '⚙️',
 }
 
+// Default screen to land on when each group tab is tapped
+const GROUP_DEFAULTS: ScreenId[] = [
+  'home',             // Finance group
+  'wallet-credit',    // Tracking group
+  'account-overview', // Asset group
+  'overview',         // More group
+]
+
 export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
   const [activeGroup, setActiveGroup] = useState(0)
 
@@ -75,8 +83,7 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
                     style={{
                       position: 'absolute',
                       inset: 0,
-                      background:
-                        'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.18))',
+                      background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.18))',
                       borderRadius: '14px',
                       border: '1px solid rgba(139,92,246,0.3)',
                     }}
@@ -117,7 +124,7 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
               key={group.label}
               onClick={() => {
                 setActiveGroup(idx)
-                onNavigate(group.screens[0].id as ScreenId)
+                onNavigate(GROUP_DEFAULTS[idx])
               }}
               style={{
                 padding: '5px 4px',
