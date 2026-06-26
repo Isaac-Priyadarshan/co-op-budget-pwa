@@ -264,13 +264,38 @@ export function EntryScreen() {
 
   const amountValue = parseFloat(raw) || 0
 
-  // ── Readiness gate — all 3 must be true to unlock CONFIRM ────────────────
+  // ── Readiness gate ───────────────────────────────────────────────────────
   const hasAmount  = amountValue > 0
   const hasWallet  = walletId !== null
   const hasSub     = selectedSub !== null
-  // If the category has no subcategories, skip that requirement automatically
   const subRequired = subs.length > 0
   const canConfirm = hasAmount && hasWallet && (!subRequired || hasSub)
+
+  // ── Progressive glow level (0–3) — each param adds one level ────────────
+  const readinessLevel = (hasAmount ? 1 : 0) + (hasWallet ? 1 : 0) + (!subRequired || hasSub ? 1 : 0)
+  // Maps 0→nearly invisible, 1→faint, 2→medium, 3→full bright
+  const confirmOpacity = [0.18, 0.42, 0.70, 1][readinessLevel]
+  const confirmGlowStrength = [0, 0.15, 0.35, 1][readinessLevel]
+  const confirmBg = readinessLevel === 3
+    ? `linear-gradient(135deg, ${accent}, ${accent}bb)`
+    : readinessLevel === 2
+      ? `linear-gradient(135deg, ${accent}88, ${accent}55)`
+      : readinessLevel === 1
+        ? `${accent}22`
+        : 'rgba(255,255,255,0.05)'
+  const confirmBorder = readinessLevel === 3
+    ? 'none'
+    : `1px solid ${accent}${readinessLevel === 2 ? '44' : readinessLevel === 1 ? '28' : '12'}`
+  const confirmTextColor = readinessLevel === 3
+    ? '#000'
+    : readinessLevel === 2
+      ? accent
+      : readinessLevel === 1
+        ? `${accent}99`
+        : 'rgba(255,255,255,0.20)'
+  const confirmShadow = readinessLevel >= 1
+    ? `0 3px ${8 + readinessLevel * 10}px ${glow.replace(')', `, ${confirmGlowStrength})`).replace('rgba(', 'rgba(')}`
+    : 'none'
 
   // ── Format display ────────────────────────────────────────────────────────
   const formattedDisplay = (() => {
@@ -448,49 +473,36 @@ export function EntryScreen() {
           {formattedDisplay}
         </motion.div>
 
-        {/* ── REQUIREMENT INDICATOR DOTS ── */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 14, alignItems: 'center' }}>
+        {/* ── REQUIREMENT INDICATOR DOTS (dots only, no labels) ── */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 16, alignItems: 'center' }}>
           {/* Dot 1: Amount */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{
-              width: 7, height: 7, borderRadius: '50%',
-              background: hasAmount ? accent : 'rgba(255,255,255,0.18)',
-              boxShadow: hasAmount ? `0 0 6px ${accent}` : 'none',
-              transition: 'background 0.2s ease, box-shadow 0.2s ease',
-            }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: hasAmount ? accent : 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
-              AMT
-            </span>
-          </div>
-          <div style={{ width: 1, height: 10, background: 'rgba(255,255,255,0.12)' }} />
+          <motion.div
+            animate={{
+              backgroundColor: hasAmount ? accent : 'rgba(255,255,255,0.18)',
+              boxShadow: hasAmount ? `0 0 8px ${accent}, 0 0 16px ${accent}66` : 'none',
+            }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            style={{ width: 8, height: 8, borderRadius: '50%' }}
+          />
           {/* Dot 2: Wallet */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{
-              width: 7, height: 7, borderRadius: '50%',
-              background: hasWallet ? accent : 'rgba(255,255,255,0.18)',
-              boxShadow: hasWallet ? `0 0 6px ${accent}` : 'none',
-              transition: 'background 0.2s ease, box-shadow 0.2s ease',
-            }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: hasWallet ? accent : 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
-              WALLET
-            </span>
-          </div>
+          <motion.div
+            animate={{
+              backgroundColor: hasWallet ? accent : 'rgba(255,255,255,0.18)',
+              boxShadow: hasWallet ? `0 0 8px ${accent}, 0 0 16px ${accent}66` : 'none',
+            }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            style={{ width: 8, height: 8, borderRadius: '50%' }}
+          />
           {/* Dot 3: Subcategory — only shown if subs exist */}
           {subRequired && (
-            <>
-              <div style={{ width: 1, height: 10, background: 'rgba(255,255,255,0.12)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{
-                  width: 7, height: 7, borderRadius: '50%',
-                  background: hasSub ? accent : 'rgba(255,255,255,0.18)',
-                  boxShadow: hasSub ? `0 0 6px ${accent}` : 'none',
-                  transition: 'background 0.2s ease, box-shadow 0.2s ease',
-                }} />
-                <span style={{ fontSize: 10, fontWeight: 700, color: hasSub ? accent : 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
-                  TYPE
-                </span>
-              </div>
-            </>
+            <motion.div
+              animate={{
+                backgroundColor: hasSub ? accent : 'rgba(255,255,255,0.18)',
+                boxShadow: hasSub ? `0 0 8px ${accent}, 0 0 16px ${accent}66` : 'none',
+              }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              style={{ width: 8, height: 8, borderRadius: '50%' }}
+            />
           )}
         </div>
 
@@ -722,37 +734,35 @@ export function EntryScreen() {
             </span>
           </motion.button>
 
-          {/* ── CONFIRM BUTTON ── */}
+          {/* ── CONFIRM BUTTON — progressive glow, no lock icon ── */}
           <motion.button
             whileTap={canConfirm && !saving && !success ? { scale: 0.94 } : {}}
             onClick={() => void handleConfirm()}
-            disabled={!canConfirm || saving || success}
+            disabled={saving || success}
             style={{
               flex: 2, height: 44,
               borderRadius: 14,
               background: success
                 ? 'linear-gradient(135deg,#34D399,#10B981)'
-                : canConfirm
-                  ? `linear-gradient(135deg, ${accent}, ${accent}bb)`
-                  : 'rgba(255,255,255,0.07)',
-              border: canConfirm && !success
-                ? 'none'
-                : '1px solid rgba(255,255,255,0.10)',
+                : saving
+                  ? `${accent}88`
+                  : confirmBg,
+              border: success || saving ? 'none' : confirmBorder,
               color: success
                 ? '#000'
-                : canConfirm
+                : saving
                   ? '#000'
-                  : 'rgba(255,255,255,0.25)',
+                  : confirmTextColor,
               fontSize: 13, fontWeight: 900,
-              cursor: (!canConfirm || saving || success) ? 'not-allowed' : 'pointer',
+              cursor: (saving || success) ? 'not-allowed' : canConfirm ? 'pointer' : 'default',
               boxShadow: success
                 ? '0 3px 20px rgba(52,211,153,0.45)'
-                : canConfirm
-                  ? `0 3px 20px ${glow}`
-                  : 'none',
+                : saving
+                  ? `0 3px 16px ${glow}`
+                  : confirmShadow,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              transition: 'background 0.25s ease, box-shadow 0.25s ease, color 0.25s ease, border 0.25s ease',
-              opacity: saving ? 0.7 : 1,
+              opacity: confirmOpacity,
+              transition: 'background 0.3s ease, box-shadow 0.3s ease, color 0.3s ease, opacity 0.3s ease, border 0.3s ease',
             }}
           >
             {success ? (
@@ -769,19 +779,13 @@ export function EntryScreen() {
               </motion.span>
             ) : saving ? (
               <span>Saving…</span>
-            ) : canConfirm ? (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                CONFIRM
-              </>
             ) : (
               <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
+                {readinessLevel === 3 && (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
                 CONFIRM
               </>
             )}
