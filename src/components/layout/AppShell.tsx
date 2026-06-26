@@ -35,14 +35,8 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 export function AppShell() {
   const { activeUser } = useUser()
   const [activeScreen, setActiveScreen] = useState<ScreenId>('home')
-  const [prevScreen, setPrevScreen] = useState<ScreenId>('home')
 
   const ActiveComponent = SCREEN_MAP[activeScreen]
-
-  const handleNavigate = (screen: ScreenId) => {
-    setPrevScreen(activeScreen)
-    setActiveScreen(screen)
-  }
 
   if (!activeUser) {
     return <UserSelectScreen />
@@ -103,7 +97,7 @@ export function AppShell() {
       </div>
 
       {/* Bottom navigation */}
-      <BottomNav activeScreen={activeScreen} onNavigate={handleNavigate} />
+      <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
     </div>
   )
 }
