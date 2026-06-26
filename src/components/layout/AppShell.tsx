@@ -49,17 +49,49 @@ export function AppShell() {
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        background:
-          'radial-gradient(circle at top, rgba(82,146,255,0.15) 0%, transparent 35%), radial-gradient(circle at bottom right, rgba(127,86,217,0.13) 0%, transparent 30%), linear-gradient(180deg,#04050b 0%,#070b17 52%,#050816 100%)',
+        // Pitch black base with a single warm gold radial spotlight from the top
+        background: '#000000',
         overflow: 'hidden',
       }}
     >
+      {/* Global gold top-glow — always present across all screens */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '-10%',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '140vw',
+          height: '55vw',
+          borderRadius: '50%',
+          background: 'radial-gradient(ellipse, rgba(251,191,36,0.13) 0%, transparent 70%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+      {/* Subtle bottom-corner gold warmth */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '8%',
+          right: '-10%',
+          width: '60vw',
+          height: '60vw',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(251,191,36,0.06) 0%, transparent 70%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
       {/* Screen area */}
       <div
         className="scroll-area"
         style={{
           flex: 1,
           paddingTop: 'env(safe-area-inset-top)',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         <AnimatePresence mode="wait">
@@ -77,7 +109,10 @@ export function AppShell() {
       </div>
 
       {/* Bottom navigation */}
-      <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
+      <BottomNav
+        activeScreen={activeScreen}
+        onNavigate={setActiveScreen}
+      />
     </div>
   )
 }

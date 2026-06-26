@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+:root {
+  --gold-bright:   #FBBF24;
+  --gold-mid:      #F59E0B;
+  --gold-deep:     #D97706;
+  --gold-glow:     rgba(251,191,36,0.18);
+  --gold-glow-sm:  rgba(251,191,36,0.10);
+  --red-main:      #F87171;
+  --red-deep:      #EF4444;
+  --red-glow:      rgba(248,113,113,0.15);
+  --green-main:    #34D399;
+  --green-deep:    #10B981;
+  --green-glow:    rgba(52,211,153,0.15);
+  --surface-1:     #0a0a0a;
+  --surface-2:     #111111;
+  --surface-3:     #181818;
+  --surface-4:     #202020;
+  --border-soft:   rgba(255,255,255,0.07);
+  --border-gold:   rgba(251,191,36,0.25);
+  --text-primary:  #F5F5F5;
+  --text-muted:    rgba(245,245,245,0.55);
+  --text-faint:    rgba(245,245,245,0.28);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -20,8 +43,8 @@ body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
-  background: #04050b;
-  color: #f5f7ff;
+  background: #000000;
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
@@ -35,7 +58,6 @@ body {
   overflow: hidden;
 }
 
-/* Scrollable inner containers */
 .scroll-area {
   overflow-y: auto;
   overflow-x: hidden;
@@ -43,39 +65,31 @@ body {
   overscroll-behavior-y: contain;
 }
 
-/* Hide scrollbars but keep functionality */
 ::-webkit-scrollbar { display: none; }
 * { scrollbar-width: none; }
 
-/* Number inputs — remove spinners */
 input[type='number']::-webkit-inner-spin-button,
 input[type='number']::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 input[type='number'] { -moz-appearance: textfield; }
-
-/* Date input — dark scheme */
 input[type='date'] { color-scheme: dark; }
 
-/* Focus ring */
 :focus-visible {
-  outline: 2px solid rgba(99,102,241,0.7);
+  outline: 2px solid rgba(251,191,36,0.7);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* Prevent text selection on UI elements */
 button, nav, .no-select {
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* Safe area padding helpers */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 .pt-safe { padding-top: env(safe-area-inset-top); }
 
-/* Framer Motion — GPU acceleration */
 [data-framer-component-type] {
   will-change: transform, opacity;
 }
