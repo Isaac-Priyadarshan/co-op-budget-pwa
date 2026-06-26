@@ -1,15 +1,10 @@
 @import "tailwindcss";
 
-:root {
-  color-scheme: dark;
-}
-
-*,
-*::before,
-*::after {
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
@@ -17,52 +12,70 @@ html {
   text-size-adjust: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-html,
-body,
-#root {
-  width: 100%;
+  overscroll-behavior: none;
   height: 100%;
-  overflow: hidden;
-  background: #050816;
 }
 
 body {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color: #f5f7ff;
+  height: 100%;
+  overflow: hidden;
   overscroll-behavior: none;
+  background: #04050b;
+  color: #f5f7ff;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   -webkit-overflow-scrolling: touch;
-  touch-action: manipulation;
+  touch-action: pan-y;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
+#root {
+  height: 100%;
+  height: 100dvh;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* Scrollable inner containers */
+.scroll-area {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
-/* Hide scrollbars globally but allow scrolling inside screens */
-::-webkit-scrollbar {
-  display: none;
+/* Hide scrollbars but keep functionality */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+/* Number inputs — remove spinners */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] { -moz-appearance: textfield; }
+
+/* Date input — dark scheme */
+input[type='date'] { color-scheme: dark; }
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid rgba(99,102,241,0.7);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
-* {
-  scrollbar-width: none;
+/* Prevent text selection on UI elements */
+button, nav, .no-select {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-/* Safe area insets for iPhone notch/home bar */
-.safe-top {
-  padding-top: env(safe-area-inset-top);
-}
+/* Safe area padding helpers */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+.pt-safe { padding-top: env(safe-area-inset-top); }
 
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
+/* Framer Motion — GPU acceleration */
+[data-framer-component-type] {
+  will-change: transform, opacity;
 }

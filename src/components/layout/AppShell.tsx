@@ -35,8 +35,14 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 export function AppShell() {
   const { activeUser } = useUser()
   const [activeScreen, setActiveScreen] = useState<ScreenId>('home')
+  const [prevScreen, setPrevScreen] = useState<ScreenId>('home')
 
   const ActiveComponent = SCREEN_MAP[activeScreen]
+
+  const handleNavigate = (screen: ScreenId) => {
+    setPrevScreen(activeScreen)
+    setActiveScreen(screen)
+  }
 
   if (!activeUser) {
     return <UserSelectScreen />
@@ -54,23 +60,41 @@ export function AppShell() {
         overflow: 'hidden',
       }}
     >
+      {/* User badge top right */}
+      <div style={{
+        position: 'absolute',
+        top: 'calc(env(safe-area-inset-top) + 12px)',
+        right: 16,
+        zIndex: 20,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '5px 12px 5px 8px',
+        borderRadius: 100,
+        background: 'rgba(255,255,255,0.07)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+      }}>
+        <span style={{ fontSize: 14 }}>{activeUser === 'Isaac' ? '👨🏽' : '👩🏽'}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{activeUser}</span>
+      </div>
+
       {/* Screen area */}
       <div
+        className="scroll-area"
         style={{
           flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
           paddingTop: 'env(safe-area-inset-top)',
-          WebkitOverflowScrolling: 'touch',
         }}
       >
         <AnimatePresence mode="wait">
           <motion.div
             key={activeScreen}
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             style={{ minHeight: '100%' }}
           >
             <ActiveComponent />
@@ -79,7 +103,7 @@ export function AppShell() {
       </div>
 
       {/* Bottom navigation */}
-      <BottomNav activeScreen={activeScreen} onNavigate={setActiveScreen} />
+      <BottomNav activeScreen={activeScreen} onNavigate={handleNavigate} />
     </div>
   )
 }
