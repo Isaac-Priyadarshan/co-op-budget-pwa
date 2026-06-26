@@ -217,7 +217,7 @@ export function EntryScreen() {
   const glow   = category?.glow   ?? 'rgba(251,191,36,0.22)'
 
   // ── Entry state ──────────────────────────────────────────────────────────
-  const [raw, setRaw]           = useState('0')       // raw numeric string
+  const [raw, setRaw]           = useState('0')
   const [selectedSub, setSelectedSub] = useState<string | null>(null)
   const [note, setNote]         = useState('')
   const [txDate, setTxDate]     = useState(new Date())
@@ -264,6 +264,14 @@ export function EntryScreen() {
 
   const amountValue = parseFloat(raw) || 0
 
+  // ── Readiness gate — all 3 must be true to unlock CONFIRM ────────────────
+  const hasAmount  = amountValue > 0
+  const hasWallet  = walletId !== null
+  const hasSub     = selectedSub !== null
+  // If the category has no subcategories, skip that requirement automatically
+  const subRequired = subs.length > 0
+  const canConfirm = hasAmount && hasWallet && (!subRequired || hasSub)
+
   // ── Format display ────────────────────────────────────────────────────────
   const formattedDisplay = (() => {
     const [int, dec] = raw.split('.')
@@ -284,7 +292,7 @@ export function EntryScreen() {
 
   // ── Confirm ───────────────────────────────────────────────────────────────
   const handleConfirm = useCallback(async () => {
-    if (amountValue <= 0) { setErrMsg('Enter an amount first.'); return }
+    if (!canConfirm) return
     if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
 
     setSaving(true)
@@ -308,7 +316,7 @@ export function EntryScreen() {
       setSaving(false)
       setErrMsg(e instanceof Error ? e.message : 'Failed to save. Try again.')
     }
-  }, [amountValue, category, activeUser, selectedSub, note, subs, addTransaction, type, navigate])
+  }, [canConfirm, category, activeUser, selectedSub, note, subs, addTransaction, amountValue, type, navigate])
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -323,7 +331,7 @@ export function EntryScreen() {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
-      {/* Ambient glow from category accent */}
+      {/* Ambient glow */}
       <div
         style={{
           position: 'absolute',
@@ -352,7 +360,6 @@ export function EntryScreen() {
           flexShrink: 0,
         }}
       >
-        {/* Back button */}
         <motion.button
           whileTap={{ scale: 0.88 }}
           onClick={() => navigate(-1)}
@@ -370,7 +377,6 @@ export function EntryScreen() {
           ←
         </motion.button>
 
-        {/* Category info */}
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10 }}>
           {category && (
             <div
@@ -396,7 +402,6 @@ export function EntryScreen() {
           </div>
         </div>
 
-        {/* Date badge */}
         <div
           style={{
             padding: '5px 10px',
@@ -443,7 +448,53 @@ export function EntryScreen() {
           {formattedDisplay}
         </motion.div>
 
-        {/* Wallet chip (if selected) */}
+        {/* ── REQUIREMENT INDICATOR DOTS ── */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 14, alignItems: 'center' }}>
+          {/* Dot 1: Amount */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: hasAmount ? accent : 'rgba(255,255,255,0.18)',
+              boxShadow: hasAmount ? `0 0 6px ${accent}` : 'none',
+              transition: 'background 0.2s ease, box-shadow 0.2s ease',
+            }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: hasAmount ? accent : 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
+              AMT
+            </span>
+          </div>
+          <div style={{ width: 1, height: 10, background: 'rgba(255,255,255,0.12)' }} />
+          {/* Dot 2: Wallet */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: hasWallet ? accent : 'rgba(255,255,255,0.18)',
+              boxShadow: hasWallet ? `0 0 6px ${accent}` : 'none',
+              transition: 'background 0.2s ease, box-shadow 0.2s ease',
+            }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: hasWallet ? accent : 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
+              WALLET
+            </span>
+          </div>
+          {/* Dot 3: Subcategory — only shown if subs exist */}
+          {subRequired && (
+            <>
+              <div style={{ width: 1, height: 10, background: 'rgba(255,255,255,0.12)' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <div style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: hasSub ? accent : 'rgba(255,255,255,0.18)',
+                  boxShadow: hasSub ? `0 0 6px ${accent}` : 'none',
+                  transition: 'background 0.2s ease, box-shadow 0.2s ease',
+                }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: hasSub ? accent : 'rgba(255,255,255,0.25)', letterSpacing: '0.05em' }}>
+                  TYPE
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Wallet chip */}
         <AnimatePresence>
           {walletLabel && (
             <motion.div
@@ -490,7 +541,7 @@ export function EntryScreen() {
         </AnimatePresence>
       </div>
 
-      {/* ── BOTTOM SECTION (subcategories + toolbar + panels + keypad) ── */}
+      {/* ── BOTTOM SECTION ── */}
       <div
         style={{
           position: 'relative',
@@ -502,7 +553,7 @@ export function EntryScreen() {
           paddingBottom: 'env(safe-area-inset-bottom, 12px)',
         }}
       >
-        {/* ── PANELS (note / wallet / calendar) ── */}
+        {/* ── PANELS ── */}
         <div style={{ paddingInline: 16, paddingBottom: 6 }}>
           <AnimatePresence mode="wait">
             {activePanel === 'note' && (
@@ -602,7 +653,7 @@ export function EntryScreen() {
           </div>
         )}
 
-        {/* ── TOOLBAR (Note | Wallet | Calendar | Confirm) ── */}
+        {/* ── TOOLBAR ── */}
         <div
           style={{
             paddingInline: 16,
@@ -671,24 +722,37 @@ export function EntryScreen() {
             </span>
           </motion.button>
 
-          {/* Confirm button */}
+          {/* ── CONFIRM BUTTON ── */}
           <motion.button
-            whileTap={{ scale: 0.94 }}
+            whileTap={canConfirm && !saving && !success ? { scale: 0.94 } : {}}
             onClick={() => void handleConfirm()}
-            disabled={saving || success}
+            disabled={!canConfirm || saving || success}
             style={{
               flex: 2, height: 44,
               borderRadius: 14,
               background: success
                 ? 'linear-gradient(135deg,#34D399,#10B981)'
-                : `linear-gradient(135deg, ${accent}, ${accent}bb)`,
-              border: 'none',
-              color: '#000',
+                : canConfirm
+                  ? `linear-gradient(135deg, ${accent}, ${accent}bb)`
+                  : 'rgba(255,255,255,0.07)',
+              border: canConfirm && !success
+                ? 'none'
+                : '1px solid rgba(255,255,255,0.10)',
+              color: success
+                ? '#000'
+                : canConfirm
+                  ? '#000'
+                  : 'rgba(255,255,255,0.25)',
               fontSize: 13, fontWeight: 900,
-              cursor: saving || success ? 'default' : 'pointer',
-              boxShadow: success ? '0 3px 20px rgba(52,211,153,0.45)' : `0 3px 20px ${glow}`,
+              cursor: (!canConfirm || saving || success) ? 'not-allowed' : 'pointer',
+              boxShadow: success
+                ? '0 3px 20px rgba(52,211,153,0.45)'
+                : canConfirm
+                  ? `0 3px 20px ${glow}`
+                  : 'none',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              transition: 'box-shadow 0.2s ease',
+              transition: 'background 0.25s ease, box-shadow 0.25s ease, color 0.25s ease, border 0.25s ease',
+              opacity: saving ? 0.7 : 1,
             }}
           >
             {success ? (
@@ -704,11 +768,19 @@ export function EntryScreen() {
                 Saved!
               </motion.span>
             ) : saving ? (
-              <span style={{ opacity: 0.7 }}>Saving…</span>
-            ) : (
+              <span>Saving…</span>
+            ) : canConfirm ? (
               <>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
+                </svg>
+                CONFIRM
+              </>
+            ) : (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
                 CONFIRM
               </>
@@ -739,7 +811,7 @@ export function EntryScreen() {
                         ? '1px solid rgba(239,68,68,0.18)'
                         : '1px solid rgba(255,255,255,0.09)',
                       color: k === '⌫' ? '#F87171' : '#F5F5F5',
-                      fontSize: k === '⌫' ? 22 : 22,
+                      fontSize: 22,
                       fontWeight: 700,
                       cursor: 'pointer',
                       display: 'flex',
