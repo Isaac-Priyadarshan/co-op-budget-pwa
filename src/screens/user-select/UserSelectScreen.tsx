@@ -3,7 +3,7 @@ import { motion, useMotionValue, useSpring, AnimatePresence } from 'framer-motio
 import { useUser } from '../../context/UserContext'
 import type { AppUser } from '../../lib/types'
 
-// ── 50 Motivational Money Quotes ─────────────────────────────────────────────────
+// ── 50 Motivational Money Quotes ─────────────────────────────────────────────
 const QUOTES = [
   { text: "Do not save what is left after spending, but spend what is left after saving.", author: "Warren Buffett" },
   { text: "Financial freedom is available to those who learn about it and work for it.", author: "Robert Kiyosaki" },
@@ -57,7 +57,7 @@ const QUOTES = [
   { text: "Build your own dreams, or someone else will hire you to build theirs.", author: "Farrah Gray" },
 ]
 
-// ── Sparkle Particle ─────────────────────────────────────────────────────────────────────────────────
+// ── Sparkle Background ───────────────────────────────────────────────────────
 interface Particle { id: number; x: number; y: number; size: number; opacity: number; duration: number; delay: number; color: string }
 
 function generateParticles(count: number): Particle[] {
@@ -78,12 +78,10 @@ function SparkleBackground() {
   const particles = useRef(generateParticles(70)).current
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-      {/* Deep glow orbs */}
       <div style={{ position: 'absolute', top: '-10%', left: '20%', width: '60vw', height: '60vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)', filter: 'blur(40px)' }} />
       <div style={{ position: 'absolute', bottom: '10%', right: '-10%', width: '50vw', height: '50vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(139,92,246,0.14) 0%, transparent 70%)', filter: 'blur(50px)' }} />
       <div style={{ position: 'absolute', top: '40%', left: '-10%', width: '40vw', height: '40vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(251,191,36,0.07) 0%, transparent 70%)', filter: 'blur(40px)' }} />
 
-      {/* Sparkle particles */}
       {particles.map(p => (
         <motion.div
           key={p.id}
@@ -103,16 +101,10 @@ function SparkleBackground() {
             opacity: [p.opacity * 0.3, p.opacity, p.opacity * 0.2, p.opacity],
             scale: [0.8, 1.4, 0.9, 1],
           }}
-          transition={{
-            duration: p.duration,
-            delay: p.delay,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
+          transition={{ duration: p.duration, delay: p.delay, repeat: Infinity, ease: 'easeInOut' }}
         />
       ))}
 
-      {/* Star cross sparkles */}
       {[...Array(12)].map((_, i) => (
         <motion.div
           key={`star-${i}`}
@@ -125,17 +117,8 @@ function SparkleBackground() {
             lineHeight: 1,
             filter: 'blur(0.3px)',
           }}
-          animate={{
-            opacity: [0, 0.8, 0],
-            scale: [0.5, 1.2, 0.5],
-            rotate: [0, 180, 360],
-          }}
-          transition={{
-            duration: 3 + Math.random() * 3,
-            delay: Math.random() * 6,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
+          animate={{ opacity: [0, 0.8, 0], scale: [0.5, 1.2, 0.5], rotate: [0, 180, 360] }}
+          transition={{ duration: 3 + Math.random() * 3, delay: Math.random() * 6, repeat: Infinity, ease: 'easeInOut' }}
         >
           ✦
         </motion.div>
@@ -144,7 +127,7 @@ function SparkleBackground() {
   )
 }
 
-// ── 3D Tilt Avatar Card ────────────────────────────────────────────────────────────────────────
+// ── 3D Tilt Avatar Card ──────────────────────────────────────────────────────
 interface AvatarCardProps {
   user: AppUser
   emoji: string
@@ -163,10 +146,8 @@ function AvatarCard({ user, emoji, onSelect, selected }: AvatarCardProps) {
     const rect = card.getBoundingClientRect()
     const cx = rect.left + rect.width / 2
     const cy = rect.top + rect.height / 2
-    const dx = (e.clientX - cx) / (rect.width / 2)
-    const dy = (e.clientY - cy) / (rect.height / 2)
-    rotateY.set(dx * 18)
-    rotateX.set(-dy * 18)
+    rotateY.set(((e.clientX - cx) / (rect.width / 2)) * 18)
+    rotateX.set(-((e.clientY - cy) / (rect.height / 2)) * 18)
   }, [rotateX, rotateY])
 
   const handlePointerLeave = useCallback(() => {
@@ -180,27 +161,19 @@ function AvatarCard({ user, emoji, onSelect, selected }: AvatarCardProps) {
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
       onTap={() => onSelect(user)}
-      style={{
-        perspective: 600,
-        cursor: 'pointer',
-        flex: 1,
-        maxWidth: 160,
-      }}
+      style={{ perspective: 600, cursor: 'pointer', flex: 1, maxWidth: 160 }}
       whileTap={{ scale: 0.94 }}
     >
       <motion.div
         style={{
-          rotateX,
-          rotateY,
+          rotateX, rotateY,
           transformStyle: 'preserve-3d',
           borderRadius: 28,
           padding: '24px 16px 20px',
           background: selected
             ? 'linear-gradient(135deg,rgba(99,102,241,0.35),rgba(139,92,246,0.25))'
             : 'rgba(255,255,255,0.05)',
-          border: selected
-            ? '1.5px solid rgba(165,180,252,0.7)'
-            : '1px solid rgba(255,255,255,0.1)',
+          border: selected ? '1.5px solid rgba(165,180,252,0.7)' : '1px solid rgba(255,255,255,0.1)',
           boxShadow: selected
             ? '0 0 32px rgba(99,102,241,0.45), 0 8px 32px rgba(0,0,0,0.4)'
             : '0 8px 24px rgba(0,0,0,0.3)',
@@ -210,18 +183,14 @@ function AvatarCard({ user, emoji, onSelect, selected }: AvatarCardProps) {
           flexDirection: 'column',
           alignItems: 'center',
           gap: 12,
-          transition: 'background 0.2s ease, border 0.2s ease, box-shadow 0.2s ease',
         }}
       >
-        {/* Glow ring when selected */}
         {selected && (
           <motion.div
             initial={{ opacity: 0, scale: 0.7 }}
             animate={{ opacity: 1, scale: 1 }}
             style={{
-              position: 'absolute',
-              inset: -3,
-              borderRadius: 31,
+              position: 'absolute', inset: -3, borderRadius: 31,
               border: '2px solid rgba(165,180,252,0.5)',
               boxShadow: '0 0 20px rgba(99,102,241,0.5)',
               pointerEvents: 'none',
@@ -229,32 +198,23 @@ function AvatarCard({ user, emoji, onSelect, selected }: AvatarCardProps) {
           />
         )}
 
-        {/* 3D Emoji */}
         <motion.div
-          animate={selected
-            ? { scale: [1, 1.15, 1.08], rotate: [0, -8, 8, 0] }
-            : { scale: 1, rotate: 0 }
-          }
+          animate={selected ? { scale: [1, 1.15, 1.08], rotate: [0, -8, 8, 0] } : { scale: 1, rotate: 0 }}
           transition={{ duration: 0.5, ease: 'easeInOut' }}
           style={{
-            fontSize: 64,
-            lineHeight: 1,
+            fontSize: 64, lineHeight: 1,
             filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))',
             transform: 'translateZ(30px)',
-            display: 'block',
-            textAlign: 'center',
+            display: 'block', textAlign: 'center',
           }}
         >
           {emoji}
         </motion.div>
 
-        {/* Name */}
         <p style={{
-          fontSize: 16,
-          fontWeight: 700,
+          fontSize: 16, fontWeight: 700,
           color: selected ? '#c4b5fd' : 'rgba(255,255,255,0.75)',
-          letterSpacing: '0.02em',
-          textAlign: 'center',
+          letterSpacing: '0.02em', textAlign: 'center',
         }}>
           {user}
         </p>
@@ -273,70 +233,50 @@ function AvatarCard({ user, emoji, onSelect, selected }: AvatarCardProps) {
   )
 }
 
-// ── Shimmer Quote Text ─────────────────────────────────────────────────────────────────────────────────
+// ── Gold Quote Display (no shimmer sweep) ────────────────────────────────────
 function QuoteDisplay({ quote }: { quote: typeof QUOTES[0] }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      style={{
-        textAlign: 'center',
-        padding: '0 28px',
-        maxWidth: 420,
-        margin: '0 auto',
-      }}
+      style={{ textAlign: 'center', padding: '0 28px', maxWidth: 420, margin: '0 auto' }}
     >
       {/* Opening quote mark */}
-      <motion.p
+      <motion.span
         initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ opacity: 0.3, scale: 1 }}
+        animate={{ opacity: 0.4, scale: 1 }}
         transition={{ delay: 0.5, duration: 0.5 }}
         style={{
-          fontSize: 64,
+          fontSize: 56,
           lineHeight: 0.6,
-          color: '#a5b4fc',
+          color: '#f59e0b',
           fontFamily: 'Georgia, serif',
-          marginBottom: 8,
+          marginBottom: 10,
           display: 'block',
+          textShadow: '0 0 20px rgba(245,158,11,0.5)',
         }}
       >
-        “
-      </motion.p>
+        "
+      </motion.span>
 
-      {/* Quote text with shimmer */}
-      <div style={{ position: 'relative', overflow: 'hidden' }}>
-        <p style={{
-          fontSize: 'clamp(15px, 4vw, 19px)',
-          fontFamily: "'Playfair Display', 'Georgia', serif",
-          fontStyle: 'italic',
-          fontWeight: 500,
-          lineHeight: 1.65,
-          color: '#e8e8f0',
-          textShadow: '0 0 40px rgba(165,180,252,0.25)',
-          letterSpacing: '0.01em',
-          position: 'relative',
-          zIndex: 1,
-        }}>
-          {quote.text}
-        </p>
-
-        {/* Shimmer sweep */}
-        <motion.div
-          animate={{ x: ['-120%', '120%'] }}
-          transition={{ duration: 3.5, delay: 1, repeat: Infinity, repeatDelay: 4, ease: 'easeInOut' }}
-          style={{
-            position: 'absolute',
-            top: 0, bottom: 0,
-            left: 0,
-            width: '40%',
-            background: 'linear-gradient(90deg, transparent 0%, rgba(196,181,253,0.18) 50%, transparent 100%)',
-            pointerEvents: 'none',
-            zIndex: 2,
-            transform: 'skewX(-15deg)',
-          }}
-        />
-      </div>
+      {/* Quote text — gold with warm glow */}
+      <p style={{
+        fontSize: 'clamp(17px, 4.5vw, 22px)',
+        fontFamily: "'Playfair Display', 'Georgia', serif",
+        fontStyle: 'italic',
+        fontWeight: 500,
+        lineHeight: 1.7,
+        background: 'linear-gradient(135deg, #fde68a 0%, #f59e0b 40%, #fbbf24 70%, #fde68a 100%)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+        textShadow: 'none',
+        letterSpacing: '0.01em',
+        filter: 'drop-shadow(0 0 18px rgba(251,191,36,0.35))',
+      }}>
+        {quote.text}
+      </p>
 
       {/* Author */}
       <motion.p
@@ -345,9 +285,9 @@ function QuoteDisplay({ quote }: { quote: typeof QUOTES[0] }) {
         transition={{ delay: 0.9, duration: 0.6 }}
         style={{
           fontSize: 13,
-          color: 'rgba(165,180,252,0.6)',
-          marginTop: 14,
-          letterSpacing: '0.12em',
+          color: 'rgba(251,191,36,0.5)',
+          marginTop: 16,
+          letterSpacing: '0.14em',
           textTransform: 'uppercase',
           fontWeight: 500,
         }}
@@ -358,14 +298,13 @@ function QuoteDisplay({ quote }: { quote: typeof QUOTES[0] }) {
   )
 }
 
-// ── Main Welcome Screen ────────────────────────────────────────────────────────────────────────────────
+// ── Main Welcome Screen ──────────────────────────────────────────────────────
 export function UserSelectScreen() {
   const { setActiveUser } = useUser()
   const [selected, setSelected] = useState<AppUser | null>(null)
   const [entering, setEntering] = useState(false)
   const quote = useRef(QUOTES[Math.floor(Math.random() * QUOTES.length)]).current
 
-  // Load Playfair Display
   useEffect(() => {
     const link = document.createElement('link')
     link.rel = 'stylesheet'
@@ -377,7 +316,6 @@ export function UserSelectScreen() {
   const handleSelect = useCallback((user: AppUser) => {
     if (entering) return
     if (selected === user) {
-      // Second tap = enter
       setEntering(true)
       setTimeout(() => setActiveUser(user), 600)
     } else {
@@ -404,10 +342,9 @@ export function UserSelectScreen() {
           overflow: 'hidden',
         }}
       >
-        {/* Sparkle background */}
         <SparkleBackground />
 
-        {/* Top: App title */}
+        {/* Top: Title */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -422,48 +359,62 @@ export function UserSelectScreen() {
             marginBottom: 8,
             fontWeight: 500,
           }}>Welcome to</p>
+
           <h1 style={{
-            fontSize: 'clamp(26px, 7vw, 36px)',
+            fontSize: 'clamp(28px, 7vw, 38px)',
             fontWeight: 700,
             letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #e8e8ff 0%, #a5b4fc 40%, #c4b5fd 70%, #fcd34d 100%)',
+            background: 'linear-gradient(135deg, #fde68a 0%, #f59e0b 35%, #fbbf24 60%, #e8e8ff 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
+            filter: 'drop-shadow(0 0 24px rgba(251,191,36,0.4))',
           }}>
-            I & J Budget
+            Budget Planner
           </h1>
+
           <p style={{
             fontSize: 12,
-            color: 'rgba(255,255,255,0.2)',
-            marginTop: 6,
-            letterSpacing: '0.06em',
-          }}>Your private co-op finance app</p>
+            color: 'rgba(251,191,36,0.35)',
+            marginTop: 8,
+            letterSpacing: '0.22em',
+            textTransform: 'uppercase',
+            fontWeight: 600,
+          }}>
+            Focus &nbsp;·&nbsp; Discipline &nbsp;·&nbsp; Consistency
+          </p>
         </motion.div>
 
-        {/* Center: Motivational Quote */}
+        {/* Center: Quote */}
         <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
           <QuoteDisplay quote={quote} />
         </div>
 
-        {/* Bottom: User Selection */}
+        {/* Bottom: User cards — no label above */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
           style={{ position: 'relative', zIndex: 1, width: '100%', padding: '0 24px' }}
         >
-          <p style={{
-            textAlign: 'center',
-            fontSize: 12,
-            color: 'rgba(255,255,255,0.3)',
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            marginBottom: 16,
-            fontWeight: 500,
-          }}>
-            {selected ? 'Tap again to enter' : 'Who are you?'}
-          </p>
+          {selected && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              style={{
+                textAlign: 'center',
+                fontSize: 12,
+                color: 'rgba(255,255,255,0.3)',
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                marginBottom: 16,
+                fontWeight: 500,
+              }}
+            >
+              Tap again to enter
+            </motion.p>
+          )}
+          {!selected && <div style={{ marginBottom: 16, height: 18 }} />}
 
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
             <AvatarCard user="Isaac" emoji="🤴🏽" onSelect={handleSelect} selected={selected === 'Isaac'} />
