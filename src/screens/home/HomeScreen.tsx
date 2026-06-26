@@ -1,115 +1,104 @@
 import { motion } from 'framer-motion'
 import { useUser } from '../../context/UserContext'
+import { useTransactions } from '../../hooks/useTransactions'
+import { formatINR, formatShortDate } from '../../utils/format'
 
 export function HomeScreen() {
   const { activeUser } = useUser()
+  const { transactions, loading, totalIncome, totalExpenses, balance } = useTransactions()
+
+  const recent = transactions.slice(0, 5)
+
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
     <div style={{ padding: '24px 20px 32px', minHeight: '100%' }}>
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      >
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
+
         {/* Header */}
-        <div style={{ marginBottom: '28px' }}>
-          <p
-            style={{
-              fontSize: '12px',
-              letterSpacing: '0.14em',
-              textTransform: 'uppercase',
-              color: 'rgba(165,180,252,0.7)',
-              marginBottom: '6px',
-            }}
-          >
-            Good to see you
-          </p>
-          <h1
-            style={{
-              fontSize: '28px',
-              fontWeight: 700,
-              color: '#f5f7ff',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {activeUser} 👋
-          </h1>
+        <div style={{ marginBottom: 28 }}>
+          <p style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(165,180,252,0.7)', marginBottom: 4 }}>{greeting}</p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f5f7ff', letterSpacing: '-0.02em' }}>{activeUser} 👋</h1>
         </div>
 
         {/* Balance card */}
-        <div
+        <motion.div
+          initial={{ opacity: 0, scale: 0.97 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.08, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
           style={{
-            borderRadius: '24px',
-            padding: '24px',
-            background:
-              'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(139,92,246,0.18) 100%)',
-            border: '1px solid rgba(139,92,246,0.3)',
-            marginBottom: '20px',
-            boxShadow: '0 8px 32px rgba(99,102,241,0.15)',
+            borderRadius: 24, padding: '24px',
+            background: 'linear-gradient(135deg, rgba(99,102,241,0.28) 0%, rgba(139,92,246,0.2) 100%)',
+            border: '1px solid rgba(139,92,246,0.32)',
+            marginBottom: 16,
+            boxShadow: '0 8px 32px rgba(99,102,241,0.18)',
+            position: 'relative', overflow: 'hidden',
           }}
         >
-          <p
-            style={{
-              fontSize: '12px',
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: 'rgba(196,181,253,0.7)',
-              marginBottom: '8px',
-            }}
-          >
-            Total Balance
+          {/* Glow orb */}
+          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'rgba(139,92,246,0.18)', filter: 'blur(32px)' }} />
+          <p style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(196,181,253,0.7)', marginBottom: 8, position: 'relative' }}>Total Balance</p>
+          {loading ? (
+            <div style={{ height: 44, width: 160, borderRadius: 8, background: 'rgba(255,255,255,0.1)' }} />
+          ) : (
+            <p style={{ fontSize: 38, fontWeight: 700, color: '#f5f7ff', letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums', position: 'relative' }}>
+              {formatINR(balance)}
+            </p>
+          )}
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 8, position: 'relative' }}>
+            {transactions.length === 0 ? 'No transactions yet' : `${transactions.length} transaction${transactions.length !== 1 ? 's' : ''} recorded`}
           </p>
-          <p
-            style={{
-              fontSize: '36px',
-              fontWeight: 700,
-              color: '#f5f7ff',
-              letterSpacing: '-0.03em',
-            }}
-          >
-            ₹0.00
-          </p>
-          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: '8px' }}>
-            No transactions yet
-          </p>
-        </div>
+        </motion.div>
 
-        {/* Quick stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+        {/* Income / Expenses */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
           {[
-            { label: 'Income', value: '₹0', color: 'rgba(52,211,153,0.2)', border: 'rgba(52,211,153,0.3)', text: '#6ee7b7' },
-            { label: 'Expenses', value: '₹0', color: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.25)', text: '#fca5a5' },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              style={{
-                borderRadius: '18px',
-                padding: '18px 16px',
-                background: stat.color,
-                border: `1px solid ${stat.border}`,
-              }}
-            >
-              <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '8px' }}>
-                {stat.label}
-              </p>
-              <p style={{ fontSize: '22px', fontWeight: 700, color: stat.text }}>{stat.value}</p>
+            { label: 'Income', value: totalIncome, color: '#6ee7b7', bg: 'rgba(52,211,153,0.12)', border: 'rgba(52,211,153,0.25)', icon: '↑' },
+            { label: 'Expenses', value: totalExpenses, color: '#fca5a5', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.22)', icon: '↓' },
+          ].map(stat => (
+            <div key={stat.label} style={{ borderRadius: 20, padding: '18px 16px', background: stat.bg, border: `1px solid ${stat.border}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <span style={{ fontSize: 16, color: stat.color }}>{stat.icon}</span>
+                <p style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>{stat.label}</p>
+              </div>
+              {loading ? (
+                <div style={{ height: 28, width: 80, borderRadius: 6, background: 'rgba(255,255,255,0.08)' }} />
+              ) : (
+                <p style={{ fontSize: 20, fontWeight: 700, color: stat.color, fontVariantNumeric: 'tabular-nums' }}>{formatINR(stat.value)}</p>
+              )}
             </div>
           ))}
         </div>
 
-        {/* Empty state */}
-        <div
-          style={{
-            borderRadius: '20px',
-            padding: '32px 20px',
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.07)',
-            textAlign: 'center',
-          }}
-        >
-          <p style={{ fontSize: '32px', marginBottom: '12px' }}>📊</p>
-          <p style={{ fontSize: '15px', fontWeight: 500, color: 'rgba(255,255,255,0.6)', marginBottom: '6px' }}>No recent activity</p>
-          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.3)' }}>Start by adding your first transaction in the Ledger</p>
+        {/* Recent transactions */}
+        <div>
+          <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>Recent Activity</p>
+          {loading && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[1,2,3].map(i => <div key={i} style={{ height: 60, borderRadius: 16, background: 'rgba(255,255,255,0.04)' }} />)}
+            </div>
+          )}
+          {!loading && recent.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '32px 20px', borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <p style={{ fontSize: 28, marginBottom: 10 }}>📊</p>
+              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }}>No activity yet — go to Ledger to add your first transaction</p>
+            </div>
+          )}
+          {!loading && recent.map(tx => (
+            <div key={tx.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 16, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 8 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 12, background: tx.type === 'income' ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                {tx.type === 'income' ? '↑' : '↓'}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tx.description}</p>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{tx.category} · {formatShortDate(tx.created_at)}</p>
+              </div>
+              <p style={{ fontSize: 14, fontWeight: 700, color: tx.type === 'income' ? '#6ee7b7' : '#fca5a5', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                {tx.type === 'income' ? '+' : '-'}{formatINR(tx.amount)}
+              </p>
+            </div>
+          ))}
         </div>
       </motion.div>
     </div>
