@@ -5,7 +5,7 @@ import { formatINR } from '../../utils/format'
 const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Rent', 'Utilities', 'Shopping', 'Health', 'Entertainment', 'Education', 'EMI', 'Other']
 
 export function BudgetScreen() {
-  const { transactions, loading, totalIncome, totalExpenses, balance } = useTransactions()
+  const { transactions, loading } = useTransactions()
 
   const now = new Date()
   const monthName = now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })
