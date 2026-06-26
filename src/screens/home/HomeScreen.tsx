@@ -1,26 +1,15 @@
 import { motion } from 'framer-motion'
-import { useUser } from '../../context/UserContext'
 import { useTransactions } from '../../hooks/useTransactions'
 import { formatINR, formatShortDate } from '../../utils/format'
 
 export function HomeScreen() {
-  const { activeUser } = useUser()
   const { transactions, loading, totalIncome, totalExpenses, balance } = useTransactions()
 
   const recent = transactions.slice(0, 5)
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-
   return (
     <div style={{ padding: '24px 20px 32px', minHeight: '100%' }}>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
-
-        {/* Header */}
-        <div style={{ marginBottom: 28 }}>
-          <p style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(165,180,252,0.7)', marginBottom: 4 }}>{greeting}</p>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f5f7ff', letterSpacing: '-0.02em' }}>{activeUser} 👋</h1>
-        </div>
 
         {/* Balance card */}
         <motion.div

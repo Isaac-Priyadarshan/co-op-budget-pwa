@@ -54,26 +54,6 @@ export function AppShell() {
         overflow: 'hidden',
       }}
     >
-      {/* User badge top right */}
-      <div style={{
-        position: 'absolute',
-        top: 'calc(env(safe-area-inset-top) + 12px)',
-        right: 16,
-        zIndex: 20,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        padding: '5px 12px 5px 8px',
-        borderRadius: 100,
-        background: 'rgba(255,255,255,0.07)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-      }}>
-        <span style={{ fontSize: 14 }}>{activeUser === 'Isaac' ? '👨🏽' : '👩🏽'}</span>
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{activeUser}</span>
-      </div>
-
       {/* Screen area */}
       <div
         className="scroll-area"
