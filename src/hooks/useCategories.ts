@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { useDataContext } from '../context/DataContext'
 
 export function useCategories() {
@@ -12,10 +11,11 @@ export function useCategories() {
     deleteCategory,
     addSubcategory,
     deleteSubcategory,
-    refreshAll,
+    reorderCategories,
+    reorderSubcategories,
   } = useDataContext()
 
-  return useMemo(() => ({
+  return {
     expenseCategories,
     incomeCategories,
     subcategories,
@@ -25,6 +25,7 @@ export function useCategories() {
     deleteCategory,
     addSubcategory,
     deleteSubcategory,
-    refresh: refreshAll,
-  }), [expenseCategories, incomeCategories, subcategories, categoriesLoading, categoriesError, addCategory, deleteCategory, addSubcategory, deleteSubcategory, refreshAll])
+    reorderCategories,
+    reorderSubcategories,
+  }
 }

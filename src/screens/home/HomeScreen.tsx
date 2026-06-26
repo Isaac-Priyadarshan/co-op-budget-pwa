@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useTransactions } from '../../hooks/useTransactions'
 import { useCategories } from '../../hooks/useCategories'
 import type { Category, Subcategory } from '../../types/category'
@@ -23,7 +23,6 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate() }
 function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).getDay() }
 
-// ─── Category Manager Sheet ──────────────────────────────────────────────────
 interface ManagerProps {
   type: 'expense' | 'income'
   categories: Category[]
@@ -33,21 +32,50 @@ interface ManagerProps {
   onDeleteCategory: (id: string) => Promise<{ error: string | null }>
   onAddSubcategory: (categoryId: string, label: string) => Promise<{ error: string | null }>
   onDeleteSubcategory: (subcategoryId: string, categoryId: string) => Promise<{ error: string | null }>
+  onReorderCategories: (orderedIds: string[]) => Promise<{ error: string | null }>
+  onReorderSubcategories: (categoryId: string, orderedIds: string[]) => Promise<{ error: string | null }>
+}
+
+function DragHandle() {
+  return (
+    <div
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: '50%',
+        background: 'rgba(251,191,36,0.10)',
+        border: '1px solid rgba(251,191,36,0.22)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#FBBF24',
+        fontSize: 15,
+        cursor: 'grab',
+        flexShrink: 0,
+      }}
+      aria-hidden="true"
+      title="Drag to reorder"
+    >
+      ≡
+    </div>
+  )
 }
 
 function CategoryManagerSheet({
   type, categories, subcategories,
-  onClose, onAddCategory, onDeleteCategory, onAddSubcategory, onDeleteSubcategory,
+  onClose, onAddCategory, onDeleteCategory, onAddSubcategory, onDeleteSubcategory, onReorderCategories, onReorderSubcategories,
 }: ManagerProps) {
-  const [newIcon, setNewIcon]             = useState(type === 'expense' ? '🛒' : '💼')
-  const [newLabel, setNewLabel]           = useState('')
+  const [newIcon, setNewIcon] = useState(type === 'expense' ? '🛒' : '💼')
+  const [newLabel, setNewLabel] = useState('')
   const [selectedSwatch, setSelectedSwatch] = useState(0)
-  const [error, setError]                 = useState('')
-  const [saving, setSaving]               = useState(false)
-  const [pickerOpen, setPickerOpen]       = useState(false)
-  const [expandedCat, setExpandedCat]     = useState<string | null>(null)
-  const [addingSubFor, setAddingSubFor]   = useState<string | null>(null)
-  const [subInputs, setSubInputs]         = useState<Record<string, string>>({})
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [expandedCat, setExpandedCat] = useState<string | null>(null)
+  const [addingSubFor, setAddingSubFor] = useState<string | null>(null)
+  const [subInputs, setSubInputs] = useState<Record<string, string>>({})
+  const [orderedCategories, setOrderedCategories] = useState(categories)
+  const [orderedSubs, setOrderedSubs] = useState<Record<string, Subcategory[]>>(subcategories)
 
   const iconOptions = type === 'expense' ? EXPENSE_ICONS : INCOME_ICONS
 
@@ -78,11 +106,17 @@ function CategoryManagerSheet({
     setError('')
   }
 
+  const handleCategoryReorder = async (nextCategories: Category[]) => {
+    setOrderedCategories(nextCategories)
+    const { error: err } = await onReorderCategories(nextCategories.map(category => category.id))
+    if (err) setError(err)
+  }
+
   const handleAddSubcategory = async (categoryId: string) => {
     const label = (subInputs[categoryId] ?? '').trim()
     if (!label) { setError('Enter a subcategory name.'); return }
-    const existing = subcategories[categoryId] ?? []
-    if (existing.find(s => s.label.toLowerCase() === label.toLowerCase())) {
+    const existing = (orderedSubs[categoryId] ?? []).filter(sub => sub.label.toLowerCase() === label.toLowerCase())
+    if (existing.length > 0) {
       setError('Subcategory already exists.'); return
     }
     setSaving(true)
@@ -94,22 +128,39 @@ function CategoryManagerSheet({
     setError('')
   }
 
+  const handleSubcategoryReorder = async (categoryId: string, nextSubs: Subcategory[]) => {
+    setOrderedSubs(prev => ({ ...prev, [categoryId]: nextSubs }))
+    const { error: err } = await onReorderSubcategories(categoryId, nextSubs.map(sub => sub.id))
+    if (err) setError(err)
+  }
+
   const handleDeleteSubcategory = async (subId: string, categoryId: string) => {
     setSaving(true)
-    await onDeleteSubcategory(subId, categoryId)
+    const { error: err } = await onDeleteSubcategory(subId, categoryId)
     setSaving(false)
+    if (err) {
+      setError(err)
+      return
+    }
+    setError('')
   }
+
+  const syncCategories = orderedCategories.map(local => categories.find(category => category.id === local.id) ?? local)
 
   return (
     <>
       <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         transition={{ duration: 0.22 }}
         onClick={onClose}
         style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
       />
       <motion.div
-        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 28, stiffness: 320 }}
         style={{
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 51,
@@ -121,12 +172,10 @@ function CategoryManagerSheet({
           maxHeight: '88vh', display: 'flex', flexDirection: 'column',
         }}
       >
-        {/* Handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
           <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(251,191,36,0.25)' }} />
         </div>
 
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 20px 16px' }}>
           <span style={{ fontSize: 17, fontWeight: 700, color: '#F5F5F5' }}>
             Manage {type === 'expense' ? 'Expense' : 'Income'} Categories
@@ -137,95 +186,98 @@ function CategoryManagerSheet({
         </div>
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 20px 20px' }}>
-
-          {/* Existing categories */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
-            {categories.map(cat => {
-              const isExpanded  = expandedCat === cat.id
+          <Reorder.Group axis="y" values={syncCategories} onReorder={handleCategoryReorder} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+            {syncCategories.map(cat => {
+              const isExpanded = expandedCat === cat.id
               const isAddingSub = addingSubFor === cat.id
-              const catSubs     = subcategories[cat.id] ?? []
+              const catSubs = (orderedSubs[cat.id] ?? subcategories[cat.id] ?? []).map(local => (subcategories[cat.id] ?? []).find(sub => sub.id === local.id) ?? local)
               return (
-                <div key={cat.id}>
-                  {/* Category row */}
-                  <motion.div
-                    layout
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: cat.bg, border: `1px solid ${cat.accent}25`, borderRadius: 16, boxShadow: `0 2px 10px ${cat.glow}`, cursor: 'pointer' }}
-                    onClick={() => setExpandedCat(prev => prev === cat.id ? null : cat.id)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span style={{ fontSize: 22 }}>{cat.icon}</span>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: cat.accent }}>{cat.label}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <motion.button whileTap={{ scale: 0.82 }}
-                        onClick={e => { e.stopPropagation(); handleDeleteCategory(cat.id) }}
-                        style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14 }}
-                        disabled={saving}
-                      >🗑️</motion.button>
-                      <motion.svg animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }}
-                        width="14" height="14" viewBox="0 0 24 24" fill="none"
-                        stroke="rgba(255,255,255,0.55)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                      ><polyline points="6 9 12 15 18 9" /></motion.svg>
-                    </div>
-                  </motion.div>
+                <Reorder.Item key={cat.id} value={cat} style={{ listStyle: 'none' }}>
+                  <div>
+                    <motion.div
+                      layout
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: cat.bg, border: `1px solid ${cat.accent}25`, borderRadius: 16, boxShadow: `0 2px 10px ${cat.glow}`, cursor: 'pointer' }}
+                      onClick={() => setExpandedCat(prev => prev === cat.id ? null : cat.id)}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span style={{ fontSize: 22 }}>{cat.icon}</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: cat.accent }}>{cat.label}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <DragHandle />
+                        <motion.button whileTap={{ scale: 0.82 }}
+                          onClick={e => { e.stopPropagation(); void handleDeleteCategory(cat.id) }}
+                          style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14 }}
+                          disabled={saving}
+                        >🗑️</motion.button>
+                        <motion.svg animate={{ rotate: isExpanded ? 180 : 0 }} transition={{ duration: 0.2 }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></motion.svg>
+                      </div>
+                    </motion.div>
 
-                  {/* Subcategory dropdown */}
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        <div style={{ marginTop: 8, marginLeft: 8, padding: '10px 12px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                          {catSubs.length > 0 ? catSubs.map(sub => (
-                            <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.04)' }}>
-                              <span style={{ fontSize: 13, color: 'rgba(245,245,245,0.82)' }}>{sub.label}</span>
-                              <motion.button whileTap={{ scale: 0.82 }}
-                                onClick={() => handleDeleteSubcategory(sub.id, cat.id)}
-                                disabled={saving}
-                                style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12 }}
-                              >🗑️</motion.button>
-                            </div>
-                          )) : (
-                            <span style={{ fontSize: 12, color: 'rgba(245,245,245,0.45)' }}>No subcategories yet</span>
-                          )}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <div style={{ marginTop: 8, marginLeft: 8, padding: '10px 12px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <Reorder.Group axis="y" values={catSubs} onReorder={nextSubs => void handleSubcategoryReorder(cat.id, nextSubs)} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {catSubs.length > 0 ? catSubs.map(sub => (
+                                <Reorder.Item key={sub.id} value={sub} style={{ listStyle: 'none' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.04)' }}>
+                                    <span style={{ fontSize: 13, color: 'rgba(245,245,245,0.82)' }}>{sub.label}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                      <DragHandle />
+                                      <motion.button whileTap={{ scale: 0.82 }}
+                                        onClick={() => void handleDeleteSubcategory(sub.id, cat.id)}
+                                        disabled={saving}
+                                        style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12 }}
+                                      >🗑️</motion.button>
+                                    </div>
+                                  </div>
+                                </Reorder.Item>
+                              )) : (
+                                <span style={{ fontSize: 12, color: 'rgba(245,245,245,0.45)' }}>No subcategories yet</span>
+                              )}
+                            </Reorder.Group>
 
-                          <motion.button whileTap={{ scale: 0.96 }}
-                            onClick={() => { setAddingSubFor(cat.id); setError('') }}
-                            style={{ height: 40, borderRadius: 12, background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.24)', color: '#FBBF24', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-                          >+ Add Subcategory</motion.button>
+                            <motion.button whileTap={{ scale: 0.96 }}
+                              onClick={() => { setAddingSubFor(cat.id); setError('') }}
+                              style={{ height: 40, borderRadius: 12, background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.24)', color: '#FBBF24', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                            >+ Add Subcategory</motion.button>
 
-                          <AnimatePresence>
-                            {isAddingSub && (
-                              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ display: 'flex', gap: 8 }}>
-                                <input
-                                  value={subInputs[cat.id] ?? ''}
-                                  onChange={e => { setSubInputs(prev => ({ ...prev, [cat.id]: e.target.value })); setError('') }}
-                                  placeholder="Subcategory name…"
-                                  style={{ flex: 1, height: 42, borderRadius: 12, padding: '0 12px', fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#F5F5F5', outline: 'none' }}
-                                />
-                                <motion.button whileTap={{ scale: 0.95 }}
-                                  onClick={() => handleAddSubcategory(cat.id)}
-                                  disabled={saving}
-                                  style={{ height: 42, padding: '0 14px', borderRadius: 12, background: 'linear-gradient(135deg,#F59E0B,#FBBF24)', border: 'none', color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
-                                >{saving ? '…' : 'Add'}</motion.button>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                            <AnimatePresence>
+                              {isAddingSub && (
+                                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ display: 'flex', gap: 8 }}>
+                                  <input
+                                    value={subInputs[cat.id] ?? ''}
+                                    onChange={e => { setSubInputs(prev => ({ ...prev, [cat.id]: e.target.value })); setError('') }}
+                                    placeholder="Subcategory name…"
+                                    style={{ flex: 1, height: 42, borderRadius: 12, padding: '0 12px', fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#F5F5F5', outline: 'none' }}
+                                  />
+                                  <motion.button whileTap={{ scale: 0.95 }}
+                                    onClick={() => void handleAddSubcategory(cat.id)}
+                                    disabled={saving}
+                                    style={{ height: 42, padding: '0 14px', borderRadius: 12, background: 'linear-gradient(135deg,#F59E0B,#FBBF24)', border: 'none', color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
+                                  >{saving ? '…' : 'Add'}</motion.button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </Reorder.Item>
               )
             })}
-          </div>
+          </Reorder.Group>
 
-          {/* Divider */}
           <div style={{ height: 1, background: 'rgba(251,191,36,0.10)', marginBottom: 20 }} />
 
-          {/* Add new category */}
           <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(251,191,36,0.6)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14 }}>Add New Category</p>
 
           <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
@@ -238,7 +290,6 @@ function CategoryManagerSheet({
             />
           </div>
 
-          {/* Icon picker grid */}
           <AnimatePresence>
             {pickerOpen && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22 }} style={{ overflow: 'hidden', marginBottom: 14 }}>
@@ -254,7 +305,6 @@ function CategoryManagerSheet({
             )}
           </AnimatePresence>
 
-          {/* Colour swatches */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
             {ACCENT_SWATCHES.map((sw, i) => (
               <motion.button key={i} whileTap={{ scale: 0.82 }} onClick={() => setSelectedSwatch(i)}
@@ -265,13 +315,13 @@ function CategoryManagerSheet({
 
           <AnimatePresence>
             {error && (
-              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                style={{ fontSize: 12, color: '#F87171', marginBottom: 12 }}
-              >{error}</motion.p>
+              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ fontSize: 12, color: '#F87171', marginBottom: 12 }}>
+                {error}
+              </motion.p>
             )}
           </AnimatePresence>
 
-          <motion.button whileTap={{ scale: 0.95 }} onClick={handleAddCategory} disabled={saving}
+          <motion.button whileTap={{ scale: 0.95 }} onClick={() => void handleAddCategory()} disabled={saving}
             style={{ width: '100%', height: 48, borderRadius: 16, background: 'linear-gradient(135deg, rgba(251,191,36,0.22), rgba(217,119,6,0.16))', border: '1px solid rgba(251,191,36,0.35)', color: '#FBBF24', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 12px rgba(251,191,36,0.14)', marginBottom: 12 }}
           >{saving ? 'Saving…' : '+ Add Category'}</motion.button>
 
@@ -284,7 +334,6 @@ function CategoryManagerSheet({
   )
 }
 
-// ─── Month Navigator ─────────────────────────────────────────────────────────
 interface MonthNavProps {
   year: number; month: number; selectedDate: Date | null
   onPrev: () => void; onNext: () => void; onSelectDate: (d: Date) => void
@@ -293,9 +342,9 @@ interface MonthNavProps {
 function MonthNavigator({ year, month, selectedDate, onPrev, onNext, onSelectDate }: MonthNavProps) {
   const [calOpen, setCalOpen] = useState(false)
   const daysInMonth = getDaysInMonth(year, month)
-  const firstDay    = getFirstDayOfMonth(year, month)
-  const blanks      = Array(firstDay).fill(null)
-  const days        = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+  const firstDay = getFirstDayOfMonth(year, month)
+  const blanks = Array(firstDay).fill(null)
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
 
   const isSelected = (d: number) =>
     selectedDate?.getFullYear() === year && selectedDate?.getMonth() === month && selectedDate?.getDate() === d
@@ -317,9 +366,7 @@ function MonthNavigator({ year, month, selectedDate, onPrev, onNext, onSelectDat
           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
         >
           <span style={{ fontSize: 18, fontWeight: 700, color: '#F5F5F5', letterSpacing: '-0.01em', lineHeight: 1.1 }}>{MONTH_NAMES[month]} {year}</span>
-          <motion.svg animate={{ rotate: calOpen ? 180 : 0 }} transition={{ duration: 0.22 }}
-            width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(251,191,36,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          ><polyline points="6 9 12 15 18 9" /></motion.svg>
+          <motion.svg animate={{ rotate: calOpen ? 180 : 0 }} transition={{ duration: 0.22 }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(251,191,36,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></motion.svg>
         </motion.button>
 
         <motion.button whileTap={{ scale: 0.85 }} onClick={onNext}
@@ -355,7 +402,6 @@ function MonthNavigator({ year, month, selectedDate, onPrev, onNext, onSelectDat
   )
 }
 
-// ─── Category Grid ───────────────────────────────────────────────────────────
 function CategoryGrid({ categories, amounts }: { categories: Category[]; amounts: Record<string, number> }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 4 }}>
@@ -372,7 +418,6 @@ function CategoryGrid({ categories, amounts }: { categories: Category[]; amounts
   )
 }
 
-// ─── Collapsible Section ─────────────────────────────────────────────────────
 interface SectionProps {
   title: string; total: number; color: string; glowColor: string
   categories: Category[]; amounts: Record<string, number>; onManage: () => void
@@ -397,9 +442,7 @@ function CollapsibleSection({ title, total, color, glowColor, categories, amount
         <motion.button whileTap={{ scale: 0.82 }} onClick={() => setOpen(v => !v)}
           style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
         >
-          <motion.svg animate={{ rotate: open ? 0 : 180 }} transition={{ duration: 0.22 }}
-            width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          ><polyline points="18 15 12 9 6 15" /></motion.svg>
+          <motion.svg animate={{ rotate: open ? 0 : 180 }} transition={{ duration: 0.22 }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></motion.svg>
         </motion.button>
       </div>
 
@@ -414,17 +457,16 @@ function CollapsibleSection({ title, total, color, glowColor, categories, amount
   )
 }
 
-// ─── HomeScreen ──────────────────────────────────────────────────────────────
 export function HomeScreen() {
   const today = new Date()
-  const [year, setYear]               = useState(today.getFullYear())
-  const [month, setMonth]             = useState(today.getMonth())
+  const [year, setYear] = useState(today.getFullYear())
+  const [month, setMonth] = useState(today.getMonth())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [managerOpen, setManagerOpen]   = useState<'expense' | 'income' | null>(null)
+  const [managerOpen, setManagerOpen] = useState<'expense' | 'income' | null>(null)
 
   const {
     expenseCategories, incomeCategories, subcategories, loading: catsLoading,
-    addCategory, deleteCategory, addSubcategory, deleteSubcategory,
+    addCategory, deleteCategory, addSubcategory, deleteSubcategory, reorderCategories, reorderSubcategories,
   } = useCategories()
 
   const { transactions, loading: txLoading } = useTransactions()
@@ -443,10 +485,10 @@ export function HomeScreen() {
     }, {} as Record<string, number>)
 
   const expenseAmounts = useMemo(() => calcAmounts(expenseCategories, 'expense'), [monthTxs, expenseCategories])
-  const incomeAmounts  = useMemo(() => calcAmounts(incomeCategories,  'income'),  [monthTxs, incomeCategories])
+  const incomeAmounts = useMemo(() => calcAmounts(incomeCategories, 'income'), [monthTxs, incomeCategories])
 
   const monthExpenses = useMemo(() => monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [monthTxs])
-  const monthIncome   = useMemo(() => monthTxs.filter(t => t.type === 'income' ).reduce((s, t) => s + t.amount, 0), [monthTxs])
+  const monthIncome = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthTxs])
 
   const handlePrev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1); setSelectedDate(null) }
   const handleNext = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1); setSelectedDate(null) }
@@ -456,7 +498,6 @@ export function HomeScreen() {
   return (
     <div style={{ minHeight: '100%', padding: '20px 20px 32px' }}>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}>
-
         <MonthNavigator year={year} month={month} selectedDate={selectedDate} onPrev={handlePrev} onNext={handleNext} onSelectDate={setSelectedDate} />
 
         <AnimatePresence>
@@ -472,12 +513,12 @@ export function HomeScreen() {
 
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[1,2,3,4].map(i => <div key={i} style={{ height: 60, borderRadius: 16, background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.08)' }} />)}
+            {[1, 2, 3, 4].map(i => <div key={i} style={{ height: 60, borderRadius: 16, background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.08)' }} />)}
           </div>
         ) : (
           <>
             <CollapsibleSection title="Expenses" total={monthExpenses} color="#F87171" glowColor="rgba(248,113,113,0.6)" categories={expenseCategories} amounts={expenseAmounts} onManage={() => setManagerOpen('expense')} />
-            <CollapsibleSection title="Income"   total={monthIncome}   color="#34D399" glowColor="rgba(52,211,153,0.6)"  categories={incomeCategories}  amounts={incomeAmounts}  onManage={() => setManagerOpen('income')} />
+            <CollapsibleSection title="Income" total={monthIncome} color="#34D399" glowColor="rgba(52,211,153,0.6)" categories={incomeCategories} amounts={incomeAmounts} onManage={() => setManagerOpen('income')} />
           </>
         )}
       </motion.div>
@@ -494,6 +535,8 @@ export function HomeScreen() {
             onDeleteCategory={id => deleteCategory(id, managerOpen)}
             onAddSubcategory={addSubcategory}
             onDeleteSubcategory={deleteSubcategory}
+            onReorderCategories={orderedIds => reorderCategories(managerOpen, orderedIds)}
+            onReorderSubcategories={reorderSubcategories}
           />
         )}
       </AnimatePresence>
