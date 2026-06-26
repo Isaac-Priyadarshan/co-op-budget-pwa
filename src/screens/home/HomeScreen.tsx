@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useTransactions } from '../../hooks/useTransactions'
 import { useCategories } from '../../hooks/useCategories'
@@ -402,11 +403,23 @@ function MonthNavigator({ year, month, selectedDate, onPrev, onNext, onSelectDat
   )
 }
 
-function CategoryGrid({ categories, amounts }: { categories: Category[]; amounts: Record<string, number> }) {
+function CategoryGrid({
+  categories,
+  amounts,
+  type,
+}: {
+  categories: Category[]
+  amounts: Record<string, number>
+  type: 'expense' | 'income'
+}) {
+  const navigate = useNavigate()
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 4 }}>
       {categories.map(cat => (
-        <motion.div key={cat.id} whileTap={{ scale: 0.93 }}
+        <motion.div
+          key={cat.id}
+          whileTap={{ scale: 0.93 }}
+          onClick={() => navigate(`/entry/${type}/${cat.id}`)}
           style={{ borderRadius: 18, padding: '14px 8px', background: cat.bg, border: `1px solid ${cat.accent}28`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer', boxShadow: `0 4px 16px ${cat.glow}` }}
         >
           <span style={{ fontSize: 24 }}>{cat.icon}</span>
@@ -421,9 +434,10 @@ function CategoryGrid({ categories, amounts }: { categories: Category[]; amounts
 interface SectionProps {
   title: string; total: number; color: string; glowColor: string
   categories: Category[]; amounts: Record<string, number>; onManage: () => void
+  type: 'expense' | 'income'
 }
 
-function CollapsibleSection({ title, total, color, glowColor, categories, amounts, onManage }: SectionProps) {
+function CollapsibleSection({ title, total, color, glowColor, categories, amounts, onManage, type }: SectionProps) {
   const [open, setOpen] = useState(true)
   return (
     <div style={{ marginBottom: 22 }}>
@@ -449,7 +463,7 @@ function CollapsibleSection({ title, total, color, glowColor, categories, amount
       <AnimatePresence initial={false}>
         {open && (
           <motion.div key="content" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
-            <CategoryGrid categories={categories} amounts={amounts} />
+            <CategoryGrid categories={categories} amounts={amounts} type={type} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -517,8 +531,8 @@ export function HomeScreen() {
           </div>
         ) : (
           <>
-            <CollapsibleSection title="Expenses" total={monthExpenses} color="#F87171" glowColor="rgba(248,113,113,0.6)" categories={expenseCategories} amounts={expenseAmounts} onManage={() => setManagerOpen('expense')} />
-            <CollapsibleSection title="Income" total={monthIncome} color="#34D399" glowColor="rgba(52,211,153,0.6)" categories={incomeCategories} amounts={incomeAmounts} onManage={() => setManagerOpen('income')} />
+            <CollapsibleSection title="Expenses" total={monthExpenses} color="#F87171" glowColor="rgba(248,113,113,0.6)" categories={expenseCategories} amounts={expenseAmounts} onManage={() => setManagerOpen('expense')} type="expense" />
+            <CollapsibleSection title="Income" total={monthIncome} color="#34D399" glowColor="rgba(52,211,153,0.6)" categories={incomeCategories} amounts={incomeAmounts} onManage={() => setManagerOpen('income')} type="income" />
           </>
         )}
       </motion.div>
