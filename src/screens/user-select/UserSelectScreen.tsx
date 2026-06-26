@@ -218,22 +218,12 @@ function AvatarCard({ user, emoji, onSelect, selected }: AvatarCardProps) {
         }}>
           {user}
         </p>
-
-        {selected && (
-          <motion.p
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{ fontSize: 11, color: 'rgba(196,181,253,0.7)', letterSpacing: '0.1em', textTransform: 'uppercase' }}
-          >
-            Tap to enter
-          </motion.p>
-        )}
       </motion.div>
     </motion.div>
   )
 }
 
-// ── Gold Quote Display (no shimmer sweep) ────────────────────────────────────
+// ── Gold Quote Display ───────────────────────────────────────────────────────
 function QuoteDisplay({ quote }: { quote: typeof QUOTES[0] }) {
   return (
     <motion.div
@@ -242,25 +232,20 @@ function QuoteDisplay({ quote }: { quote: typeof QUOTES[0] }) {
       transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
       style={{ textAlign: 'center', padding: '0 28px', maxWidth: 420, margin: '0 auto' }}
     >
-      {/* Opening quote mark */}
       <motion.span
         initial={{ opacity: 0, scale: 0.5 }}
         animate={{ opacity: 0.4, scale: 1 }}
         transition={{ delay: 0.5, duration: 0.5 }}
         style={{
-          fontSize: 56,
-          lineHeight: 0.6,
-          color: '#f59e0b',
-          fontFamily: 'Georgia, serif',
-          marginBottom: 10,
-          display: 'block',
+          fontSize: 56, lineHeight: 0.6,
+          color: '#f59e0b', fontFamily: 'Georgia, serif',
+          marginBottom: 10, display: 'block',
           textShadow: '0 0 20px rgba(245,158,11,0.5)',
         }}
       >
         "
       </motion.span>
 
-      {/* Quote text — gold with warm glow */}
       <p style={{
         fontSize: 'clamp(17px, 4.5vw, 22px)',
         fontFamily: "'Playfair Display', 'Georgia', serif",
@@ -271,14 +256,12 @@ function QuoteDisplay({ quote }: { quote: typeof QUOTES[0] }) {
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         backgroundClip: 'text',
-        textShadow: 'none',
         letterSpacing: '0.01em',
         filter: 'drop-shadow(0 0 18px rgba(251,191,36,0.35))',
       }}>
         {quote.text}
       </p>
 
-      {/* Author */}
       <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -390,32 +373,14 @@ export function UserSelectScreen() {
           <QuoteDisplay quote={quote} />
         </div>
 
-        {/* Bottom: User cards — no label above */}
+        {/* Bottom: User cards */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
           style={{ position: 'relative', zIndex: 1, width: '100%', padding: '0 24px' }}
         >
-          {selected && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              style={{
-                textAlign: 'center',
-                fontSize: 12,
-                color: 'rgba(255,255,255,0.3)',
-                letterSpacing: '0.12em',
-                textTransform: 'uppercase',
-                marginBottom: 16,
-                fontWeight: 500,
-              }}
-            >
-              Tap again to enter
-            </motion.p>
-          )}
-          {!selected && <div style={{ marginBottom: 16, height: 18 }} />}
-
+          <div style={{ marginBottom: 16, height: 18 }} />
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
             <AvatarCard user="Isaac" emoji="🤴🏽" onSelect={handleSelect} selected={selected === 'Isaac'} />
             <AvatarCard user="Jenifa" emoji="👸🏽" onSelect={handleSelect} selected={selected === 'Jenifa'} />
