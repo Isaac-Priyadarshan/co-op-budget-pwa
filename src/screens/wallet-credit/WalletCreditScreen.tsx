@@ -45,28 +45,31 @@ export function WalletCreditScreen() {
   const handleUpdate = async (id: string, w: NewWallet) => { await update(id, w) }
   const handleDelete = async (id: string) => { await remove(id) }
 
-  // ─── Section header: icon + label + plus button, all left-aligned ──────────────────
+  // ─── Section header: label + Home-style gold circular + button ─────────────
   const SectionHeader = ({
-    icon, label, accent, onAdd,
+    label, accent, onAdd,
   }: {
-    icon: string; label: string; accent: string; onAdd: () => void
+    label: string; accent: string; onAdd: () => void
   }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-      <span style={{ fontSize: 16, lineHeight: 1 }}>{icon}</span>
-      <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{label}</p>
       <motion.button
-        whileTap={{ scale: 0.88 }}
+        whileTap={{ scale: 0.82 }}
         onClick={onAdd}
         aria-label={`Add ${label}`}
         style={{
-          width: 26, height: 26, borderRadius: 8,
-          border: `1px solid ${accent}44`,
-          background: `${accent}18`,
-          color: accent, fontSize: 18, fontWeight: 400, lineHeight: 1,
+          width: 28, height: 28, borderRadius: '50%',
+          background: 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(217,119,6,0.12))',
+          border: '1px solid rgba(251,191,36,0.32)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: 'pointer', flexShrink: 0,
         }}
-      >+</motion.button>
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </motion.button>
+      <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{label}</p>
     </div>
   )
 
@@ -125,7 +128,6 @@ export function WalletCreditScreen() {
           {!loading && (
             <section style={{ marginBottom: 24, paddingTop: 8 }}>
               <SectionHeader
-                icon="👛"
                 label="Wallets"
                 accent="rgba(52,211,153,0.8)"
                 onAdd={() => setSheet({ type: 'add-cash' })}
@@ -173,7 +175,6 @@ export function WalletCreditScreen() {
           {!loading && (
             <section>
               <SectionHeader
-                icon="💳"
                 label="Credit Cards"
                 accent="rgba(248,113,113,0.8)"
                 onAdd={() => setSheet({ type: 'add-credit' })}
@@ -202,7 +203,7 @@ export function WalletCreditScreen() {
                           cursor: 'pointer',
                         }}
                       >
-                        {/* Name + balance row — no icon */}
+                        {/* Name + balance row */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                           <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                             {card.label}
