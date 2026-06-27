@@ -90,7 +90,7 @@ export function EntryScreen() {
   const formattedDisplay = (() => {
     const [int, dec] = raw.split('.')
     const intFormatted = parseInt(int || '0', 10).toLocaleString('en-IN')
-    return dec !== undefined ? `₹${intFormatted}.${dec}` : `₹${intFormatted}`
+    return dec !== undefined ? `\u20B9${intFormatted}.${dec}` : `\u20B9${intFormatted}`
   })()
 
   const today   = new Date()
@@ -102,6 +102,7 @@ export function EntryScreen() {
     : `${txDate.getDate()} ${MONTH_NAMES[txDate.getMonth()]} ${txDate.getFullYear()}`
 
   const selectedSubLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
+  void selectedSubLabel
 
   const daysInMonth = new Date(pickerY, pickerM + 1, 0).getDate()
   const pickerDays  = Array.from({ length: daysInMonth }, (_, i) => i + 1)
@@ -113,10 +114,7 @@ export function EntryScreen() {
     setTxDate(new Date(dy, dm, safe))
   }, [])
 
-  // BUG 2 FIX: pass user-chosen date as transaction_date so Supabase stores it
-  // instead of defaulting created_at to now().
-  // We build the date at noon local time to avoid timezone shifts rolling it
-  // to the previous day.
+  // BUG 2 FIX: pass user-chosen date as transaction_date
   const handleConfirm = useCallback(async () => {
     if (!canConfirm) return
     if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
@@ -132,7 +130,7 @@ export function EntryScreen() {
       )
       await addTransaction({
         amount:           amountValue,
-        description:      descParts.join(' · ') || category.label,
+        description:      descParts.join(' \u00B7 ') || category.label,
         category:         category.label,
         created_by:       activeUser,
         type:             (type as 'income' | 'expense') ?? 'expense',
@@ -147,7 +145,7 @@ export function EntryScreen() {
     }
   }, [canConfirm, category, activeUser, selectedSub, note, subs, addTransaction, amountValue, type, navigate, txDate, walletId])
 
-  // ─── TRAY CONTENT ───────────────────────────────────────────────────────────
+  // TRAY CONTENT
   const renderTrayContent = () => {
     if (activePanel === 'note') return (
       <div style={{
@@ -155,12 +153,12 @@ export function EntryScreen() {
         padding: '10px 14px',
         borderBottom: `1px solid ${accent}25`,
       }}>
-        <span style={{ fontSize: 15, flexShrink: 0 }}>✏️</span>
+        <span style={{ fontSize: 15, flexShrink: 0 }}>&#x270F;&#xFE0F;</span>
         <input
           ref={noteInputRef}
           value={note}
           onChange={e => setNote(e.target.value)}
-          placeholder="Add a note…"
+          placeholder="Add a note\u2026"
           maxLength={120}
           style={{
             flex: 1, background: 'none', border: 'none', outline: 'none',
@@ -170,7 +168,7 @@ export function EntryScreen() {
         {note && (
           <button onClick={() => setNote('')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}
-          >✕</button>
+          >&#x2715;</button>
         )}
       </div>
     )
@@ -179,9 +177,9 @@ export function EntryScreen() {
       <div style={{ padding: '10px 14px', borderBottom: `1px solid ${accent}25` }}>
         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: `${accent}88`, marginBottom: 8 }}>Select wallet</p>
         {walletsLoading ? (
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>Loading…</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>Loading&#x2026;</p>
         ) : wallets.length === 0 ? (
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>No wallets found. Add one in Wallet & Credit.</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>No wallets found. Add one in Wallet &amp; Credit.</p>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {wallets.map(w => (
@@ -246,11 +244,11 @@ export function EntryScreen() {
     return null
   }
 
-  // ─── RENDER ─────────────────────────────────────────────────────────────────
+  // RENDER
   if (!category) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100dvh', gap: 12 }}>
-        <p style={{ fontSize: 40 }}>🤔</p>
+        <p style={{ fontSize: 40 }}>&#x1F914;</p>
         <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)' }}>Category not found</p>
         <button onClick={() => navigate(-1)}
           style={{ marginTop: 8, padding: '10px 20px', borderRadius: 12, background: 'rgba(255,255,255,0.08)', border: 'none', color: '#F5F5F5', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
@@ -275,12 +273,12 @@ export function EntryScreen() {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <div style={{
         position: 'relative', zIndex: 10,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: 'env(safe-area-inset-top) 20px 0',
-        paddingTop: `max(env(safe-area-inset-top), 12px)`,
+        paddingTop: 'max(env(safe-area-inset-top), 12px)',
         paddingBottom: 4,
       }}>
         <motion.button whileTap={{ scale: 0.85 }} onClick={() => navigate(-1)}
@@ -306,7 +304,7 @@ export function EntryScreen() {
         <div style={{ width: 38 }} />
       </div>
 
-      {/* ── AMOUNT DISPLAY ── */}
+      {/* AMOUNT DISPLAY */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
@@ -352,7 +350,7 @@ export function EntryScreen() {
         )}
       </div>
 
-      {/* ── TOOLBAR CARD (tray + icon row) ── */}
+      {/* TOOLBAR CARD */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
@@ -388,38 +386,35 @@ export function EntryScreen() {
             padding: '8px 14px',
             gap: 6,
           }}>
-            {/* Note button */}
             <ToolbarBtn
               active={activePanel === 'note'}
               accent={accent}
               onClick={() => togglePanel('note')}
               label={note || 'Note'}
-              icon="✏️"
+              icon="\u270F\uFE0F"
               filled={!!note}
             />
-            {/* Wallet button */}
             <ToolbarBtn
               active={activePanel === 'wallet'}
               accent={accent}
               onClick={() => togglePanel('wallet')}
               label={walletLabel || 'Wallet'}
-              icon="👛"
+              icon="\uD83D\uDC5B"
               filled={!!walletId}
             />
-            {/* Date button */}
             <ToolbarBtn
               active={activePanel === 'calendar'}
               accent={accent}
               onClick={() => togglePanel('calendar')}
               label={dateLabel}
-              icon="📅"
+              icon="\uD83D\uDCC5"
               filled={!isToday}
             />
           </div>
         </div>
       </div>
 
-      {/* ── NUMPAD ── */}
+      {/* NUMPAD */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '1 1 auto',
@@ -443,16 +438,16 @@ export function EntryScreen() {
                   style={{
                     width: '100%', height: '100%',
                     borderRadius: 16,
-                    background: k === '⌫' ? 'rgba(248,113,113,0.10)' : 'rgba(255,255,255,0.055)',
+                    background: k === '\u232B' ? 'rgba(248,113,113,0.10)' : 'rgba(255,255,255,0.055)',
                     border: `1px solid ${
-                      k === '⌫' ? 'rgba(248,113,113,0.18)'
+                      k === '\u232B' ? 'rgba(248,113,113,0.18)'
                       : k === '.' ? `${accent}22`
                       : 'rgba(255,255,255,0.07)'
                     }`,
                     cursor: 'pointer',
-                    fontSize: k === '⌫' ? 18 : 22,
-                    fontWeight: k === '⌫' ? 600 : 700,
-                    color: k === '⌫' ? '#F87171'
+                    fontSize: k === '\u232B' ? 18 : 22,
+                    fontWeight: k === '\u232B' ? 600 : 700,
+                    color: k === '\u232B' ? '#F87171'
                       : k === '.' ? accent
                       : '#F5F5F5',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -464,12 +459,12 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* ── CONFIRM BUTTON ── */}
+      {/* CONFIRM BUTTON */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
         padding: '8px 16px',
-        paddingBottom: `max(env(safe-area-inset-bottom), 16px)`,
+        paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
       }}>
         <motion.button
           whileTap={canConfirm ? { scale: 0.97 } : {}}
@@ -495,11 +490,11 @@ export function EntryScreen() {
                 animate={{ rotate: 360 }}
                 transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
                 style={{ display: 'inline-block', fontSize: 16 }}
-              >⟳</motion.span>
-              Saving…
+              >&#x27F3;</motion.span>
+              Saving&#x2026;
             </>
           ) : success ? (
-            <motion.span initial={{ scale: 0.5 }} animate={{ scale: 1 }} style={{ fontSize: 18 }}>✅</motion.span>
+            <motion.span initial={{ scale: 0.5 }} animate={{ scale: 1 }} style={{ fontSize: 18 }}>&#x2705;</motion.span>
           ) : 'Confirm'}
         </motion.button>
 
@@ -516,7 +511,7 @@ export function EntryScreen() {
   )
 }
 
-// ─── Toolbar button helper ───────────────────────────────────────────────────
+// Toolbar button helper
 interface ToolbarBtnProps {
   active: boolean
   accent: string
@@ -546,4 +541,9 @@ function ToolbarBtn({ active, accent, onClick, label, icon, filled }: ToolbarBtn
       <span style={{ fontSize: 13 }}>{icon}</span>
       <span style={{
         fontSize: 11, fontWeight: 600,
-        color: active ? accent : filled ? `${accent}CC` : 'rgba(255,255,25
+        color: active ? accent : filled ? `${accent}CC` : 'rgba(255,255,255,0.35)',
+        maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>{label}</span>
+    </motion.button>
+  )
+}
