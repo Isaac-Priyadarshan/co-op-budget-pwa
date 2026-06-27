@@ -268,15 +268,17 @@ export function EntryScreen() {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* ── HEADER ── */}
+      {/* ── HEADER — back button + category icon & name, left-aligned together ── */}
       <div style={{
         position: 'relative', zIndex: 10,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center',
         paddingLeft: 16, paddingRight: 16,
         paddingTop: 'max(env(safe-area-inset-top), 12px)',
         paddingBottom: 4,
         flex: '0 0 auto',
+        gap: 10,
       }}>
+        {/* Back button */}
         <motion.button whileTap={{ scale: 0.85 }} onClick={() => navigate(-1)}
           style={{
             width: 38, height: 38, borderRadius: 13,
@@ -290,6 +292,7 @@ export function EntryScreen() {
           </svg>
         </motion.button>
 
+        {/* Category icon + name — immediately right of back button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div style={{
             width: 34, height: 34, borderRadius: 11,
@@ -299,11 +302,9 @@ export function EntryScreen() {
           }}>{category.icon}</div>
           <p style={{ fontSize: 15, fontWeight: 700, color: accent }}>{category.label}</p>
         </div>
-
-        <div style={{ width: 38, flexShrink: 0 }} />
       </div>
 
-      {/* ── AMOUNT DISPLAY ── */}
+      {/* ── AMOUNT DISPLAY — grows to fill remaining space ── */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '1 1 auto',
@@ -329,25 +330,33 @@ export function EntryScreen() {
         >
           {formattedDisplay}
         </motion.p>
-
-        {subs.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 8 }}>
-            {subs.map(s => (
-              <motion.button key={s.id} whileTap={{ scale: 0.90 }}
-                onClick={() => setSelectedSub(prev => prev === s.id ? null : s.id)}
-                style={{
-                  padding: '5px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
-                  fontSize: 11, fontWeight: 700,
-                  background: selectedSub === s.id ? accent : `${accent}15`,
-                  color: selectedSub === s.id ? '#000' : accent,
-                  boxShadow: selectedSub === s.id ? `0 0 10px ${glow}` : 'none',
-                  transition: 'all 0.15s',
-                }}
-              >{s.label}</motion.button>
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* ── SUBCATEGORY CHIPS — pinned directly above toolbar card ── */}
+      {subs.length > 0 && (
+        <div style={{
+          position: 'relative', zIndex: 2,
+          flex: '0 0 auto',
+          display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
+          gap: 6,
+          paddingLeft: 16, paddingRight: 16,
+          paddingBottom: 10,
+        }}>
+          {subs.map(s => (
+            <motion.button key={s.id} whileTap={{ scale: 0.90 }}
+              onClick={() => setSelectedSub(prev => prev === s.id ? null : s.id)}
+              style={{
+                padding: '5px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                fontSize: 11, fontWeight: 700,
+                background: selectedSub === s.id ? accent : `${accent}15`,
+                color: selectedSub === s.id ? '#000' : accent,
+                boxShadow: selectedSub === s.id ? `0 0 10px ${glow}` : 'none',
+                transition: 'all 0.15s',
+              }}
+            >{s.label}</motion.button>
+          ))}
+        </div>
+      )}
 
       {/* ── TOOLBAR CARD ── */}
       <div style={{
@@ -411,7 +420,7 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* ── NUMPAD + CONFIRM — unified bottom block, zero gap between them ── */}
+      {/* ── NUMPAD + CONFIRM — unified bottom block ── */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
@@ -457,7 +466,7 @@ export function EntryScreen() {
           ))}
         </div>
 
-        {/* Confirm — directly below keypad, no gap */}
+        {/* Confirm — directly below keypad */}
         <motion.button
           whileTap={canConfirm ? { scale: 0.97 } : {}}
           onClick={handleConfirm}
