@@ -31,7 +31,11 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
+    // Primary: newest transaction_date first.
+    // Secondary: newest created_at first — stable tiebreaker when two
+    // transactions share the same date (e.g. both picked "today").
     .order('transaction_date', { ascending: false })
+    .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as Transaction[]
 }
