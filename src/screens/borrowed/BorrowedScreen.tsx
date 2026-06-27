@@ -4,6 +4,7 @@ import { useBorrowed } from '../../hooks/useBorrowed'
 import { useWallets } from '../../hooks/useWallets'
 import { useUser } from '../../context/UserContext'
 import { formatINR } from '../../utils/format'
+import { supabase } from '../../lib/supabase'
 import type { BorrowedEntry, BorrowedStatus, EditBorrowedPayload } from '../../hooks/useBorrowed'
 import type { WalletEntry } from '../../lib/db'
 
@@ -72,6 +73,281 @@ function dueDateLabel(dateStr: string): { text: string; color: string } {
   if (d === 0) return { text: 'Due today',               color: '#FBBF24' }
   if (d <= 3)  return { text: `In ${d}d`,                color: '#FB923C' }
   return       { text: `In ${d}d`,                       color: '#34D399' }
+}
+
+// ─── Transaction Log types ────────────────────────────────────────────────────
+interface TxLogRow {
+  id: string
+  transaction_date: string
+  amount: number
+  type: string
+  description: string
+  category: string
+}
+
+function logEventMeta(row: TxLogRow): { label: string; dot: string; amountColor: string; sign: string } {
+  const desc = row.description.toLowerCase()
+  if (row.category === 'Borrowed') {
+    if (desc.includes('additional')) {
+      return { label: 'Borrowed more', dot: '#FB923C', amountColor: '#FB923C', sign: '+' }
+    }
+    return { label: 'Borrowed', dot: '#FB923C', amountColor: '#FB923C', sign: '+' }
+  }
+  if (row.category === 'Repayment') {
+    if (desc.includes('settled')) {
+      return { label: 'Settled', dot: '#34D399', amountColor: '#34D399', sign: '-' }
+    }
+    return { label: 'Partial Payment', dot: '#FBBF24', amountColor: '#FBBF24', sign: '-' }
+  }
+  return { label: row.description, dot: 'rgba(255,255,255,0.3)', amountColor: '#f5f7ff', sign: '' }
+}
+
+function formatLogDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`
+}
+
+// ─── Borrow Transaction Log Sheet ─────────────────────────────────────────────
+function BorrowTransactionLogSheet({ open, entry, onClose }: {
+  open: boolean
+  entry: BorrowedEntry | null
+  onClose: () => void
+}) {
+  const [rows,    setRows]    = useState<TxLogRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [err,     setErr]     = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open || !entry) return
+    setRows([]); setErr(null); setLoading(true)
+
+    supabase
+      .from('transactions')
+      .select('id, transaction_date, amount, type, description, category')
+      .in('category', ['Borrowed', 'Repayment'])
+      .ilike('description', `%${entry.person}%`)
+      .order('transaction_date', { ascending: true })
+      .order('created_at',       { ascending: true })
+      .then(({ data, error: e }) => {
+        setLoading(false)
+        if (e) { setErr(e.message); return }
+        setRows((data ?? []) as TxLogRow[])
+      })
+  }, [open, entry])
+
+  return (
+    <AnimatePresence>
+      {open && entry && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 400 }}
+          />
+
+          {/* Sheet */}
+          <motion.div
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 340, damping: 34 }}
+            style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 401,
+              background: '#111113',
+              borderRadius: '24px 24px 0 0',
+              border: '1px solid rgba(255,255,255,0.1)',
+              maxHeight: '78vh',
+              display: 'flex', flexDirection: 'column',
+            }}
+          >
+            {/* Drag pill */}
+            <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '16px auto 0', flexShrink: 0 }} />
+
+            {/* Header */}
+            <div style={{ padding: '16px 20px 12px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  background: 'rgba(251,146,60,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 15, fontWeight: 800, color: '#FB923C',
+                }}>
+                  {entry.person.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: '#f5f7ff', lineHeight: 1 }}>
+                    {entry.person}
+                  </p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>
+                    Transaction History
+                  </p>
+                </div>
+                <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>Total Borrowed</p>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: '#FB923C', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatINR(entry.amount)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body — scrollable */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px calc(env(safe-area-inset-bottom) + 24px)' }}>
+
+              {loading && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {[1,2,3].map(i => (
+                    <div key={i} style={{ height: 54, borderRadius: 14, background: 'rgba(255,255,255,0.04)' }} />
+                  ))}
+                </div>
+              )}
+
+              {err && (
+                <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center', padding: '20px 0' }}>{err}</p>
+              )}
+
+              {!loading && !err && rows.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '36px 0' }}>
+                  <p style={{ fontSize: 28, marginBottom: 10 }}>📭</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.4)' }}>No transactions found</p>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.22)', marginTop: 4 }}>
+                    Transactions appear here once you borrow or repay
+                  </p>
+                </div>
+              )}
+
+              {!loading && !err && rows.length > 0 && (
+                <div style={{ position: 'relative' }}>
+                  {/* Vertical timeline line */}
+                  <div style={{
+                    position: 'absolute', left: 11, top: 12, bottom: 12, width: 1,
+                    background: 'rgba(255,255,255,0.07)',
+                  }} />
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+                    {rows.map((row, idx) => {
+                      const meta = logEventMeta(row)
+                      const isLast = idx === rows.length - 1
+                      return (
+                        <motion.div
+                          key={row.id}
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.2, delay: idx * 0.04 }}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: 12,
+                            paddingBottom: isLast ? 0 : 16,
+                          }}
+                        >
+                          {/* Timeline dot */}
+                          <div style={{
+                            width: 23, height: 23, borderRadius: '50%', flexShrink: 0,
+                            background: `${meta.dot}20`,
+                            border: `2px solid ${meta.dot}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            marginTop: 2, position: 'relative', zIndex: 1,
+                          }}>
+                            <div style={{
+                              width: 7, height: 7, borderRadius: '50%',
+                              background: meta.dot,
+                            }} />
+                          </div>
+
+                          {/* Content */}
+                          <div style={{
+                            flex: 1, minWidth: 0,
+                            padding: '10px 14px',
+                            borderRadius: 14,
+                            background: 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${meta.dot}18`,
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{
+                                  fontSize: 13, fontWeight: 700, color: '#f5f7ff',
+                                  marginBottom: 3,
+                                }}>
+                                  {meta.label}
+                                </p>
+                                <p style={{
+                                  fontSize: 11, color: 'rgba(255,255,255,0.35)',
+                                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                }}>
+                                  {formatLogDate(row.transaction_date)}
+                                </p>
+                              </div>
+                              <p style={{
+                                fontSize: 14, fontWeight: 800,
+                                color: meta.amountColor,
+                                fontVariantNumeric: 'tabular-nums',
+                                flexShrink: 0,
+                                letterSpacing: '-0.01em',
+                              }}>
+                                {meta.sign}{formatINR(row.amount)}
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Running balance summary at bottom */}
+                  <div style={{
+                    marginTop: 20,
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    background: entry.status === 'settled'
+                      ? 'rgba(52,211,153,0.07)'
+                      : 'rgba(251,146,60,0.07)',
+                    border: entry.status === 'settled'
+                      ? '1px solid rgba(52,211,153,0.2)'
+                      : '1px solid rgba(251,146,60,0.2)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  }}>
+                    <div>
+                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 3 }}>
+                        {entry.status === 'settled' ? 'Fully Settled' : 'Still Owed'}
+                      </p>
+                      <p style={{
+                        fontSize: 16, fontWeight: 900,
+                        color: entry.status === 'settled' ? '#34D399' : '#FB923C',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}>
+                        {formatINR(parseFloat((entry.amount - entry.paid_amount).toFixed(2)))}
+                      </p>
+                    </div>
+                    <div style={{
+                      padding: '5px 12px', borderRadius: 99,
+                      background: entry.status === 'settled'
+                        ? 'rgba(52,211,153,0.15)'
+                        : entry.status === 'partial'
+                        ? 'rgba(251,191,36,0.15)'
+                        : 'rgba(251,146,60,0.15)',
+                      border: entry.status === 'settled'
+                        ? '1px solid rgba(52,211,153,0.3)'
+                        : entry.status === 'partial'
+                        ? '1px solid rgba(251,191,36,0.3)'
+                        : '1px solid rgba(251,146,60,0.3)',
+                    }}>
+                      <p style={{
+                        fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
+                        color: entry.status === 'settled' ? '#34D399'
+                          : entry.status === 'partial' ? '#FBBF24'
+                          : '#FB923C',
+                      }}>
+                        {entry.status}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
 }
 
 // ─── Wallet picker ────────────────────────────────────────────────────────────
@@ -231,7 +507,6 @@ function EditBorrowedSheet({ open, entry, saving, onClose, onSave }: {
   const [note,    setNote]    = useState('')
   const [err,     setErr]     = useState('')
 
-  // Sync fields when entry changes
   useEffect(() => {
     if (entry) {
       setPerson(entry.person)
@@ -285,7 +560,6 @@ function EditBorrowedSheet({ open, entry, saving, onClose, onSave }: {
           >
             <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '0 auto 20px' }} />
 
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
@@ -323,7 +597,6 @@ function EditBorrowedSheet({ open, entry, saving, onClose, onSave }: {
                   placeholder="Any memo…" style={inputStyle} />
               </div>
 
-              {/* Read-only amount reminder */}
               <div style={{
                 padding: '11px 14px', borderRadius: 12,
                 background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
@@ -588,13 +861,14 @@ function DragHandle({ controls }: { controls: ReturnType<typeof useDragControls>
 }
 
 function BorrowedCard({
-  entry, expanded, reorderMode, onToggle, onEdit, onAddMore, onPartial, onSettle,
+  entry, expanded, reorderMode, onToggle, onEdit, onLog, onAddMore, onPartial, onSettle,
 }: {
   entry: BorrowedEntry
   expanded: boolean
   reorderMode: boolean
   onToggle: () => void
   onEdit: () => void
+  onLog: () => void
   onAddMore: () => void
   onPartial: () => void
   onSettle: () => void
@@ -632,7 +906,6 @@ function BorrowedCard({
         style={{ padding: '14px 14px 10px', cursor: reorderMode ? 'default' : 'pointer' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          {/* Drag handle — only visible in reorder mode */}
           <AnimatePresence initial={false}>
             {reorderMode && (
               <motion.div key="handle" initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}>
@@ -699,7 +972,7 @@ function BorrowedCard({
         </div>
       </div>
 
-      {/* Expanded actions — hidden in reorder mode */}
+      {/* Expanded actions */}
       <AnimatePresence initial={false}>
         {expanded && !reorderMode && (
           <motion.div
@@ -749,6 +1022,27 @@ function BorrowedCard({
                 </svg>
               </motion.button>
 
+              {/* ── Log icon button (NEW — between Edit and Add More) ── */}
+              <motion.button whileTap={{ scale: 0.9 }}
+                onClick={e => { e.stopPropagation(); onLog() }}
+                aria-label="View transaction log"
+                title="Transaction Log"
+                style={{
+                  width: 36, flexShrink: 0, borderRadius: 11,
+                  border: '1px solid rgba(56,189,248,0.32)',
+                  background: 'rgba(56,189,248,0.10)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                }}
+              >
+                {/* List / log icon */}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="2" width="14" height="20" rx="2" />
+                  <line x1="9" y1="7"  x2="15" y2="7"  />
+                  <line x1="9" y1="12" x2="15" y2="12" />
+                  <line x1="9" y1="17" x2="13" y2="17" />
+                </svg>
+              </motion.button>
+
               {/* ── [+] Add More ── */}
               <motion.button whileTap={{ scale: 0.93 }}
                 onClick={e => { e.stopPropagation(); onAddMore() }}
@@ -792,7 +1086,6 @@ function BorrowedCard({
     </motion.div>
   )
 
-  // In reorder mode, wrap with Reorder.Item
   if (reorderMode) {
     return (
       <Reorder.Item
@@ -828,6 +1121,13 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
   )
 }
 
+// ─── Status sort priority ─────────────────────────────────────────────────────
+const STATUS_PRIORITY: Record<BorrowedStatus, number> = {
+  pending: 0,
+  partial: 1,
+  settled: 2,
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export function BorrowedScreen() {
   const { activeUser } = useUser()
@@ -847,6 +1147,7 @@ export function BorrowedScreen() {
   const [paymentEntry,  setPaymentEntry]  = useState<BorrowedEntry | null>(null)
   const [paymentMode,   setPaymentMode]   = useState<'partial' | 'settle'>('partial')
   const [addMoreEntry,  setAddMoreEntry]  = useState<BorrowedEntry | null>(null)
+  const [logEntry,      setLogEntry]      = useState<BorrowedEntry | null>(null)
 
   const handleAdd = async (person: string, amount: number, walletId: string, dueDate: string, note: string) => {
     await addBorrowed({
@@ -859,11 +1160,18 @@ export function BorrowedScreen() {
     })
   }
 
-  const filtered = entries.filter(e => {
-    if (filter === 'pending') return e.status !== 'settled'
-    if (filter === 'settled') return e.status === 'settled'
-    return true
-  })
+  // Filter first, then apply status-priority sort when viewing All
+  const filtered = (() => {
+    const base = entries.filter(e => {
+      if (filter === 'pending') return e.status !== 'settled'
+      if (filter === 'settled') return e.status === 'settled'
+      return true
+    })
+    if (filter === 'all') {
+      return [...base].sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status])
+    }
+    return base
+  })()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -890,12 +1198,10 @@ export function BorrowedScreen() {
           }}
         >
           <SummaryWaveCanvas />
-          {/* top shimmer line */}
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,rgba(251,146,60,0.55),transparent)' }} />
 
           <div style={{ position: 'relative', zIndex: 2, padding: '18px 18px 16px' }}>
 
-            {/* Top row: total owed + borrower count */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
               <div>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,146,60,0.65)', marginBottom: 5 }}>Total Owed</p>
@@ -908,10 +1214,7 @@ export function BorrowedScreen() {
                 </p>
               </div>
 
-              {/* Borrower count pill */}
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
-              }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '5px 10px', borderRadius: 99,
@@ -933,7 +1236,6 @@ export function BorrowedScreen() {
               </div>
             </div>
 
-            {/* 3 nearest due dates — compact chips row */}
             {nearestDues.length > 0 && (
               <div>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>Upcoming Dues</p>
@@ -970,10 +1272,9 @@ export function BorrowedScreen() {
           </div>
         </motion.div>
 
-        {/* ── Toolbar: + · filters · Reorder Done ── */}
+        {/* ── Toolbar ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
 
-          {/* Add button */}
           <motion.button whileTap={{ scale: 0.9 }} onClick={() => setAddOpen(true)}
             aria-label="Add borrowed entry"
             style={{
@@ -996,7 +1297,6 @@ export function BorrowedScreen() {
             </>
           )}
 
-          {/* Reorder toggle */}
           <motion.button whileTap={{ scale: 0.92 }}
             onClick={() => { setReorderMode(r => !r); setExpandedId(null) }}
             style={{
@@ -1022,7 +1322,6 @@ export function BorrowedScreen() {
           </motion.button>
         </div>
 
-        {/* Reorder mode hint */}
         <AnimatePresence>
           {reorderMode && (
             <motion.p
@@ -1060,7 +1359,6 @@ export function BorrowedScreen() {
           </motion.div>
         )}
 
-        {/* ── Reorder mode list ── */}
         {reorderMode ? (
           <Reorder.Group
             axis="y"
@@ -1076,6 +1374,7 @@ export function BorrowedScreen() {
                 reorderMode={true}
                 onToggle={() => {}}
                 onEdit={() => setEditEntry(entry)}
+                onLog={() => setLogEntry(entry)}
                 onAddMore={() => setAddMoreEntry(entry)}
                 onPartial={() => { setPaymentEntry(entry); setPaymentMode('partial') }}
                 onSettle={()  => { setPaymentEntry(entry); setPaymentMode('settle')  }}
@@ -1083,7 +1382,6 @@ export function BorrowedScreen() {
             ))}
           </Reorder.Group>
         ) : (
-          /* ── Normal mode list ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <AnimatePresence initial={false}>
               {filtered.map(entry => (
@@ -1094,6 +1392,7 @@ export function BorrowedScreen() {
                   reorderMode={false}
                   onToggle={() => setExpandedId(prev => prev === entry.id ? null : entry.id)}
                   onEdit={() => setEditEntry(entry)}
+                  onLog={() => setLogEntry(entry)}
                   onAddMore={() => setAddMoreEntry(entry)}
                   onPartial={() => { setPaymentEntry(entry); setPaymentMode('partial') }}
                   onSettle={()  => { setPaymentEntry(entry); setPaymentMode('settle')  }}
@@ -1133,6 +1432,13 @@ export function BorrowedScreen() {
         onClose={() => setPaymentEntry(null)}
         onPartial={makePayment}
         onSettle={markSettled}
+      />
+
+      {/* ── Transaction Log Sheet (NEW) ── */}
+      <BorrowTransactionLogSheet
+        open={logEntry !== null}
+        entry={logEntry}
+        onClose={() => setLogEntry(null)}
       />
     </div>
   )
