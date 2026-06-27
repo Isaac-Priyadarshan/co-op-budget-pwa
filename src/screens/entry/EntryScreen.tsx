@@ -184,13 +184,13 @@ export function EntryScreen() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {wallets.map(w => (
               <motion.button key={w.id} whileTap={{ scale: 0.92 }}
-                onClick={() => { setWalletId(w.id); setWalletLabel(w.name); setActivePanel(null) }}
+                onClick={() => { setWalletId(w.id); setWalletLabel(w.label); setActivePanel(null) }}
                 style={{
                   padding: '6px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                   background: walletId === w.id ? accent : 'rgba(255,255,255,0.08)',
                   color: walletId === w.id ? '#000' : '#F5F5F5',
                 }}
-              >{w.name}</motion.button>
+              >{w.label}</motion.button>
             ))}
           </div>
         )}

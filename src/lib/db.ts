@@ -23,7 +23,6 @@ export interface NewTransaction {
   created_by: AppUser
   type: 'income' | 'expense'
   wallet_id?: string | null
-  // When provided, this ISO string is used as created_at so user-chosen dates are respected
   transaction_date?: string
 }
 
@@ -36,8 +35,6 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   return (data ?? []) as Transaction[]
 }
 
-// If tx.transaction_date is provided it is used as created_at so that the
-// user-selected date is persisted to Supabase instead of defaulting to now().
 export async function insertTransaction(tx: NewTransaction): Promise<void> {
   const payload: Record<string, unknown> = {
     amount:      tx.amount,
@@ -48,7 +45,6 @@ export async function insertTransaction(tx: NewTransaction): Promise<void> {
   }
   if (tx.wallet_id) payload.wallet_id = tx.wallet_id
   if (tx.transaction_date) payload.created_at = tx.transaction_date
-
   const { error } = await supabase.from('transactions').insert([payload])
   if (error) throw new Error(error.message)
 }
@@ -60,7 +56,7 @@ export async function deleteTransaction(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // WALLET MODULE
-// Fields used by: WalletCreditScreen (label, type, balance, owner), WalletSheet
+// WalletEntry.owner: AppUser  WalletEntry.label: string
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface WalletEntry {
@@ -69,7 +65,7 @@ export interface WalletEntry {
   type: 'cash' | 'credit' | string
   balance: number
   owner: AppUser
-  created_at?: string
+  created_at: string
 }
 
 export interface NewWallet {
@@ -116,8 +112,8 @@ export async function deleteWallet(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LOAN MODULE
-// Fields used by: LoansScreen (label, lender, owner, principal, outstanding,
-//   emi_amount, interest_rate, closed), LoanSheet
+// LoanEntry.label, .lender, .owner, .principal, .outstanding,
+// .emi_amount, .interest_rate, .closed  — all required, no optional created_at
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface LoanEntry {
@@ -130,7 +126,7 @@ export interface LoanEntry {
   emi_amount: number
   interest_rate: number
   closed: boolean
-  created_at?: string
+  created_at: string
 }
 
 export interface NewLoan {
@@ -184,26 +180,26 @@ export async function deleteLoan(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // RECURRING MODULE
-// Fields used by: RecurringPaymentScreen (label, category, owner, amount,
-//   frequency, next_due, active), OverviewScreen, RecurringSheet
+// RecurringEntry.label, .category, .owner, .amount, .frequency,
+// .next_due, .active  — owner typed as string to match RecurringSheet usage
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface RecurringEntry {
   id: string
   label: string
   category: string
-  owner: AppUser
+  owner: string
   amount: number
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | string
   next_due: string
   active: boolean
-  created_at?: string
+  created_at: string
 }
 
 export interface NewRecurring {
   label: string
   category: string
-  owner: AppUser
+  owner: string
   amount: number
   frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | string
   next_due: string
@@ -251,8 +247,8 @@ export async function deleteRecurring(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LENT MODULE
-// Fields used by: LentScreen (person, description, lent_by, amount, settled),
-//   PersonEntrySheet
+// LentEntry.person, .description, .lent_by, .amount, .settled
+// created_at is string (not optional) so formatShortDate() accepts it directly
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface LentEntry {
@@ -262,7 +258,7 @@ export interface LentEntry {
   lent_by: AppUser
   amount: number
   settled: boolean
-  created_at?: string
+  created_at: string
 }
 
 export interface NewLent {
@@ -310,24 +306,24 @@ export async function deleteLent(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BORROWED MODULE
-// Fields used by: useBorrowed (fetchBorrowed, insertBorrowed, settleBorrowed,
-//   deleteBorrowed, BorrowedEntry, NewBorrowed)
+// BorrowedEntry.borrowed_by matches BorrowedScreen usage
+// created_at is string (not optional) so formatShortDate() accepts it directly
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface BorrowedEntry {
   id: string
   person: string
-  description?: string
-  borrowed_from: AppUser
+  description: string
+  borrowed_by: AppUser
   amount: number
   settled: boolean
-  created_at?: string
+  created_at: string
 }
 
 export interface NewBorrowed {
   person: string
   description?: string
-  borrowed_from: AppUser
+  borrowed_by: AppUser
   amount: number
   settled?: boolean
 }
@@ -345,11 +341,11 @@ export async function insertBorrowed(entry: NewBorrowed): Promise<BorrowedEntry>
   const { data, error } = await supabase
     .from('borrowed')
     .insert({
-      person:        entry.person,
-      description:   entry.description ?? '',
-      borrowed_from: entry.borrowed_from,
-      amount:        entry.amount,
-      settled:       entry.settled ?? false,
+      person:      entry.person,
+      description: entry.description ?? '',
+      borrowed_by: entry.borrowed_by,
+      amount:      entry.amount,
+      settled:     entry.settled ?? false,
     })
     .select()
     .single()
@@ -369,7 +365,7 @@ export async function deleteBorrowed(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ASSET MODULE
-// Fields used by: AssetSheet (label, category, value, owner, notes), useAssets
+// AssetEntry.created_at is string (not optional) so formatShortDate() works
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface AssetEntry {
@@ -378,8 +374,8 @@ export interface AssetEntry {
   category: string
   value: number
   owner: string
-  notes?: string
-  created_at?: string
+  notes: string
+  created_at: string
 }
 
 export interface NewAsset {
