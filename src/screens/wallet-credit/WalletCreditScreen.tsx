@@ -13,17 +13,17 @@ function WalletWaveCanvas() {
     >
       <defs>
         <linearGradient id="wallet-wave-1" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(52,211,153,0.24)" />
-          <stop offset="100%" stopColor="rgba(52,211,153,0.04)" />
+          <stop offset="0%" stopColor="rgba(248,113,113,0.22)" />
+          <stop offset="100%" stopColor="rgba(248,113,113,0.04)" />
         </linearGradient>
         <linearGradient id="wallet-wave-2" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(248,113,113,0.18)" />
-          <stop offset="100%" stopColor="rgba(248,113,113,0.03)" />
+          <stop offset="0%" stopColor="rgba(52,211,153,0.16)" />
+          <stop offset="100%" stopColor="rgba(52,211,153,0.03)" />
         </linearGradient>
       </defs>
       <path d="M0,88 C80,68 150,112 230,92 C320,68 410,42 600,84 L600,140 L0,140 Z" fill="url(#wallet-wave-1)" />
       <path d="M0,104 C100,74 180,134 300,108 C410,84 500,58 600,98 L600,140 L0,140 Z" fill="url(#wallet-wave-2)" />
-      <path d="M0,88 C80,68 150,112 230,92 C320,68 410,42 600,84" fill="none" stroke="rgba(52,211,153,0.36)" strokeWidth="1.4" />
+      <path d="M0,88 C80,68 150,112 230,92 C320,68 410,42 600,84" fill="none" stroke="rgba(248,113,113,0.32)" strokeWidth="1.4" />
     </svg>
   )
 }
@@ -37,7 +37,7 @@ function formatDayOfMonth(day?: number | null) {
 }
 
 export function WalletCreditScreen() {
-  const { wallets, loading, error, save, remove, totalCash, totalCredit } = useWallets()
+  const { wallets, loading, error, save, remove, totalCash, totalCredit, totalCreditLimit } = useWallets()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [working, setWorking] = useState<string | null>(null)
   const walletEntries = wallets.filter((w) => w.type === 'cash')
@@ -61,20 +61,21 @@ export function WalletCreditScreen() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
+        {/* ── Summary Card ── */}
         <div
           style={{
             position: 'relative',
             borderRadius: 22,
             overflow: 'hidden',
             marginBottom: 20,
-            background: 'linear-gradient(160deg,#07110c 0%,#060b11 58%,#12070a 100%)',
+            background: 'linear-gradient(160deg,#110709 0%,#060b11 58%,#07110c 100%)',
             border: '1px solid rgba(99,102,241,0.24)',
             boxShadow: '0 0 0 1px rgba(99,102,241,0.05), 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 rgba(255,255,255,0.04) inset',
             minHeight: 112,
           }}
         >
           <WalletWaveCanvas />
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,rgba(99,102,241,0.45),transparent)' }} />
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,rgba(248,113,113,0.45),transparent)' }} />
           <div
             style={{
               position: 'relative',
@@ -85,28 +86,33 @@ export function WalletCreditScreen() {
               padding: '22px 20px 24px',
             }}
           >
+            {/* LEFT — Credit Owed */}
             <div>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.65)', marginBottom: 6 }}>
-                Total Cash
-              </p>
-              <p style={{ fontSize: 17, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                {formatINR(totalCash)}
-              </p>
-            </div>
-            <div style={{ textAlign: 'center', padding: '0 18px' }}>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(165,180,252,0.58)', marginBottom: 6 }}>
-                Summary
-              </p>
-              <p style={{ fontSize: 22, fontWeight: 900, color: '#f5f7ff', lineHeight: 1, textShadow: '0 0 18px rgba(165,180,252,0.22)' }}>
-                Wallets
-              </p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.65)', marginBottom: 6 }}>
                 Credit Owed
               </p>
               <p style={{ fontSize: 17, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                 {formatINR(totalCredit)}
+              </p>
+            </div>
+
+            {/* CENTER — Total Cash (dominant) */}
+            <div style={{ textAlign: 'center', padding: '0 18px' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.65)', marginBottom: 6 }}>
+                Total Cash
+              </p>
+              <p style={{ fontSize: 22, fontWeight: 900, color: '#34D399', lineHeight: 1, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 18px rgba(52,211,153,0.25)' }}>
+                {formatINR(totalCash)}
+              </p>
+            </div>
+
+            {/* RIGHT — Total Limit */}
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(165,180,252,0.65)', marginBottom: 6 }}>
+                Total Limit
+              </p>
+              <p style={{ fontSize: 17, fontWeight: 800, color: '#A5B4FC', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                {formatINR(totalCreditLimit)}
               </p>
             </div>
           </div>
@@ -256,7 +262,7 @@ export function WalletCreditScreen() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                           <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
                             <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Total Limit</p>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.credit_limit ?? 0)}</p>
+                            <p style={{ fontSize: 14, fontWeight: 700, color: '#A5B4FC', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.credit_limit ?? 0)}</p>
                           </div>
                           <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
                             <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Outstanding</p>
