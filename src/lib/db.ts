@@ -1,7 +1,10 @@
 import { supabase } from './supabase'
 import type { AppUser } from './types'
 
-// ── Transaction types ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// TRANSACTION MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+
 export interface Transaction {
   id: string
   amount: number
@@ -24,7 +27,6 @@ export interface NewTransaction {
   transaction_date?: string
 }
 
-// ── Fetch all transactions ordered newest first ────────────────────────────────
 export async function fetchTransactions(): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from('transactions')
@@ -34,7 +36,6 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   return (data ?? []) as Transaction[]
 }
 
-// ── Insert a new transaction ───────────────────────────────────────────────────
 // If tx.transaction_date is provided it is used as created_at so that the
 // user-selected date is persisted to Supabase instead of defaulting to now().
 export async function insertTransaction(tx: NewTransaction): Promise<void> {
@@ -52,8 +53,369 @@ export async function insertTransaction(tx: NewTransaction): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-// ── Delete a transaction by id ────────────────────────────────────────────────
 export async function deleteTransaction(id: string): Promise<void> {
   const { error } = await supabase.from('transactions').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// WALLET MODULE
+// Fields used by: WalletCreditScreen (label, type, balance, owner), WalletSheet
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface WalletEntry {
+  id: string
+  label: string
+  type: 'cash' | 'credit' | string
+  balance: number
+  owner: AppUser
+  created_at?: string
+}
+
+export interface NewWallet {
+  id?: string
+  label: string
+  type: 'cash' | 'credit' | string
+  balance: number
+  owner: AppUser
+}
+
+export async function fetchWallets(): Promise<WalletEntry[]> {
+  const { data, error } = await supabase
+    .from('wallets')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as WalletEntry[]
+}
+
+export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
+  if (entry.id) {
+    const { data, error } = await supabase
+      .from('wallets')
+      .update({ label: entry.label, type: entry.type, balance: entry.balance, owner: entry.owner })
+      .eq('id', entry.id)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return data as WalletEntry
+  }
+  const { data, error } = await supabase
+    .from('wallets')
+    .insert({ label: entry.label, type: entry.type, balance: entry.balance, owner: entry.owner })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as WalletEntry
+}
+
+export async function deleteWallet(id: string): Promise<void> {
+  const { error } = await supabase.from('wallets').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LOAN MODULE
+// Fields used by: LoansScreen (label, lender, owner, principal, outstanding,
+//   emi_amount, interest_rate, closed), LoanSheet
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface LoanEntry {
+  id: string
+  label: string
+  lender: string
+  owner: AppUser
+  principal: number
+  outstanding: number
+  emi_amount: number
+  interest_rate: number
+  closed: boolean
+  created_at?: string
+}
+
+export interface NewLoan {
+  label: string
+  lender: string
+  owner: AppUser
+  principal: number
+  outstanding: number
+  emi_amount: number
+  interest_rate?: number
+  closed?: boolean
+}
+
+export async function fetchLoans(): Promise<LoanEntry[]> {
+  const { data, error } = await supabase
+    .from('loans')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as LoanEntry[]
+}
+
+export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
+  const { data, error } = await supabase
+    .from('loans')
+    .insert({
+      label:         entry.label,
+      lender:        entry.lender,
+      owner:         entry.owner,
+      principal:     entry.principal,
+      outstanding:   entry.outstanding,
+      emi_amount:    entry.emi_amount,
+      interest_rate: entry.interest_rate ?? 0,
+      closed:        entry.closed ?? false,
+    })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as LoanEntry
+}
+
+export async function closeLoan(id: string): Promise<void> {
+  const { error } = await supabase.from('loans').update({ closed: true }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+export async function deleteLoan(id: string): Promise<void> {
+  const { error } = await supabase.from('loans').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// RECURRING MODULE
+// Fields used by: RecurringPaymentScreen (label, category, owner, amount,
+//   frequency, next_due, active), OverviewScreen, RecurringSheet
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface RecurringEntry {
+  id: string
+  label: string
+  category: string
+  owner: AppUser
+  amount: number
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | string
+  next_due: string
+  active: boolean
+  created_at?: string
+}
+
+export interface NewRecurring {
+  label: string
+  category: string
+  owner: AppUser
+  amount: number
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | string
+  next_due: string
+  active?: boolean
+  notes?: string
+}
+
+export async function fetchRecurring(): Promise<RecurringEntry[]> {
+  const { data, error } = await supabase
+    .from('recurring')
+    .select('*')
+    .order('next_due', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as RecurringEntry[]
+}
+
+export async function insertRecurring(entry: NewRecurring): Promise<RecurringEntry> {
+  const { data, error } = await supabase
+    .from('recurring')
+    .insert({
+      label:     entry.label,
+      category:  entry.category,
+      owner:     entry.owner,
+      amount:    entry.amount,
+      frequency: entry.frequency,
+      next_due:  entry.next_due,
+      active:    entry.active ?? true,
+      notes:     entry.notes ?? '',
+    })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as RecurringEntry
+}
+
+export async function toggleRecurring(id: string, active: boolean): Promise<void> {
+  const { error } = await supabase.from('recurring').update({ active }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+export async function deleteRecurring(id: string): Promise<void> {
+  const { error } = await supabase.from('recurring').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// LENT MODULE
+// Fields used by: LentScreen (person, description, lent_by, amount, settled),
+//   PersonEntrySheet
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface LentEntry {
+  id: string
+  person: string
+  description: string
+  lent_by: AppUser
+  amount: number
+  settled: boolean
+  created_at?: string
+}
+
+export interface NewLent {
+  person: string
+  description?: string
+  lent_by: AppUser
+  amount: number
+  settled?: boolean
+}
+
+export async function fetchLent(): Promise<LentEntry[]> {
+  const { data, error } = await supabase
+    .from('lent')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as LentEntry[]
+}
+
+export async function insertLent(entry: NewLent): Promise<LentEntry> {
+  const { data, error } = await supabase
+    .from('lent')
+    .insert({
+      person:      entry.person,
+      description: entry.description ?? '',
+      lent_by:     entry.lent_by,
+      amount:      entry.amount,
+      settled:     entry.settled ?? false,
+    })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as LentEntry
+}
+
+export async function settleLent(id: string): Promise<void> {
+  const { error } = await supabase.from('lent').update({ settled: true }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+export async function deleteLent(id: string): Promise<void> {
+  const { error } = await supabase.from('lent').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BORROWED MODULE
+// Fields used by: useBorrowed (fetchBorrowed, insertBorrowed, settleBorrowed,
+//   deleteBorrowed, BorrowedEntry, NewBorrowed)
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface BorrowedEntry {
+  id: string
+  person: string
+  description?: string
+  borrowed_from: AppUser
+  amount: number
+  settled: boolean
+  created_at?: string
+}
+
+export interface NewBorrowed {
+  person: string
+  description?: string
+  borrowed_from: AppUser
+  amount: number
+  settled?: boolean
+}
+
+export async function fetchBorrowed(): Promise<BorrowedEntry[]> {
+  const { data, error } = await supabase
+    .from('borrowed')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as BorrowedEntry[]
+}
+
+export async function insertBorrowed(entry: NewBorrowed): Promise<BorrowedEntry> {
+  const { data, error } = await supabase
+    .from('borrowed')
+    .insert({
+      person:        entry.person,
+      description:   entry.description ?? '',
+      borrowed_from: entry.borrowed_from,
+      amount:        entry.amount,
+      settled:       entry.settled ?? false,
+    })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as BorrowedEntry
+}
+
+export async function settleBorrowed(id: string): Promise<void> {
+  const { error } = await supabase.from('borrowed').update({ settled: true }).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+export async function deleteBorrowed(id: string): Promise<void> {
+  const { error } = await supabase.from('borrowed').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ASSET MODULE
+// Fields used by: AssetSheet (label, category, value, owner, notes), useAssets
+// ══════════════════════════════════════════════════════════════════════════════
+
+export interface AssetEntry {
+  id: string
+  label: string
+  category: string
+  value: number
+  owner: string
+  notes?: string
+  created_at?: string
+}
+
+export interface NewAsset {
+  label: string
+  category: string
+  value: number
+  owner: string
+  notes?: string
+}
+
+export async function fetchAssets(): Promise<AssetEntry[]> {
+  const { data, error } = await supabase
+    .from('assets')
+    .select('*')
+    .order('value', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as AssetEntry[]
+}
+
+export async function insertAsset(entry: NewAsset): Promise<AssetEntry> {
+  const { data, error } = await supabase
+    .from('assets')
+    .insert({
+      label:    entry.label,
+      category: entry.category,
+      value:    entry.value,
+      owner:    entry.owner,
+      notes:    entry.notes ?? '',
+    })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as AssetEntry
+}
+
+export async function deleteAsset(id: string): Promise<void> {
+  const { error } = await supabase.from('assets').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
