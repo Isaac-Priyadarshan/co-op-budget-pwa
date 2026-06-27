@@ -14,6 +14,15 @@ const KEY_ROWS = [
 ]
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
+// Format a Date to YYYY-MM-DD without timezone drift.
+// Supabase transactions.transaction_date is a DATE column — never send a full ISO timestamp.
+function toDateString(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export function EntryScreen() {
   const navigate = useNavigate()
   const { type, categoryId } = useParams<{ type: string; categoryId: string }>()
@@ -119,12 +128,6 @@ export function EntryScreen() {
     const subLabel  = subs.find(s => s.id === selectedSub)?.label ?? ''
     const descParts = [subLabel, note].filter(Boolean)
     try {
-      const chosenDate = new Date(
-        txDate.getFullYear(),
-        txDate.getMonth(),
-        txDate.getDate(),
-        12, 0, 0
-      )
       await addTransaction({
         amount:           amountValue,
         description:      descParts.join(' · ') || category.label,
@@ -132,7 +135,8 @@ export function EntryScreen() {
         created_by:       activeUser,
         type:             (type as 'income' | 'expense') ?? 'expense',
         wallet_id:        walletId ?? undefined,
-        transaction_date: chosenDate.toISOString(),
+        // Send clean YYYY-MM-DD — DATE column in Supabase rejects ISO timestamps
+        transaction_date: toDateString(txDate),
       })
       setSaving(false); setSuccess(true)
       setTimeout(() => navigate(-1), 1500)
