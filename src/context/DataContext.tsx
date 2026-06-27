@@ -1,6 +1,21 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { supabase } from '../lib/supabase'
-import { fetchTransactions, insertTransaction, deleteTransaction, type Transaction, type NewTransaction } from '../lib/db'
+import {
+  fetchTransactions,
+  insertTransaction,
+  deleteTransaction,
+  type Transaction,
+  type NewTransaction,
+} from '../lib/db'
 import type { Category, Subcategory } from '../types/category'
 
 const sortCategories = (items: Category[]) =>
@@ -23,14 +38,34 @@ interface DataContextValue {
   subcategories: Record<string, Subcategory[]>
   categoriesLoading: boolean
   categoriesError: string | null
-  addCategory: (type: 'expense' | 'income', label: string, icon: string, accent: string, glow: string, bg: string) => Promise<{ error: string | null }>
+  addCategory: (
+    type: 'expense' | 'income',
+    label: string,
+    icon: string,
+    accent: string,
+    glow: string,
+    bg: string,
+  ) => Promise<{ error: string | null }>
   deleteCategory: (id: string, type: 'expense' | 'income') => Promise<{ error: string | null }>
-  updateCategory: (id: string, label: string, icon: string, accent: string, glow: string, bg: string) => Promise<{ error: string | null }>
+  updateCategory: (
+    id: string,
+    label: string,
+    icon: string,
+    accent: string,
+    glow: string,
+    bg: string,
+  ) => Promise<{ error: string | null }>
   addSubcategory: (categoryId: string, label: string) => Promise<{ error: string | null }>
   deleteSubcategory: (subcategoryId: string, categoryId: string) => Promise<{ error: string | null }>
   updateSubcategory: (subcategoryId: string, label: string) => Promise<{ error: string | null }>
-  reorderCategories: (type: 'expense' | 'income', orderedIds: string[]) => Promise<{ error: string | null }>
-  reorderSubcategories: (categoryId: string, orderedIds: string[]) => Promise<{ error: string | null }>
+  reorderCategories: (
+    type: 'expense' | 'income',
+    orderedIds: string[],
+  ) => Promise<{ error: string | null }>
+  reorderSubcategories: (
+    categoryId: string,
+    orderedIds: string[],
+  ) => Promise<{ error: string | null }>
   transactions: Transaction[]
   transactionsLoading: boolean
   transactionsError: string | null
@@ -51,9 +86,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [transactionsLoading, setTransactionsLoading] = useState(true)
   const [transactionsError, setTransactionsError] = useState<string | null>(null)
 
-  // deletingIds: IDs currently mid-delete.
-  // Guards against Realtime INSERT/UPDATE resurrection and stale re-fetch restoration.
-  // Cleared explicitly on success AND by the Realtime DELETE event (belt-and-suspenders).
+  // deletingIds — guards against any resurrection of rows mid-delete.
+  // Populated BEFORE the DELETE await; cleared on success or error.
+  // loadTransactions always strips these IDs, so even if a stale fetch
+  // fires after the delete, the row will not reappear in state.
   const deletingIds = useRef<Set<string>>(new Set())
 
   const applyCategories = useCallback((cats: Category[]) => {
@@ -111,7 +147,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setTransactionsLoading(true)
       setTransactionsError(null)
       const data = await fetchTransactions()
-      // Always filter out any IDs mid-delete — closes the refresh race window
+      // Always filter out any IDs that are mid-delete.
+      // This closes the resurrection race: if a Supabase fetch resolves
+      // after the optimistic strip (e.g. PWA resume / visibilitychange),
+      // the deleted row is stripped before it can re-enter React state.
       setTransactions(data.filter(t => !deletingIds.current.has(t.id)))
     } catch (e) {
       setTransactionsError(e instanceof Error ? e.message : 'Failed to load transactions')
@@ -124,22 +163,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await Promise.all([loadCategories(), loadTransactions()])
   }, [loadCategories, loadTransactions])
 
+  // ── Initial load ──────────────────────────────────────────────────────────────────
   useEffect(() => { void refreshAll() }, [refreshAll])
 
+  // ── PWA visibilitychange reload guard ───────────────────────────────────────────
+  // When the user switches back from another app (PWA background → foreground),
+  // the Realtime WS channel may have missed events. We re-fetch all transactions
+  // on tab/app focus so data is always fresh.
+  // deletingIds is still populated here so any in-progress deletes remain guarded.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void loadTransactions()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [loadTransactions])
+
+  // ── Supabase Realtime channels ─────────────────────────────────────────────────
   useEffect(() => {
     const categoriesChannel = supabase
       .channel('realtime-categories')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => { void loadCategories() })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'subcategories' }, () => { void loadCategories() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => {
+        void loadCategories()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subcategories' }, () => {
+        void loadCategories()
+      })
       .subscribe()
 
     const transactionsChannel = supabase
       .channel('realtime-transactions')
-      // INSERT — optimistic prepend, skip if in deletingIds
+      // INSERT — skip if the row is mid-delete (can happen in race)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'transactions' },
-        (payload) => {
+        payload => {
           const newRow = payload.new as Transaction
           if (!newRow?.id) return
           if (deletingIds.current.has(newRow.id)) return
@@ -154,24 +214,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
           })
         },
       )
-      // UPDATE — optimistic patch, skip if in deletingIds
+      // UPDATE — skip if mid-delete
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'transactions' },
-        (payload) => {
+        payload => {
           const updated = payload.new as Transaction
           if (!updated?.id) return
           if (deletingIds.current.has(updated.id)) return
-          setTransactions(prev =>
-            prev.map(t => t.id === updated.id ? updated : t)
-          )
+          setTransactions(prev => prev.map(t => (t.id === updated.id ? updated : t)))
         },
       )
-      // DELETE — strip by ID, clear deletingIds guard
+      // DELETE — strip by id, clear guard
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'transactions' },
-        (payload) => {
+        payload => {
           const deletedId = (payload.old as { id?: string })?.id
           if (deletedId) {
             setTransactions(prev => prev.filter(t => t.id !== deletedId))
@@ -187,12 +245,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [loadCategories])
 
-  const addCategory = useCallback(async (type: 'expense' | 'income', label: string, icon: string, accent: string, glow: string, bg: string) => {
-    const existing = type === 'expense' ? expenseCategories : incomeCategories
-    const nextSortOrder = existing.length
-    const { error } = await supabase.from('categories').insert([{ type, label, icon, accent, glow, bg, sort_order: nextSortOrder }])
-    return { error: error ? error.message : null }
-  }, [expenseCategories, incomeCategories])
+  // ── Category write ops ───────────────────────────────────────────────────────────
+  const addCategory = useCallback(
+    async (
+      type: 'expense' | 'income',
+      label: string,
+      icon: string,
+      accent: string,
+      glow: string,
+      bg: string,
+    ) => {
+      const existing = type === 'expense' ? expenseCategories : incomeCategories
+      const nextSortOrder = existing.length
+      const { error } = await supabase
+        .from('categories')
+        .insert([{ type, label, icon, accent, glow, bg, sort_order: nextSortOrder }])
+      return { error: error ? error.message : null }
+    },
+    [expenseCategories, incomeCategories],
+  )
 
   const deleteCategory = useCallback(async (id: string) => {
     await supabase.from('subcategories').delete().eq('category_id', id)
@@ -200,17 +271,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return { error: error ? error.message : null }
   }, [])
 
-  const updateCategory = useCallback(async (id: string, label: string, icon: string, accent: string, glow: string, bg: string) => {
-    const { error } = await supabase.from('categories').update({ label, icon, accent, glow, bg }).eq('id', id)
-    return { error: error ? error.message : null }
-  }, [])
+  const updateCategory = useCallback(
+    async (id: string, label: string, icon: string, accent: string, glow: string, bg: string) => {
+      const { error } = await supabase
+        .from('categories')
+        .update({ label, icon, accent, glow, bg })
+        .eq('id', id)
+      return { error: error ? error.message : null }
+    },
+    [],
+  )
 
-  const addSubcategory = useCallback(async (categoryId: string, label: string) => {
-    const existing = subcategories[categoryId] ?? []
-    const nextSortOrder = existing.length
-    const { error } = await supabase.from('subcategories').insert([{ category_id: categoryId, label, sort_order: nextSortOrder }])
-    return { error: error ? error.message : null }
-  }, [subcategories])
+  const addSubcategory = useCallback(
+    async (categoryId: string, label: string) => {
+      const existing = subcategories[categoryId] ?? []
+      const nextSortOrder = existing.length
+      const { error } = await supabase
+        .from('subcategories')
+        .insert([{ category_id: categoryId, label, sort_order: nextSortOrder }])
+      return { error: error ? error.message : null }
+    },
+    [subcategories],
+  )
 
   const deleteSubcategory = useCallback(async (subcategoryId: string) => {
     const { error } = await supabase.from('subcategories').delete().eq('id', subcategoryId)
@@ -222,70 +304,73 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return { error: error ? error.message : null }
   }, [])
 
-  const reorderCategories = useCallback(async (type: 'expense' | 'income', orderedIds: string[]) => {
-    const relevant = (type === 'expense' ? expenseCategories : incomeCategories).filter(category =>
-      orderedIds.includes(category.id),
-    )
-    const lookup = new Map(relevant.map(category => [category.id, category]))
-    const ordered = orderedIds.map(id => lookup.get(id)).filter(Boolean) as Category[]
+  const reorderCategories = useCallback(
+    async (type: 'expense' | 'income', orderedIds: string[]) => {
+      const relevant = (type === 'expense' ? expenseCategories : incomeCategories).filter(c =>
+        orderedIds.includes(c.id),
+      )
+      const lookup = new Map(relevant.map(c => [c.id, c]))
+      const ordered = orderedIds.map(id => lookup.get(id)).filter(Boolean) as Category[]
 
-    const updater = type === 'expense' ? setExpenseCategories : setIncomeCategories
-    updater(ordered.map((category, index) => ({ ...category, sort_order: index })))
+      const updater = type === 'expense' ? setExpenseCategories : setIncomeCategories
+      updater(ordered.map((c, i) => ({ ...c, sort_order: i })))
 
-    const updates = ordered.map((category, index) =>
-      supabase.from('categories').update({ sort_order: index }).eq('id', category.id),
-    )
-    const results = await Promise.all(updates)
-    const failed = results.find(result => result.error)
+      const results = await Promise.all(
+        ordered.map((c, i) =>
+          supabase.from('categories').update({ sort_order: i }).eq('id', c.id),
+        ),
+      )
+      const failed = results.find(r => r.error)
+      if (failed?.error) {
+        await loadCategories()
+        return { error: failed.error.message }
+      }
+      return { error: null }
+    },
+    [expenseCategories, incomeCategories, loadCategories],
+  )
 
-    if (failed?.error) {
-      await loadCategories()
-      return { error: failed.error.message }
-    }
+  const reorderSubcategories = useCallback(
+    async (categoryId: string, orderedIds: string[]) => {
+      const existing = subcategories[categoryId] ?? []
+      const lookup = new Map(existing.map(s => [s.id, s]))
+      const ordered = orderedIds.map(id => lookup.get(id)).filter(Boolean) as Subcategory[]
 
-    return { error: null }
-  }, [expenseCategories, incomeCategories, loadCategories])
+      setSubcategories(prev => ({
+        ...prev,
+        [categoryId]: ordered.map((s, i) => ({ ...s, sort_order: i })),
+      }))
 
-  const reorderSubcategories = useCallback(async (categoryId: string, orderedIds: string[]) => {
-    const existing = subcategories[categoryId] ?? []
-    const lookup = new Map(existing.map(subcategory => [subcategory.id, subcategory]))
-    const ordered = orderedIds.map(id => lookup.get(id)).filter(Boolean) as Subcategory[]
+      const results = await Promise.all(
+        ordered.map((s, i) =>
+          supabase.from('subcategories').update({ sort_order: i }).eq('id', s.id),
+        ),
+      )
+      const failed = results.find(r => r.error)
+      if (failed?.error) {
+        await loadCategories()
+        return { error: failed.error.message }
+      }
+      return { error: null }
+    },
+    [subcategories, loadCategories],
+  )
 
-    setSubcategories(prev => ({
-      ...prev,
-      [categoryId]: ordered.map((subcategory, index) => ({ ...subcategory, sort_order: index })),
-    }))
-
-    const updates = ordered.map((subcategory, index) =>
-      supabase.from('subcategories').update({ sort_order: index }).eq('id', subcategory.id),
-    )
-    const results = await Promise.all(updates)
-    const failed = results.find(result => result.error)
-
-    if (failed?.error) {
-      await loadCategories()
-      return { error: failed.error.message }
-    }
-
-    return { error: null }
-  }, [subcategories, loadCategories])
-
+  // ── Transaction write ops ──────────────────────────────────────────────────────
   const addTransaction = useCallback(async (tx: NewTransaction) => {
     await insertTransaction(tx)
   }, [])
 
-  // removeTransaction — hardened permanent delete
+  // removeTransaction — hardened permanent delete with rollback on failure
+  //
   // Flow:
   //   1. Register id in deletingIds BEFORE any await (resurrection guard)
-  //   2. Optimistic strip from local state (instant UI)
-  //   3. Fire DB delete
-  //   4. On SUCCESS:
-  //        a. Clear id from deletingIds immediately (don't wait for Realtime)
-  //        b. Belt-and-suspenders: strip from state again in case anything sneaked back
-  //        c. Verify row is truly gone from Supabase — if somehow still present, delete again
-  //   5. On ERROR:
-  //        a. Clear id from deletingIds
-  //        b. Restore the captured snapshot back into state
+  //   2. Optimistic strip from local state + capture snapshot for rollback
+  //   3. Await DB delete (db.ts already does post-delete verification)
+  //   4a. On SUCCESS — clear guard, belt-and-suspenders strip, done
+  //   4b. On SUCCESS — secondary DB check: if row still exists, delete again
+  //   5.  On ERROR — clear guard, restore snapshot back into sorted state
+  //       and re-throw so LedgerScreen can show the user an error
   const removeTransaction = useCallback(async (id: string) => {
     // Step 1 — guard must be set BEFORE any await
     deletingIds.current.add(id)
@@ -298,18 +383,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     })
 
     try {
-      // Step 3 — DB delete
+      // Step 3 — DB delete (db.ts verifies the row is truly gone)
       await deleteTransaction(id)
 
-      // Step 4a — clear guard immediately on success (Realtime may be slow or absent)
+      // Step 4a — clear guard immediately (don’t wait for Realtime)
       deletingIds.current.delete(id)
 
-      // Step 4b — belt-and-suspenders strip: removes the row if anything sneaked it back
-      // (e.g. a concurrent loadTransactions resolved after the delete)
+      // Step 4a — belt-and-suspenders: strip again in case a concurrent
+      // loadTransactions resolved between steps and sneaked the row back
       setTransactions(prev => prev.filter(t => t.id !== id))
 
-      // Step 4c — verify: confirm Supabase no longer has this row
-      // If it does (extreme race), fire a second silent delete
+      // Step 4b — secondary DB check (safety net for extreme races)
       const { data: ghost } = await supabase
         .from('transactions')
         .select('id')
@@ -317,28 +401,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
         .maybeSingle()
 
       if (ghost) {
-        // Row still exists in DB — delete again silently
         await supabase.from('transactions').delete().eq('id', id)
-        // Final strip from local state
         setTransactions(prev => prev.filter(t => t.id !== id))
       }
     } catch (e) {
-      // Step 5 — DB delete failed — clear guard and restore row
+      // Step 5 — DB delete failed: clear guard and restore snapshot
       deletingIds.current.delete(id)
       if (snapshot) {
         setTransactions(prev => {
-          const next = [snapshot!, ...prev.filter(t => t.id !== snapshot!.id)]
-          return next.sort((a, b) => {
+          const restored = [snapshot!, ...prev.filter(t => t.id !== snapshot!.id)]
+          return restored.sort((a, b) => {
             const dateDiff = b.transaction_date.localeCompare(a.transaction_date)
             if (dateDiff !== 0) return dateDiff
             return b.created_at.localeCompare(a.created_at)
           })
         })
       }
+      // Re-throw so LedgerScreen can display an error to the user
       throw e
     }
   }, [])
 
+  // ── Context value ──────────────────────────────────────────────────────────────
   const value = useMemo<DataContextValue>(
     () => ({
       expenseCategories,
@@ -388,7 +472,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 }
 
 export function useDataContext() {
-  const context = useContext(DataContext)
-  if (!context) throw new Error('useDataContext must be used within DataProvider')
-  return context
+  const ctx = useContext(DataContext)
+  if (!ctx) throw new Error('useDataContext must be used within DataProvider')
+  return ctx
 }
