@@ -9,8 +9,10 @@ export function useCategories() {
     categoriesError,
     addCategory,
     deleteCategory,
+    updateCategory,
     addSubcategory,
     deleteSubcategory,
+    updateSubcategory,
     reorderCategories,
     reorderSubcategories,
   } = useDataContext()
@@ -23,8 +25,10 @@ export function useCategories() {
     error: categoriesError,
     addCategory,
     deleteCategory,
+    updateCategory,
     addSubcategory,
     deleteSubcategory,
+    updateSubcategory,
     reorderCategories,
     reorderSubcategories,
   }

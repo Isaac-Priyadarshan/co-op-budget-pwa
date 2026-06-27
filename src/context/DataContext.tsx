@@ -25,8 +25,10 @@ interface DataContextValue {
   categoriesError: string | null
   addCategory: (type: 'expense' | 'income', label: string, icon: string, accent: string, glow: string, bg: string) => Promise<{ error: string | null }>
   deleteCategory: (id: string, type: 'expense' | 'income') => Promise<{ error: string | null }>
+  updateCategory: (id: string, label: string, icon: string, accent: string, glow: string, bg: string) => Promise<{ error: string | null }>
   addSubcategory: (categoryId: string, label: string) => Promise<{ error: string | null }>
   deleteSubcategory: (subcategoryId: string, categoryId: string) => Promise<{ error: string | null }>
+  updateSubcategory: (subcategoryId: string, label: string) => Promise<{ error: string | null }>
   reorderCategories: (type: 'expense' | 'income', orderedIds: string[]) => Promise<{ error: string | null }>
   reorderSubcategories: (categoryId: string, orderedIds: string[]) => Promise<{ error: string | null }>
   transactions: Transaction[]
@@ -150,6 +152,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return { error: error ? error.message : null }
   }, [])
 
+  const updateCategory = useCallback(async (id: string, label: string, icon: string, accent: string, glow: string, bg: string) => {
+    const { error } = await supabase.from('categories').update({ label, icon, accent, glow, bg }).eq('id', id)
+    return { error: error ? error.message : null }
+  }, [])
+
   const addSubcategory = useCallback(async (categoryId: string, label: string) => {
     const existing = subcategories[categoryId] ?? []
     const nextSortOrder = existing.length
@@ -159,6 +166,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const deleteSubcategory = useCallback(async (subcategoryId: string) => {
     const { error } = await supabase.from('subcategories').delete().eq('id', subcategoryId)
+    return { error: error ? error.message : null }
+  }, [])
+
+  const updateSubcategory = useCallback(async (subcategoryId: string, label: string) => {
+    const { error } = await supabase.from('subcategories').update({ label }).eq('id', subcategoryId)
     return { error: error ? error.message : null }
   }, [])
 
@@ -220,8 +232,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     categoriesError,
     addCategory,
     deleteCategory,
+    updateCategory,
     addSubcategory,
     deleteSubcategory,
+    updateSubcategory,
     reorderCategories,
     reorderSubcategories,
     transactions,
@@ -230,7 +244,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     addTransaction,
     removeTransaction,
     refreshAll,
-  }), [expenseCategories, incomeCategories, subcategories, categoriesLoading, categoriesError, addCategory, deleteCategory, addSubcategory, deleteSubcategory, reorderCategories, reorderSubcategories, transactions, transactionsLoading, transactionsError, addTransaction, removeTransaction, refreshAll])
+  }), [expenseCategories, incomeCategories, subcategories, categoriesLoading, categoriesError, addCategory, deleteCategory, updateCategory, addSubcategory, deleteSubcategory, updateSubcategory, reorderCategories, reorderSubcategories, transactions, transactionsLoading, transactionsError, addTransaction, removeTransaction, refreshAll])
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }

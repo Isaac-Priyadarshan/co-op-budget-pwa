@@ -31,8 +31,10 @@ interface ManagerProps {
   onClose: () => void
   onAddCategory: (label: string, icon: string, accent: string, glow: string, bg: string) => Promise<{ error: string | null }>
   onDeleteCategory: (id: string) => Promise<{ error: string | null }>
+  onUpdateCategory: (id: string, label: string, icon: string, accent: string, glow: string, bg: string) => Promise<{ error: string | null }>
   onAddSubcategory: (categoryId: string, label: string) => Promise<{ error: string | null }>
   onDeleteSubcategory: (subcategoryId: string, categoryId: string) => Promise<{ error: string | null }>
+  onUpdateSubcategory: (subcategoryId: string, label: string) => Promise<{ error: string | null }>
   onReorderCategories: (orderedIds: string[]) => Promise<{ error: string | null }>
   onReorderSubcategories: (categoryId: string, orderedIds: string[]) => Promise<{ error: string | null }>
 }
@@ -64,7 +66,9 @@ function DragHandle() {
 
 function CategoryManagerSheet({
   type, categories, subcategories,
-  onClose, onAddCategory, onDeleteCategory, onAddSubcategory, onDeleteSubcategory, onReorderCategories, onReorderSubcategories,
+  onClose, onAddCategory, onDeleteCategory, onUpdateCategory,
+  onAddSubcategory, onDeleteSubcategory, onUpdateSubcategory,
+  onReorderCategories, onReorderSubcategories,
 }: ManagerProps) {
   const [newIcon, setNewIcon] = useState(type === 'expense' ? '🛒' : '💼')
   const [newLabel, setNewLabel] = useState('')
@@ -78,7 +82,69 @@ function CategoryManagerSheet({
   const [orderedCategories, setOrderedCategories] = useState(categories)
   const [orderedSubs, setOrderedSubs] = useState<Record<string, Subcategory[]>>(subcategories)
 
+  // Edit state for main categories
+  const [editingCatId, setEditingCatId] = useState<string | null>(null)
+  const [editCatLabel, setEditCatLabel] = useState('')
+  const [editCatIcon, setEditCatIcon] = useState('')
+  const [editCatSwatch, setEditCatSwatch] = useState(0)
+  const [editIconPickerOpen, setEditIconPickerOpen] = useState(false)
+
+  // Edit state for subcategories
+  const [editingSubId, setEditingSubId] = useState<string | null>(null)
+  const [editSubLabel, setEditSubLabel] = useState('')
+
   const iconOptions = type === 'expense' ? EXPENSE_ICONS : INCOME_ICONS
+
+  const openEditCategory = (cat: Category, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (editingCatId === cat.id) {
+      setEditingCatId(null)
+      setEditIconPickerOpen(false)
+      return
+    }
+    const swatchIdx = ACCENT_SWATCHES.findIndex(s => s.accent === cat.accent)
+    setEditingCatId(cat.id)
+    setEditCatLabel(cat.label)
+    setEditCatIcon(cat.icon)
+    setEditCatSwatch(swatchIdx >= 0 ? swatchIdx : 0)
+    setEditIconPickerOpen(false)
+    setError('')
+  }
+
+  const handleSaveCategory = async (catId: string) => {
+    const label = editCatLabel.trim()
+    if (!label) { setError('Enter a category name.'); return }
+    setSaving(true)
+    const sw = ACCENT_SWATCHES[editCatSwatch]
+    const { error: err } = await onUpdateCategory(catId, label, editCatIcon, sw.accent, sw.glow, sw.bg)
+    setSaving(false)
+    if (err) { setError(err); return }
+    setEditingCatId(null)
+    setEditIconPickerOpen(false)
+    setError('')
+  }
+
+  const openEditSubcategory = (sub: Subcategory, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (editingSubId === sub.id) {
+      setEditingSubId(null)
+      return
+    }
+    setEditingSubId(sub.id)
+    setEditSubLabel(sub.label)
+    setError('')
+  }
+
+  const handleSaveSubcategory = async (subId: string) => {
+    const label = editSubLabel.trim()
+    if (!label) { setError('Enter a subcategory name.'); return }
+    setSaving(true)
+    const { error: err } = await onUpdateSubcategory(subId, label)
+    setSaving(false)
+    if (err) { setError(err); return }
+    setEditingSubId(null)
+    setError('')
+  }
 
   const handleAddCategory = async () => {
     const label = newLabel.trim()
@@ -104,6 +170,7 @@ function CategoryManagerSheet({
     setSaving(false)
     if (err) { setError(err); return }
     if (expandedCat === id) setExpandedCat(null)
+    if (editingCatId === id) setEditingCatId(null)
     setError('')
   }
 
@@ -136,6 +203,7 @@ function CategoryManagerSheet({
   }
 
   const handleDeleteSubcategory = async (subId: string, categoryId: string) => {
+    if (editingSubId === subId) setEditingSubId(null)
     setSaving(true)
     const { error: err } = await onDeleteSubcategory(subId, categoryId)
     setSaving(false)
@@ -191,21 +259,37 @@ function CategoryManagerSheet({
             {syncCategories.map(cat => {
               const isExpanded = expandedCat === cat.id
               const isAddingSub = addingSubFor === cat.id
+              const isEditingCat = editingCatId === cat.id
               const catSubs = (orderedSubs[cat.id] ?? subcategories[cat.id] ?? []).map(local => (subcategories[cat.id] ?? []).find(sub => sub.id === local.id) ?? local)
               return (
                 <Reorder.Item key={cat.id} value={cat} style={{ listStyle: 'none' }}>
                   <div>
+                    {/* ── Main category row ── */}
                     <motion.div
                       layout
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: cat.bg, border: `1px solid ${cat.accent}25`, borderRadius: 16, boxShadow: `0 2px 10px ${cat.glow}`, cursor: 'pointer' }}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: isEditingCat ? 'rgba(251,191,36,0.07)' : cat.bg, border: `1px solid ${isEditingCat ? 'rgba(251,191,36,0.38)' : cat.accent + '25'}`, borderRadius: isEditingCat ? '16px 16px 0 0' : 16, boxShadow: `0 2px 10px ${cat.glow}`, cursor: 'pointer', transition: 'border-radius 0.2s' }}
                       onClick={() => setExpandedCat(prev => prev === cat.id ? null : cat.id)}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <span style={{ fontSize: 22 }}>{cat.icon}</span>
                         <span style={{ fontSize: 14, fontWeight: 600, color: cat.accent }}>{cat.label}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <DragHandle />
+                        {/* Edit button */}
+                        <motion.button
+                          whileTap={{ scale: 0.82 }}
+                          onClick={e => openEditCategory(cat, e)}
+                          style={{
+                            width: 32, height: 32, borderRadius: '50%',
+                            background: isEditingCat ? 'rgba(251,191,36,0.22)' : 'rgba(251,191,36,0.10)',
+                            border: isEditingCat ? '1px solid rgba(251,191,36,0.55)' : '1px solid rgba(251,191,36,0.25)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', fontSize: 14, flexShrink: 0,
+                          }}
+                          title="Edit category"
+                        >✏️</motion.button>
+                        {/* Delete button */}
                         <motion.button whileTap={{ scale: 0.82 }}
                           onClick={e => { e.stopPropagation(); void handleDeleteCategory(cat.id) }}
                           style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 14 }}
@@ -215,6 +299,73 @@ function CategoryManagerSheet({
                       </div>
                     </motion.div>
 
+                    {/* ── Inline edit panel for main category ── */}
+                    <AnimatePresence initial={false}>
+                      {isEditingCat && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <div style={{ padding: '14px 14px 16px', background: 'rgba(251,191,36,0.04)', border: '1px solid rgba(251,191,36,0.22)', borderTop: 'none', borderRadius: '0 0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {/* Icon + name row */}
+                            <div style={{ display: 'flex', gap: 10 }}>
+                              <motion.button whileTap={{ scale: 0.97 }} onClick={() => setEditIconPickerOpen(v => !v)}
+                                style={{ width: 48, height: 44, borderRadius: 12, fontSize: 20, background: 'rgba(255,255,255,0.06)', border: editIconPickerOpen ? '1px solid rgba(251,191,36,0.4)' : '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', flexShrink: 0 }}
+                              >{editCatIcon}</motion.button>
+                              <input
+                                value={editCatLabel}
+                                onChange={e => { setEditCatLabel(e.target.value); setError('') }}
+                                placeholder="Category name…"
+                                style={{ flex: 1, height: 44, borderRadius: 12, padding: '0 12px', fontSize: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', color: '#F5F5F5', outline: 'none' }}
+                              />
+                            </div>
+
+                            {/* Icon picker */}
+                            <AnimatePresence>
+                              {editIconPickerOpen && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} style={{ overflow: 'hidden' }}>
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6, padding: 10, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                                    {iconOptions.map(icon => (
+                                      <motion.button key={icon} whileTap={{ scale: 0.85 }}
+                                        onClick={() => { setEditCatIcon(icon); setEditIconPickerOpen(false) }}
+                                        style={{ width: '100%', aspectRatio: '1', borderRadius: 10, fontSize: 20, cursor: 'pointer', background: editCatIcon === icon ? 'rgba(251,191,36,0.16)' : 'rgba(255,255,255,0.03)', border: editCatIcon === icon ? '1px solid rgba(251,191,36,0.36)' : '1px solid rgba(255,255,255,0.06)' }}
+                                      >{icon}</motion.button>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+
+                            {/* Color swatches */}
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {ACCENT_SWATCHES.map((sw, i) => (
+                                <motion.button key={i} whileTap={{ scale: 0.82 }} onClick={() => setEditCatSwatch(i)}
+                                  style={{ width: 26, height: 26, borderRadius: '50%', background: sw.accent, border: editCatSwatch === i ? '2.5px solid #fff' : '2.5px solid transparent', boxShadow: editCatSwatch === i ? `0 0 10px ${sw.glow}` : 'none', cursor: 'pointer', flexShrink: 0 }}
+                                />
+                              ))}
+                            </div>
+
+                            {/* Save / Cancel */}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <motion.button whileTap={{ scale: 0.95 }}
+                                onClick={() => { setEditingCatId(null); setEditIconPickerOpen(false) }}
+                                style={{ flex: 1, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                              >Cancel</motion.button>
+                              <motion.button whileTap={{ scale: 0.95 }}
+                                onClick={() => void handleSaveCategory(cat.id)}
+                                disabled={saving}
+                                style={{ flex: 2, height: 40, borderRadius: 12, background: 'linear-gradient(135deg,#F59E0B,#FBBF24)', border: 'none', color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
+                              >{saving ? 'Saving…' : 'Save Changes'}</motion.button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* ── Subcategories expand panel ── */}
                     <AnimatePresence initial={false}>
                       {isExpanded && (
                         <motion.div
@@ -226,21 +377,71 @@ function CategoryManagerSheet({
                         >
                           <div style={{ marginTop: 8, marginLeft: 8, padding: '10px 12px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
                             <Reorder.Group axis="y" values={catSubs} onReorder={nextSubs => void handleSubcategoryReorder(cat.id, nextSubs)} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                              {catSubs.length > 0 ? catSubs.map(sub => (
-                                <Reorder.Item key={sub.id} value={sub} style={{ listStyle: 'none' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.04)' }}>
-                                    <span style={{ fontSize: 13, color: 'rgba(245,245,245,0.82)' }}>{sub.label}</span>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <DragHandle />
-                                      <motion.button whileTap={{ scale: 0.82 }}
-                                        onClick={() => void handleDeleteSubcategory(sub.id, cat.id)}
-                                        disabled={saving}
-                                        style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12 }}
-                                      >🗑️</motion.button>
+                              {catSubs.length > 0 ? catSubs.map(sub => {
+                                const isEditingSub = editingSubId === sub.id
+                                return (
+                                  <Reorder.Item key={sub.id} value={sub} style={{ listStyle: 'none' }}>
+                                    <div style={{ borderRadius: 12, overflow: 'hidden', background: 'rgba(255,255,255,0.04)' }}>
+                                      {/* Subcategory row */}
+                                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 10px' }}>
+                                        <span style={{ fontSize: 13, color: 'rgba(245,245,245,0.82)', flex: 1 }}>{sub.label}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <DragHandle />
+                                          {/* Edit subcategory button */}
+                                          <motion.button whileTap={{ scale: 0.82 }}
+                                            onClick={e => openEditSubcategory(sub, e)}
+                                            style={{
+                                              width: 28, height: 28, borderRadius: '50%',
+                                              background: isEditingSub ? 'rgba(251,191,36,0.20)' : 'rgba(251,191,36,0.08)',
+                                              border: isEditingSub ? '1px solid rgba(251,191,36,0.50)' : '1px solid rgba(251,191,36,0.20)',
+                                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                              cursor: 'pointer', fontSize: 12, flexShrink: 0,
+                                            }}
+                                            title="Edit subcategory"
+                                          >✏️</motion.button>
+                                          {/* Delete subcategory button */}
+                                          <motion.button whileTap={{ scale: 0.82 }}
+                                            onClick={() => void handleDeleteSubcategory(sub.id, cat.id)}
+                                            disabled={saving}
+                                            style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12 }}
+                                          >🗑️</motion.button>
+                                        </div>
+                                      </div>
+                                      {/* Inline edit for subcategory */}
+                                      <AnimatePresence initial={false}>
+                                        {isEditingSub && (
+                                          <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: 'auto', opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                                            style={{ overflow: 'hidden' }}
+                                          >
+                                            <div style={{ padding: '8px 10px 10px', borderTop: '1px solid rgba(251,191,36,0.15)', display: 'flex', gap: 8 }}>
+                                              <input
+                                                value={editSubLabel}
+                                                onChange={e => { setEditSubLabel(e.target.value); setError('') }}
+                                                placeholder="Subcategory name…"
+                                                autoFocus
+                                                style={{ flex: 1, height: 38, borderRadius: 10, padding: '0 10px', fontSize: 13, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(251,191,36,0.28)', color: '#F5F5F5', outline: 'none' }}
+                                              />
+                                              <motion.button whileTap={{ scale: 0.95 }}
+                                                onClick={() => { setEditingSubId(null) }}
+                                                style={{ height: 38, padding: '0 10px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                                              >✕</motion.button>
+                                              <motion.button whileTap={{ scale: 0.95 }}
+                                                onClick={() => void handleSaveSubcategory(sub.id)}
+                                                disabled={saving}
+                                                style={{ height: 38, padding: '0 12px', borderRadius: 10, background: 'linear-gradient(135deg,#F59E0B,#FBBF24)', border: 'none', color: '#000', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                                              >{saving ? '…' : 'Save'}</motion.button>
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
                                     </div>
-                                  </div>
-                                </Reorder.Item>
-                              )) : (
+                                  </Reorder.Item>
+                                )
+                              }) : (
                                 <span style={{ fontSize: 12, color: 'rgba(245,245,245,0.45)' }}>No subcategories yet</span>
                               )}
                             </Reorder.Group>
@@ -480,7 +681,7 @@ export function HomeScreen() {
 
   const {
     expenseCategories, incomeCategories, subcategories, loading: catsLoading,
-    addCategory, deleteCategory, addSubcategory, deleteSubcategory, reorderCategories, reorderSubcategories,
+    addCategory, deleteCategory, updateCategory, addSubcategory, deleteSubcategory, updateSubcategory, reorderCategories, reorderSubcategories,
   } = useCategories()
 
   const { transactions, loading: txLoading } = useTransactions()
@@ -547,8 +748,10 @@ export function HomeScreen() {
             onClose={() => setManagerOpen(null)}
             onAddCategory={(label, icon, accent, glow, bg) => addCategory(managerOpen, label, icon, accent, glow, bg)}
             onDeleteCategory={id => deleteCategory(id, managerOpen)}
+            onUpdateCategory={(id, label, icon, accent, glow, bg) => updateCategory(id, label, icon, accent, glow, bg)}
             onAddSubcategory={addSubcategory}
             onDeleteSubcategory={deleteSubcategory}
+            onUpdateSubcategory={(subId, label) => updateSubcategory(subId, label)}
             onReorderCategories={orderedIds => reorderCategories(managerOpen, orderedIds)}
             onReorderSubcategories={reorderSubcategories}
           />
