@@ -3,154 +3,92 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { WalletEntry } from '../../lib/db'
 import type { DefaultWalletState, UserName } from '../../hooks/useDefaultWallets'
 
-// ── Avatar initial badge ────────────────────────────────────────────────────
-function Avatar({ name, color }: { name: UserName; color: string }) {
-  return (
-    <div style={{
-      width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-      background: `${color}22`, border: `1.5px solid ${color}44`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <span style={{ fontSize: 16, fontWeight: 800, color }}>
-        {name[0]}
-      </span>
-    </div>
-  )
-}
-
-// ── Custom wallet selector ───────────────────────────────────────────────────
-// FIX: dropdown now opens UPWARD (bottom: calc(100% + 6px)) so it never
-// gets clipped by the screen edge when the sheet is near the bottom.
-// FIX: dropdown has maxHeight + overflowY: auto so long wallet lists scroll.
-// FIX: sheet content area has overflowY: auto so the whole panel can scroll
-//      if both dropdowns are open simultaneously on a small screen.
-function WalletPicker({
-  userId,
+// ── Inline chip selector ───────────────────────────────────────────────────────────────────────────────────
+// No dropdown. No position:absolute. No overflow fighting.
+// Wallet options render as tappable chips that wrap naturally.
+// Selected chip highlights with the user accent colour.
+function ChipSelector({
   value,
   onChange,
   cashWallets,
   accentColor,
 }: {
-  userId: UserName
   value: string | null
   onChange: (id: string | null) => void
   cashWallets: WalletEntry[]
   accentColor: string
 }) {
-  const [open, setOpen] = useState(false)
-  const selected = cashWallets.find(w => w.id === value)
-
   return (
-    // position: relative so the absolute dropdown is anchored to this wrapper
-    <div style={{ position: 'relative', flex: 1 }}>
-      {/* Trigger */}
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+      {/* None chip */}
       <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={() => setOpen(o => !o)}
+        whileTap={{ scale: 0.88 }}
+        onClick={() => onChange(null)}
         style={{
-          width: '100%',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px',
-          borderRadius: 14,
-          background: `${accentColor}0e`,
-          border: `1px solid ${accentColor}2a`,
+          padding: '5px 12px',
+          borderRadius: 999,
+          border: `1px solid ${ value === null ? accentColor : 'rgba(255,255,255,0.12)'}`,
+          background: value === null ? `${accentColor}22` : 'rgba(255,255,255,0.05)',
           cursor: 'pointer',
-          gap: 8,
+          fontSize: 11,
+          fontWeight: 700,
+          color: value === null ? accentColor : 'rgba(255,255,255,0.38)',
+          letterSpacing: '0.01em',
+          whiteSpace: 'nowrap',
+          transition: 'all 0.15s ease',
+          display: 'flex', alignItems: 'center', gap: 4,
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 700, color: selected ? '#f5f7ff' : 'rgba(255,255,255,0.35)' }}>
-          {selected ? selected.label : 'None (not set)'}
-        </span>
-        <svg
-          width="12" height="12" viewBox="0 0 24 24" fill="none"
-          stroke={accentColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', flexShrink: 0 }}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+        {value === null && (
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+        None
       </motion.button>
 
-      {/* Dropdown — opens UPWARD, capped at 220px with internal scroll */}
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            key={`picker-${userId}`}
-            initial={{ opacity: 0, y: 6, scaleY: 0.92 }}
-            animate={{ opacity: 1, y: 0, scaleY: 1 }}
-            exit={{ opacity: 0, y: 4, scaleY: 0.94 }}
-            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              // ✅ FIX 1: bottom instead of top — grows upward away from screen edge
-              position: 'absolute',
-              bottom: 'calc(100% + 6px)',
-              left: 0, right: 0,
-              zIndex: 300,
-              borderRadius: 14,
-              background: '#0e0e10',
-              border: `1px solid ${accentColor}28`,
-              boxShadow: `0 -8px 32px rgba(0,0,0,0.7), 0 0 0 1px ${accentColor}18`,
-              // ✅ FIX 2: cap height and allow internal scroll
-              maxHeight: 220,
-              overflowY: 'auto',
-              transformOrigin: 'bottom center',
-            }}
-          >
-            {/* None option */}
-            <button
-              onClick={() => { onChange(null); setOpen(false) }}
-              style={{
-                width: '100%', textAlign: 'left',
-                padding: '11px 14px',
-                fontSize: 13, fontWeight: 600,
-                color: value === null ? accentColor : 'rgba(255,255,255,0.4)',
-                background: value === null ? `${accentColor}12` : 'transparent',
-                cursor: 'pointer',
-                borderBottom: '1px solid rgba(255,255,255,0.05)',
-                display: 'block',
-              }}
-            >
-              None (not set)
-            </button>
+      {/* Wallet chips */}
+      {cashWallets.map(w => (
+        <motion.button
+          key={w.id}
+          whileTap={{ scale: 0.88 }}
+          onClick={() => onChange(w.id)}
+          style={{
+            padding: '5px 12px',
+            borderRadius: 999,
+            border: `1px solid ${value === w.id ? accentColor : 'rgba(255,255,255,0.12)'}`,
+            background: value === w.id ? `${accentColor}22` : 'rgba(255,255,255,0.05)',
+            cursor: 'pointer',
+            fontSize: 11,
+            fontWeight: 700,
+            color: value === w.id ? accentColor : 'rgba(255,255,255,0.55)',
+            letterSpacing: '0.01em',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
+            boxShadow: value === w.id ? `0 0 8px ${accentColor}44` : 'none',
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}
+        >
+          {value === w.id && (
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+          {w.label}
+        </motion.button>
+      ))}
 
-            {/* Wallet options */}
-            {cashWallets.map(w => (
-              <button
-                key={w.id}
-                onClick={() => { onChange(w.id); setOpen(false) }}
-                style={{
-                  width: '100%', textAlign: 'left',
-                  padding: '11px 14px',
-                  fontSize: 13, fontWeight: 600,
-                  color: value === w.id ? accentColor : '#f5f7ff',
-                  background: value === w.id ? `${accentColor}14` : 'transparent',
-                  cursor: 'pointer',
-                  borderBottom: '1px solid rgba(255,255,255,0.04)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                }}
-              >
-                <span>{w.label}</span>
-                {value === w.id && (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </button>
-            ))}
-
-            {cashWallets.length === 0 && (
-              <p style={{ padding: '12px 14px', fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
-                No cash wallets added yet
-              </p>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {cashWallets.length === 0 && (
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic' }}>
+          No cash wallets yet
+        </p>
+      )}
     </div>
   )
 }
 
-// ── User row ─────────────────────────────────────────────────────────────────
-function UserRow({
+// ── User block ─────────────────────────────────────────────────────────────────────────────────────
+function UserBlock({
   user,
   accentColor,
   value,
@@ -165,32 +103,54 @@ function UserRow({
 }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      padding: '14px 16px',
-      borderRadius: 18,
-      background: `${accentColor}09`,
+      padding: '12px 14px',
+      borderRadius: 16,
+      background: `${accentColor}08`,
       border: `1px solid ${accentColor}1e`,
-      // ✅ FIX 3: allow overflow visible so the upward dropdown escapes this container
-      overflow: 'visible',
     }}>
-      <Avatar name={user} color={accentColor} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: `${accentColor}99`, marginBottom: 6 }}>
-          {user}
-        </p>
-        <WalletPicker
-          userId={user}
-          value={value}
-          onChange={onChange}
-          cashWallets={cashWallets}
-          accentColor={accentColor}
-        />
+      {/* Row: avatar + name + current selection label */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
+        {/* Avatar */}
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+          background: `${accentColor}20`, border: `1.5px solid ${accentColor}44`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 800, color: accentColor }}>{user[0]}</span>
+        </div>
+        {/* Name */}
+        <p style={{
+          fontSize: 12, fontWeight: 800,
+          letterSpacing: '0.08em', textTransform: 'uppercase',
+          color: accentColor, flex: 1,
+        }}>{user}</p>
+        {/* Current value badge */}
+        <span style={{
+          fontSize: 10, fontWeight: 700,
+          color: value ? accentColor : 'rgba(255,255,255,0.25)',
+          background: value ? `${accentColor}14` : 'rgba(255,255,255,0.05)',
+          border: `1px solid ${value ? accentColor + '30' : 'rgba(255,255,255,0.08)'}`,
+          borderRadius: 999, padding: '2px 8px',
+          letterSpacing: '0.01em', whiteSpace: 'nowrap',
+        }}>
+          {value
+            ? cashWallets.find(w => w.id === value)?.label ?? 'Set'
+            : 'Not set'}
+        </span>
       </div>
+
+      {/* Chip selector */}
+      <ChipSelector
+        value={value}
+        onChange={onChange}
+        cashWallets={cashWallets}
+        accentColor={accentColor}
+      />
     </div>
   )
 }
 
-// ── Main sheet ────────────────────────────────────────────────────────────────
+// ── Main sheet ────────────────────────────────────────────────────────────────────────────────────
 export function DefaultWalletSheet({
   open,
   onClose,
@@ -214,9 +174,7 @@ export function DefaultWalletSheet({
     if (open) setLocal({ ...defaults })
   }, [open, defaults])
 
-  const handleSave = async () => {
-    await onSave(local)
-  }
+  const handleSave = async () => { await onSave(local) }
 
   const set = (user: UserName) => (id: string | null) =>
     setLocal(prev => ({ ...prev, [user]: id }))
@@ -227,7 +185,7 @@ export function DefaultWalletSheet({
         <>
           {/* Backdrop */}
           <motion.div
-            key="default-backdrop"
+            key="dw-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -241,9 +199,9 @@ export function DefaultWalletSheet({
             }}
           />
 
-          {/* Sheet */}
+          {/* Sheet — height is purely auto, no overflow tricks needed */}
           <motion.div
-            key="default-sheet"
+            key="dw-sheet"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -257,130 +215,131 @@ export function DefaultWalletSheet({
               border: '1px solid rgba(99,102,241,0.2)',
               borderBottom: 'none',
               boxShadow: '0 -8px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04) inset',
-              // ✅ FIX 4: cap sheet height so it never fills the whole screen,
-              //    and overflow visible so upward dropdowns escape the sheet boundary
-              maxHeight: '85dvh',
+              // Sheet is entirely static — height = sum of its children, capped at 88dvh
+              maxHeight: '88dvh',
               display: 'flex',
               flexDirection: 'column',
-              overflow: 'visible',
+              overflow: 'hidden', // safe now — no absolute children
             }}
           >
             {/* Handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4, flexShrink: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2, flexShrink: 0 }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.12)' }} />
             </div>
 
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 20px 16px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            {/* Header row */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 18px 10px',
+              flexShrink: 0,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
-                <h2 style={{ fontSize: 15, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.01em' }}>Set Default Wallet</h2>
+                <h2 style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.01em', margin: 0 }}>
+                  Set Default Wallet
+                </h2>
               </div>
-              <motion.button
-                whileTap={{ scale: 0.82 }}
-                onClick={onClose}
-                style={{
-                  width: 30, height: 30, borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
-                }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </motion.button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {/* Compact hint */}
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', fontStyle: 'italic' }}>
+                  auto-selected on entry
+                </span>
+                <motion.button
+                  whileTap={{ scale: 0.82 }}
+                  onClick={onClose}
+                  style={{
+                    width: 28, height: 28, borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </motion.button>
+              </div>
             </div>
 
-            {/* Subtitle */}
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '0 20px 16px', lineHeight: 1.5, flexShrink: 0 }}>
-              The default wallet is auto-selected when that user adds a new transaction.
-            </p>
+            {/* Divider */}
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', flexShrink: 0, marginBottom: 2 }} />
 
-            {/* ✅ FIX 5: scrollable content area — grows to fill, scrolls if needed */}
+            {/* Scrollable user blocks — the ONLY scrollable area */}
             <div style={{
               flex: 1,
               overflowY: 'auto',
-              // extra bottom padding so content clears the save button
-              paddingBottom: 8,
-              // overflow visible on x so dropdowns aren't clipped sideways
-              overflowX: 'visible',
+              padding: '12px 14px',
+              display: 'flex', flexDirection: 'column', gap: 10,
             }}>
-              {/* User rows — need generous paddingBottom so upward dropdowns have room */}
-              <div style={{
-                display: 'flex', flexDirection: 'column', gap: 10,
-                padding: '0 16px',
-                // ✅ bottom padding = ~dropdown max height so the upward list never overlaps the header
-                paddingBottom: 240,
-              }}>
-                <UserRow
-                  user="Isaac"
-                  accentColor="#818CF8"
-                  value={local.Isaac}
-                  onChange={set('Isaac')}
-                  cashWallets={cashWallets}
-                />
-                <UserRow
-                  user="Jenifa"
-                  accentColor="#F472B6"
-                  value={local.Jenifa}
-                  onChange={set('Jenifa')}
-                  cashWallets={cashWallets}
-                />
-              </div>
+              <UserBlock
+                user="Isaac"
+                accentColor="#818CF8"
+                value={local.Isaac}
+                onChange={set('Isaac')}
+                cashWallets={cashWallets}
+              />
+              <UserBlock
+                user="Jenifa"
+                accentColor="#F472B6"
+                value={local.Jenifa}
+                onChange={set('Jenifa')}
+                cashWallets={cashWallets}
+              />
+
+              {/* Error inline */}
+              {error && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 12,
+                  background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 12,
+                }}>
+                  {error}
+                </div>
+              )}
             </div>
 
-            {/* Error */}
-            {error && (
-              <div style={{ margin: '0 16px 12px', padding: '10px 14px', borderRadius: 12, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 12, flexShrink: 0 }}>
-                {error}
-              </div>
-            )}
-
-            {/* Save button — pinned to bottom of sheet */}
+            {/* Save button — always pinned, never scrolled away */}
             <div style={{
-              padding: '12px 16px',
-              paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
               flexShrink: 0,
+              padding: '10px 14px',
+              paddingBottom: 'max(env(safe-area-inset-bottom), 14px)',
               background: '#090a0c',
-              borderTop: '1px solid rgba(255,255,255,0.05)',
+              borderTop: '1px solid rgba(255,255,255,0.06)',
             }}>
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleSave}
                 disabled={saving}
                 style={{
-                  width: '100%', height: 50, borderRadius: 16,
+                  width: '100%', height: 48, borderRadius: 14,
                   background: saving
-                    ? 'rgba(251,191,36,0.12)'
-                    : 'linear-gradient(135deg, rgba(251,191,36,0.22), rgba(217,119,6,0.16))',
-                  border: '1px solid rgba(251,191,36,0.36)',
+                    ? 'rgba(251,191,36,0.10)'
+                    : 'linear-gradient(135deg, rgba(251,191,36,0.20), rgba(217,119,6,0.14))',
+                  border: '1px solid rgba(251,191,36,0.34)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   cursor: saving ? 'not-allowed' : 'pointer',
-                  opacity: saving ? 0.7 : 1,
+                  opacity: saving ? 0.65 : 1,
                   transition: 'opacity 0.15s ease',
                 }}
               >
                 {saving ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
-                    <path d="M21 12a9 9 0 1 1-6.22-8.56" />
-                  </svg>
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                    style={{ display: 'inline-block', fontSize: 16, lineHeight: 1 }}
+                  >⟳</motion.span>
                 ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                 )}
-                <span style={{ fontSize: 14, fontWeight: 800, color: '#FBBF24', letterSpacing: '0.03em' }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#FBBF24', letterSpacing: '0.03em' }}>
                   {saving ? 'Saving…' : 'Save Defaults'}
                 </span>
               </motion.button>
             </div>
-
-            {/* Spinner keyframe */}
-            <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
           </motion.div>
         </>
       )}
