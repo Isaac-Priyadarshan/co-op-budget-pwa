@@ -18,6 +18,7 @@ export function useWallets() {
 
   useEffect(() => { load() }, [load])
 
+  // Create new entry
   const save = useCallback(async (entry: NewWallet) => {
     const saved = await upsertWallet(entry)
     setWallets(prev => {
@@ -27,14 +28,21 @@ export function useWallets() {
     })
   }, [])
 
+  // Update existing entry by id
+  const update = useCallback(async (id: string, entry: NewWallet) => {
+    const saved = await upsertWallet({ ...entry, id })
+    setWallets(prev => prev.map(w => w.id === id ? saved : w))
+  }, [])
+
+  // Delete entry
   const remove = useCallback(async (id: string) => {
     await deleteWallet(id)
     setWallets(prev => prev.filter(w => w.id !== id))
   }, [])
 
-  const totalCash         = wallets.filter(w => w.type === 'cash').reduce((s, w) => s + w.balance, 0)
-  const totalCredit       = wallets.filter(w => w.type === 'credit').reduce((s, w) => s + w.balance, 0)
-  const totalCreditLimit  = wallets.filter(w => w.type === 'credit').reduce((s, w) => s + (w.credit_limit ?? 0), 0)
+  const totalCash        = wallets.filter(w => w.type === 'cash').reduce((s, w) => s + w.balance, 0)
+  const totalCredit      = wallets.filter(w => w.type === 'credit').reduce((s, w) => s + w.balance, 0)
+  const totalCreditLimit = wallets.filter(w => w.type === 'credit').reduce((s, w) => s + (w.credit_limit ?? 0), 0)
 
-  return { wallets, loading, error, save, remove, totalCash, totalCredit, totalCreditLimit, refresh: load }
+  return { wallets, loading, error, save, update, remove, totalCash, totalCredit, totalCreditLimit, refresh: load }
 }
