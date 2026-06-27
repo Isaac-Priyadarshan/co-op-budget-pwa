@@ -127,12 +127,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'subcategories' }, () => { void loadCategories() })
       .subscribe()
 
+    // Split INSERT/UPDATE (need full refetch for new rows) from DELETE (optimistic strip only).
+    // This prevents the race condition where a Realtime DELETE event fires after
+    // the optimistic local strip, causing a full refetch that may resurrect the
+    // deleted row if the DB hasn't fully propagated the delete yet.
     const transactionsChannel = supabase
       .channel('realtime-transactions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, async () => {
-        const data = await fetchTransactions()
-        setTransactions(data)
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'transactions' },
+        async () => {
+          const data = await fetchTransactions()
+          setTransactions(data)
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'transactions' },
+        async () => {
+          const data = await fetchTransactions()
+          setTransactions(data)
+        },
+      )
+      .on(
+        'postgres_changes',
+        // DELETE events carry the old row in payload.old — strip it locally,
+        // no network round-trip needed.
+        { event: 'DELETE', schema: 'public', table: 'transactions' },
+        (payload) => {
+          const deletedId = (payload.old as { id?: string })?.id
+          if (deletedId) {
+            setTransactions(prev => prev.filter(t => t.id !== deletedId))
+          }
+        },
+      )
       .subscribe()
 
     return () => {
@@ -229,7 +257,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Optimistic delete: remove from DB then immediately strip from local state.
-  // Does NOT rely on Realtime to update the UI.
+  // The Realtime DELETE handler also strips by ID, so both paths are consistent.
   const removeTransaction = useCallback(async (id: string) => {
     await deleteTransaction(id)
     setTransactions(prev => prev.filter(t => t.id !== id))

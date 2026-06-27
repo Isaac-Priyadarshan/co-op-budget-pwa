@@ -275,6 +275,7 @@ export function EntryScreen() {
         paddingLeft: 16, paddingRight: 16,
         paddingTop: 'max(env(safe-area-inset-top), 12px)',
         paddingBottom: 4,
+        flex: '0 0 auto',
       }}>
         <motion.button whileTap={{ scale: 0.85 }} onClick={() => navigate(-1)}
           style={{
@@ -305,9 +306,10 @@ export function EntryScreen() {
       {/* ── AMOUNT DISPLAY ── */}
       <div style={{
         position: 'relative', zIndex: 2,
-        flex: '0 0 auto',
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '12px 24px 8px',
+        flex: '1 1 auto',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        padding: '8px 24px',
+        minHeight: 0,
       }}>
         <motion.p
           key={formattedDisplay}
@@ -409,16 +411,20 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* ── NUMPAD — compact fixed height, never grows ── */}
+      {/* ── NUMPAD + CONFIRM — unified bottom block, zero gap between them ── */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
-        padding: '10px 16px 0',
+        display: 'flex', flexDirection: 'column', gap: 0,
+        padding: '8px 16px 0',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 12px)',
       }}>
+        {/* Keypad */}
         <div style={{
           display: 'grid',
           gridTemplateRows: 'repeat(4, 52px)',
           gap: 5,
+          marginBottom: 8,
         }}>
           {KEY_ROWS.map((row, ri) => (
             <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
@@ -450,16 +456,8 @@ export function EntryScreen() {
             </div>
           ))}
         </div>
-      </div>
 
-      {/* ── CONFIRM BUTTON ── */}
-      <div style={{
-        position: 'relative', zIndex: 2,
-        flex: '1 1 auto',
-        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
-        padding: '8px 16px',
-        paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
-      }}>
+        {/* Confirm — directly below keypad, no gap */}
         <motion.button
           whileTap={canConfirm ? { scale: 0.97 } : {}}
           onClick={handleConfirm}
