@@ -55,12 +55,8 @@ export function EntryScreen() {
   const noteInputRef = useRef<HTMLInputElement>(null)
 
   // ── Auto-select active user's default wallet on mount ──────────────────────────
-  // Reads user_preferences for the active user, finds default_wallet_id,
-  // then matches it against the loaded wallets list to set label + id.
-  // Runs once after wallets finish loading and activeUser is known.
   useEffect(() => {
     if (!activeUser || walletsLoading || wallets.length === 0) return
-    // Only set if no wallet has been manually chosen yet
     if (walletId !== null) return
 
     let cancelled = false
@@ -155,13 +151,19 @@ export function EntryScreen() {
     if (!canConfirm) return
     if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
     setSaving(true); setErrMsg(null)
-    const subLabel  = subs.find(s => s.id === selectedSub)?.label ?? ''
-    const descParts = [subLabel, note].filter(Boolean)
+
+    // subLabel is the selected subcategory name (e.g. "VEEG", "Fuel")
+    // We save it as the `category` field so BudgetScreen can match spending per subcategory.
+    // When no subcategory exists, we fall back to the parent category label.
+    const subLabel     = subs.find(s => s.id === selectedSub)?.label ?? ''
+    const categoryKey  = subLabel || category.label   // ← THE FIX: subcategory name as category
+    const descParts    = [subLabel, note].filter(Boolean)
+
     try {
       await addTransaction({
         amount:           amountValue,
         description:      descParts.join(' · ') || category.label,
-        category:         category.label,
+        category:         categoryKey,               // subcategory label (or parent if no sub)
         created_by:       activeUser,
         type:             (type as 'income' | 'expense') ?? 'expense',
         wallet_id:        walletId ?? undefined,
@@ -306,7 +308,7 @@ export function EntryScreen() {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* ── HEADER — back button + category icon & name, left-aligned together ── */}
+      {/* ── HEADER ── */}
       <div style={{
         position: 'relative', zIndex: 10,
         display: 'flex', alignItems: 'center',
@@ -340,7 +342,7 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* ── AMOUNT DISPLAY — grows to fill remaining space ── */}
+      {/* ── AMOUNT DISPLAY ── */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '1 1 auto',
@@ -348,7 +350,6 @@ export function EntryScreen() {
         padding: '8px 24px',
         minHeight: 0,
       }}>
-        {/* Amount number */}
         <motion.p
           key={formattedDisplay}
           initial={{ opacity: 0.6, scale: 0.96 }}
@@ -368,7 +369,6 @@ export function EntryScreen() {
           {formattedDisplay}
         </motion.p>
 
-        {/* ── SUMMARY LINE — subcategory + wallet, shown below amount when either is chosen ── */}
         <AnimatePresence>
           {showSummary && (
             <motion.div
@@ -416,7 +416,7 @@ export function EntryScreen() {
         </AnimatePresence>
       </div>
 
-      {/* ── SUBCATEGORY CHIPS — left-aligned, pinned directly above toolbar card ── */}
+      {/* ── SUBCATEGORY CHIPS ── */}
       {subs.length > 0 && (
         <div style={{
           position: 'relative', zIndex: 2,
@@ -505,7 +505,7 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* ── NUMPAD + CONFIRM — unified bottom block ── */}
+      {/* ── NUMPAD + CONFIRM ── */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
