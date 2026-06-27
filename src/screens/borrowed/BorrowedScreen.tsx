@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import { useBorrowed } from '../../hooks/useBorrowed'
 import { useWallets } from '../../hooks/useWallets'
 import { useUser } from '../../context/UserContext'
 import { formatINR } from '../../utils/format'
-import type { BorrowedEntry, BorrowedStatus } from '../../hooks/useBorrowed'
+import type { BorrowedEntry, BorrowedStatus, EditBorrowedPayload } from '../../hooks/useBorrowed'
 import type { WalletEntry } from '../../lib/db'
 
 // ─── Animated wave canvas ─────────────────────────────────────────────────────
@@ -45,14 +45,6 @@ function SummaryWaveCanvas() {
       g2.addColorStop(0, 'rgba(234,179,8,0.14)')
       g2.addColorStop(1, 'rgba(234,179,8,0.03)')
       ctx.fillStyle = g2; ctx.fill()
-      ctx.beginPath()
-      for (let x = 0; x <= W; x += 2) {
-        const y = H * 0.52
-          + Math.sin((x / W) * Math.PI * 2.4 + t * 0.6) * H * 0.14
-          + Math.sin((x / W) * Math.PI * 1.1 + t * 0.35) * H * 0.07
-        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
-      }
-      ctx.strokeStyle = 'rgba(251,146,60,0.30)'; ctx.lineWidth = 1.2; ctx.stroke()
       t += 0.012
       rafRef.current = requestAnimationFrame(draw)
     }
@@ -61,13 +53,13 @@ function SummaryWaveCanvas() {
   }, [])
 
   return (
-    <canvas ref={canvasRef} width={600} height={112}
+    <canvas ref={canvasRef} width={600} height={130}
       style={{ position: 'absolute', bottom: 0, left: 0, right: 0, width: '100%', height: '100%', borderRadius: 22, pointerEvents: 'none' }}
     />
   )
 }
 
-// ─── Days away helper ─────────────────────────────────────────────────────────
+// ─── Days helper ──────────────────────────────────────────────────────────────
 function daysAway(dateStr: string): number {
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const due   = new Date(dateStr); due.setHours(0, 0, 0, 0)
@@ -79,28 +71,21 @@ function dueDateLabel(dateStr: string): { text: string; color: string } {
   if (d < 0)   return { text: `${Math.abs(d)}d overdue`, color: '#F87171' }
   if (d === 0) return { text: 'Due today',               color: '#FBBF24' }
   if (d <= 3)  return { text: `In ${d}d`,                color: '#FB923C' }
-  return       { text: `In ${d} days`,                   color: '#34D399' }
+  return       { text: `In ${d}d`,                       color: '#34D399' }
 }
 
-// ─── Wallet picker sheet ──────────────────────────────────────────────────────
-function WalletPicker({
-  open, wallets, title, onSelect, onClose,
-}: {
-  open: boolean
-  wallets: WalletEntry[]
-  title: string
-  onSelect: (w: WalletEntry) => void
-  onClose: () => void
+// ─── Wallet picker ────────────────────────────────────────────────────────────
+function WalletPicker({ open, wallets, title, onSelect, onClose }: {
+  open: boolean; wallets: WalletEntry[]; title: string
+  onSelect: (w: WalletEntry) => void; onClose: () => void
 }) {
   return (
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200 }}
-          />
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200 }} />
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 34 }}
@@ -118,10 +103,9 @@ function WalletPicker({
                 <motion.button key={w.id} whileTap={{ scale: 0.97 }} onClick={() => onSelect(w)}
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 16px', borderRadius: 16,
+                    padding: '14px 16px', borderRadius: 16, cursor: 'pointer',
                     background: w.type === 'credit' ? 'rgba(248,113,113,0.08)' : 'rgba(52,211,153,0.08)',
                     border: w.type === 'credit' ? '1px solid rgba(248,113,113,0.22)' : '1px solid rgba(52,211,153,0.22)',
-                    cursor: 'pointer',
                   }}
                 >
                   <span style={{ fontSize: 14, fontWeight: 600, color: '#f5f7ff' }}>{w.label}</span>
@@ -139,12 +123,8 @@ function WalletPicker({
 }
 
 // ─── Add Borrowed Sheet ───────────────────────────────────────────────────────
-function AddBorrowedSheet({
-  open, wallets, onClose, onSave,
-}: {
-  open: boolean
-  wallets: WalletEntry[]
-  onClose: () => void
+function AddBorrowedSheet({ open, wallets, onClose, onSave }: {
+  open: boolean; wallets: WalletEntry[]; onClose: () => void
   onSave: (person: string, amount: number, walletId: string, dueDate: string, note: string) => Promise<void>
 }) {
   const [person,           setPerson]           = useState('')
@@ -156,10 +136,7 @@ function AddBorrowedSheet({
   const [saving,           setSaving]           = useState(false)
   const [err,              setErr]              = useState('')
 
-  const reset = () => {
-    setPerson(''); setAmount(''); setDueDate(''); setNote('')
-    setSelectedWallet(null); setErr('')
-  }
+  const reset = () => { setPerson(''); setAmount(''); setDueDate(''); setNote(''); setSelectedWallet(null); setErr('') }
   const handleClose = () => { reset(); onClose() }
 
   const handleSave = async () => {
@@ -167,34 +144,28 @@ function AddBorrowedSheet({
     if (!amount || parseFloat(amount) <= 0) { setErr('Enter a valid amount'); return }
     if (!selectedWallet)                    { setErr('Select a source account'); return }
     setSaving(true); setErr('')
-    try {
-      await onSave(person.trim(), parseFloat(amount), selectedWallet.id, dueDate, note.trim())
-      handleClose()
-    } catch { setErr('Failed to save. Try again.') }
+    try { await onSave(person.trim(), parseFloat(amount), selectedWallet.id, dueDate, note.trim()); handleClose() }
+    catch { setErr('Failed to save. Try again.') }
     finally { setSaving(false) }
   }
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '13px 14px', borderRadius: 14,
     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-    color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none',
-    WebkitAppearance: 'none',
+    color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none', WebkitAppearance: 'none',
   }
   const labelStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
-    textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
-    marginBottom: 6, display: 'block',
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block',
   }
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={handleClose}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 100 }}
-          />
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 100 }} />
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 34 }}
@@ -208,77 +179,182 @@ function AddBorrowedSheet({
           >
             <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '0 auto 20px' }} />
             <p style={{ fontSize: 17, fontWeight: 800, color: '#f5f7ff', marginBottom: 24 }}>Add Borrowed Entry</p>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={labelStyle}>Borrowed From</label>
-                <input value={person} onChange={e => setPerson(e.target.value)}
-                  placeholder="e.g. Mani, SBI, Friend" style={inputStyle} />
+                <input value={person} onChange={e => setPerson(e.target.value)} placeholder="e.g. Mani, SBI, Friend" style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Amount (₹)</label>
-                <input type="number" inputMode="decimal" value={amount}
-                  onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
+                <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Received Into (Wallet)</label>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={() => setWalletPickerOpen(true)}
-                  style={{
-                    ...inputStyle, textAlign: 'left', cursor: 'pointer', display: 'flex',
-                    alignItems: 'center', justifyContent: 'space-between',
-                    color: selectedWallet ? '#f5f7ff' : 'rgba(255,255,255,0.3)',
-                  }}
+                  style={{ ...inputStyle, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: selectedWallet ? '#f5f7ff' : 'rgba(255,255,255,0.3)' }}
                 >
                   <span>{selectedWallet ? selectedWallet.label : 'Select account…'}</span>
-                  {selectedWallet && (
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>
-                      {formatINR(selectedWallet.balance)}
-                    </span>
-                  )}
+                  {selectedWallet && <span style={{ fontSize: 13, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>{formatINR(selectedWallet.balance)}</span>}
                 </motion.button>
               </div>
               <div>
                 <label style={labelStyle}>Due Date (optional)</label>
-                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                  style={{ ...inputStyle, colorScheme: 'dark' }} />
+                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
               </div>
               <div>
                 <label style={labelStyle}>Note (optional)</label>
-                <input value={note} onChange={e => setNote(e.target.value)}
-                  placeholder="Any memo…" style={inputStyle} />
+                <input value={note} onChange={e => setNote(e.target.value)} placeholder="Any memo…" style={inputStyle} />
               </div>
               {err && <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center' }}>{err}</p>}
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
-                style={{
-                  width: '100%', padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer',
-                  background: 'linear-gradient(135deg, rgba(251,146,60,0.9), rgba(234,88,12,0.9))',
-                  color: '#fff', fontSize: 15, fontWeight: 800, opacity: saving ? 0.6 : 1,
-                }}
-              >
-                {saving ? 'Saving…' : 'Add Entry'}
-              </motion.button>
+                style={{ width: '100%', padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(251,146,60,0.9), rgba(234,88,12,0.9))', color: '#fff', fontSize: 15, fontWeight: 800, opacity: saving ? 0.6 : 1 }}
+              >{saving ? 'Saving…' : 'Add Entry'}</motion.button>
             </div>
           </motion.div>
-
-          <WalletPicker
-            open={walletPickerOpen} wallets={wallets} title="Received Into Which Wallet?"
+          <WalletPicker open={walletPickerOpen} wallets={wallets} title="Received Into Which Wallet?"
             onSelect={w => { setSelectedWallet(w); setWalletPickerOpen(false) }}
-            onClose={() => setWalletPickerOpen(false)}
-          />
+            onClose={() => setWalletPickerOpen(false)} />
         </>
       )}
     </AnimatePresence>
   )
 }
 
-// ─── Add More Amount Sheet ────────────────────────────────────────────────────
-function AddMoreSheet({
-  open, entry, wallets, saving, onClose, onSave,
-}: {
-  open: boolean
-  entry: BorrowedEntry | null
-  wallets: WalletEntry[]
-  saving: boolean
+// ─── Edit Sheet ───────────────────────────────────────────────────────────────
+function EditBorrowedSheet({ open, entry, saving, onClose, onSave }: {
+  open: boolean; entry: BorrowedEntry | null; saving: boolean
+  onClose: () => void
+  onSave: (id: string, payload: EditBorrowedPayload) => Promise<void>
+}) {
+  const [person,  setPerson]  = useState('')
+  const [dueDate, setDueDate] = useState('')
+  const [note,    setNote]    = useState('')
+  const [err,     setErr]     = useState('')
+
+  // Sync fields when entry changes
+  useEffect(() => {
+    if (entry) {
+      setPerson(entry.person)
+      setDueDate(entry.due_date ?? '')
+      setNote(entry.description ?? '')
+      setErr('')
+    }
+  }, [entry])
+
+  const handleClose = () => { setErr(''); onClose() }
+
+  const handleSave = async () => {
+    if (!person.trim()) { setErr('Name cannot be empty'); return }
+    setErr('')
+    try {
+      await onSave(entry!.id, {
+        person:      person.trim(),
+        description: note.trim(),
+        due_date:    dueDate || null,
+      })
+      handleClose()
+    } catch { setErr('Failed to update. Try again.') }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '13px 14px', borderRadius: 14,
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+    color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none', WebkitAppearance: 'none',
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block',
+  }
+
+  return (
+    <AnimatePresence>
+      {open && entry && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={handleClose}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 300 }} />
+          <motion.div
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 340, damping: 34 }}
+            style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 301,
+              background: '#111113', borderRadius: '24px 24px 0 0',
+              padding: '24px 20px calc(env(safe-area-inset-bottom) + 28px)',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '0 auto 20px' }} />
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 16,
+              }}>✏️</div>
+              <div>
+                <p style={{ fontSize: 17, fontWeight: 800, color: '#f5f7ff', lineHeight: 1 }}>Edit Entry</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>
+                  Amount & repayments are locked
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Borrowed From</label>
+                <input value={person} onChange={e => setPerson(e.target.value)}
+                  placeholder="Person or lender name" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Due Date</label>
+                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                  style={{ ...inputStyle, colorScheme: 'dark' }} />
+                {dueDate && (
+                  <button onClick={() => setDueDate('')}
+                    style={{ marginTop: 6, fontSize: 11, color: '#F87171', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    × Clear due date
+                  </button>
+                )}
+              </div>
+              <div>
+                <label style={labelStyle}>Note / Description</label>
+                <input value={note} onChange={e => setNote(e.target.value)}
+                  placeholder="Any memo…" style={inputStyle} />
+              </div>
+
+              {/* Read-only amount reminder */}
+              <div style={{
+                padding: '11px 14px', borderRadius: 12,
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>Total Borrowed</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#FB923C', fontVariantNumeric: 'tabular-nums' }}>
+                  {entry ? formatINR(entry.amount) : ''}
+                </span>
+              </div>
+
+              {err && <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center' }}>{err}</p>}
+
+              <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
+                style={{
+                  width: '100%', padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg, rgba(99,102,241,0.9), rgba(79,70,229,0.9))',
+                  color: '#fff', fontSize: 15, fontWeight: 800, opacity: saving ? 0.6 : 1,
+                }}
+              >{saving ? 'Saving…' : 'Save Changes'}</motion.button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ─── Add More Sheet ───────────────────────────────────────────────────────────
+function AddMoreSheet({ open, entry, wallets, saving, onClose, onSave }: {
+  open: boolean; entry: BorrowedEntry | null; wallets: WalletEntry[]; saving: boolean
   onClose: () => void
   onSave: (id: string, amount: number, walletId: string) => Promise<void>
 }) {
@@ -294,33 +370,27 @@ function AddMoreSheet({
     if (!amount || parseFloat(amount) <= 0) { setErr('Enter a valid amount'); return }
     if (!selectedWallet)                    { setErr('Select a wallet to receive into'); return }
     setErr('')
-    try {
-      await onSave(entry!.id, parseFloat(amount), selectedWallet.id)
-      handleClose()
-    } catch { setErr('Failed. Try again.') }
+    try { await onSave(entry!.id, parseFloat(amount), selectedWallet.id); handleClose() }
+    catch { setErr('Failed. Try again.') }
   }
 
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '13px 14px', borderRadius: 14,
     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-    color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none',
-    WebkitAppearance: 'none',
+    color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none', WebkitAppearance: 'none',
   }
   const labelStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
-    textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
-    marginBottom: 6, display: 'block',
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block',
   }
 
   return (
     <AnimatePresence>
       {open && entry && (
         <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={handleClose}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200 }}
-          />
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200 }} />
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 34 }}
@@ -335,52 +405,31 @@ function AddMoreSheet({
             <p style={{ fontSize: 17, fontWeight: 800, color: '#f5f7ff', marginBottom: 4 }}>Borrow More</p>
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>
               From <span style={{ color: '#FB923C', fontWeight: 700 }}>{entry.person}</span>
-              {entry.status === 'settled' && (
-                <span style={{ marginLeft: 8, fontSize: 11, color: '#FBBF24', fontWeight: 700 }}>· Will reopen as Pending</span>
-              )}
+              {entry.status === 'settled' && <span style={{ marginLeft: 8, fontSize: 11, color: '#FBBF24', fontWeight: 700 }}>· Will reopen as Pending</span>}
             </p>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={labelStyle}>Extra Amount (₹)</label>
-                <input type="number" inputMode="decimal" value={amount}
-                  onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
+                <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Received Into (Wallet)</label>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={() => setPickerOpen(true)}
-                  style={{
-                    ...inputStyle, textAlign: 'left', cursor: 'pointer', display: 'flex',
-                    alignItems: 'center', justifyContent: 'space-between',
-                    color: selectedWallet ? '#f5f7ff' : 'rgba(255,255,255,0.3)',
-                  }}
+                  style={{ ...inputStyle, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: selectedWallet ? '#f5f7ff' : 'rgba(255,255,255,0.3)' }}
                 >
                   <span>{selectedWallet ? selectedWallet.label : 'Select wallet…'}</span>
-                  {selectedWallet && (
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>
-                      {formatINR(selectedWallet.balance)}
-                    </span>
-                  )}
+                  {selectedWallet && <span style={{ fontSize: 13, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>{formatINR(selectedWallet.balance)}</span>}
                 </motion.button>
               </div>
               {err && <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center' }}>{err}</p>}
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
-                style={{
-                  width: '100%', padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer',
-                  background: 'linear-gradient(135deg, rgba(251,146,60,0.9), rgba(234,88,12,0.9))',
-                  color: '#fff', fontSize: 15, fontWeight: 800, opacity: saving ? 0.6 : 1,
-                }}
-              >
-                {saving ? 'Saving…' : 'Add Amount'}
-              </motion.button>
+                style={{ width: '100%', padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg, rgba(251,146,60,0.9), rgba(234,88,12,0.9))', color: '#fff', fontSize: 15, fontWeight: 800, opacity: saving ? 0.6 : 1 }}
+              >{saving ? 'Saving…' : 'Add Amount'}</motion.button>
             </div>
           </motion.div>
-
-          <WalletPicker
-            open={pickerOpen} wallets={wallets} title="Received Into Which Wallet?"
+          <WalletPicker open={pickerOpen} wallets={wallets} title="Received Into Which Wallet?"
             onSelect={w => { setSelectedWallet(w); setPickerOpen(false) }}
-            onClose={() => setPickerOpen(false)}
-          />
+            onClose={() => setPickerOpen(false)} />
         </>
       )}
     </AnimatePresence>
@@ -390,15 +439,9 @@ function AddMoreSheet({
 // ─── Payment / Settle Sheet ───────────────────────────────────────────────────
 type PaymentMode = 'partial' | 'settle'
 
-function PaymentSheet({
-  open, mode, entry, wallets, saving, onClose, onPartial, onSettle,
-}: {
-  open: boolean
-  mode: PaymentMode
-  entry: BorrowedEntry | null
-  wallets: WalletEntry[]
-  saving: boolean
-  onClose: () => void
+function PaymentSheet({ open, mode, entry, wallets, saving, onClose, onPartial, onSettle }: {
+  open: boolean; mode: PaymentMode; entry: BorrowedEntry | null
+  wallets: WalletEntry[]; saving: boolean; onClose: () => void
   onPartial: (id: string, amount: number, walletId: string) => Promise<void>
   onSettle:  (id: string, walletId: string) => Promise<void>
 }) {
@@ -431,24 +474,20 @@ function PaymentSheet({
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '13px 14px', borderRadius: 14,
     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-    color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none',
-    WebkitAppearance: 'none',
+    color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none', WebkitAppearance: 'none',
   }
   const labelStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
-    textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
-    marginBottom: 6, display: 'block',
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+    color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block',
   }
 
   return (
     <AnimatePresence>
       {open && entry && (
         <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={handleClose}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200 }}
-          />
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200 }} />
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 34 }}
@@ -466,20 +505,15 @@ function PaymentSheet({
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>
               {entry.person} — Remaining: <span style={{ color: '#F87171', fontWeight: 700 }}>{formatINR(remaining)}</span>
             </p>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {mode === 'partial' && (
                 <div>
                   <label style={labelStyle}>Payment Amount (₹)</label>
-                  <input type="number" inputMode="decimal" value={amount}
-                    onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
+                  <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
                 </div>
               )}
               {mode === 'settle' && (
-                <div style={{
-                  padding: '14px 16px', borderRadius: 14,
-                  background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)',
-                }}>
+                <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)' }}>
                   <p style={{ fontSize: 13, color: '#34D399', fontWeight: 600 }}>
                     Full remaining amount <strong>{formatINR(remaining)}</strong> will be deducted from the selected wallet.
                   </p>
@@ -488,18 +522,10 @@ function PaymentSheet({
               <div>
                 <label style={labelStyle}>Pay From (Wallet)</label>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={() => setPickerOpen(true)}
-                  style={{
-                    ...inputStyle, textAlign: 'left', cursor: 'pointer', display: 'flex',
-                    alignItems: 'center', justifyContent: 'space-between',
-                    color: selectedWallet ? '#f5f7ff' : 'rgba(255,255,255,0.3)',
-                  }}
+                  style={{ ...inputStyle, textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: selectedWallet ? '#f5f7ff' : 'rgba(255,255,255,0.3)' }}
                 >
                   <span>{selectedWallet ? selectedWallet.label : 'Select wallet…'}</span>
-                  {selectedWallet && (
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>
-                      {formatINR(selectedWallet.balance)}
-                    </span>
-                  )}
+                  {selectedWallet && <span style={{ fontSize: 13, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>{formatINR(selectedWallet.balance)}</span>}
                 </motion.button>
               </div>
               {err && <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center' }}>{err}</p>}
@@ -511,17 +537,12 @@ function PaymentSheet({
                     : 'linear-gradient(135deg, rgba(251,146,60,0.9), rgba(234,88,12,0.9))',
                   color: '#fff', fontSize: 15, fontWeight: 800, opacity: saving ? 0.6 : 1,
                 }}
-              >
-                {saving ? 'Saving…' : mode === 'settle' ? '✓ Confirm Settled' : 'Record Payment'}
-              </motion.button>
+              >{saving ? 'Saving…' : mode === 'settle' ? '✓ Confirm Settled' : 'Record Payment'}</motion.button>
             </div>
           </motion.div>
-
-          <WalletPicker
-            open={pickerOpen} wallets={wallets} title="Pay From Which Wallet?"
+          <WalletPicker open={pickerOpen} wallets={wallets} title="Pay From Which Wallet?"
             onSelect={w => { setSelectedWallet(w); setPickerOpen(false) }}
-            onClose={() => setPickerOpen(false)}
-          />
+            onClose={() => setPickerOpen(false)} />
         </>
       )}
     </AnimatePresence>
@@ -541,39 +562,59 @@ function StatusBadge({ status }: { status: BorrowedStatus }) {
       fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase',
       background: s.bg, color: s.color, border: `1px solid ${s.border}`,
       borderRadius: 99, padding: '2px 8px',
-    }}>
-      {s.label}
-    </span>
+    }}>{s.label}</span>
   )
 }
 
-// ─── Entry Card ───────────────────────────────────────────────────────────────
+// ─── Reorderable card item ────────────────────────────────────────────────────
+function DragHandle({ controls }: { controls: ReturnType<typeof useDragControls> }) {
+  return (
+    <div
+      onPointerDown={e => { e.preventDefault(); controls.start(e) }}
+      style={{
+        width: 28, height: 28, flexShrink: 0, borderRadius: 8,
+        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: 'grab', touchAction: 'none',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" strokeLinecap="round">
+        <line x1="4" y1="7"  x2="20" y2="7"  />
+        <line x1="4" y1="12" x2="20" y2="12" />
+        <line x1="4" y1="17" x2="20" y2="17" />
+      </svg>
+    </div>
+  )
+}
+
 function BorrowedCard({
-  entry, expanded, onToggle, onAddMore, onPartial, onSettle,
+  entry, expanded, reorderMode, onToggle, onEdit, onAddMore, onPartial, onSettle,
 }: {
   entry: BorrowedEntry
   expanded: boolean
+  reorderMode: boolean
   onToggle: () => void
+  onEdit: () => void
   onAddMore: () => void
   onPartial: () => void
   onSettle: () => void
 }) {
-  const remaining  = parseFloat((entry.amount - entry.paid_amount).toFixed(2))
-  const paidPct    = entry.amount > 0 ? Math.min(100, (entry.paid_amount / entry.amount) * 100) : 0
-  const isSettled  = entry.status === 'settled'
-  const due        = entry.due_date ? dueDateLabel(entry.due_date) : null
-  // Partial payment and settle are disabled only when remaining is 0 (i.e. fully settled with no new debt)
+  const dragControls  = useDragControls()
+  const remaining     = parseFloat((entry.amount - entry.paid_amount).toFixed(2))
+  const paidPct       = entry.amount > 0 ? Math.min(100, (entry.paid_amount / entry.amount) * 100) : 0
+  const isSettled     = entry.status === 'settled'
+  const due           = entry.due_date ? dueDateLabel(entry.due_date) : null
   const actionsDisabled = isSettled && remaining <= 0
 
   const disabledBtnStyle: React.CSSProperties = {
-    flex: 1, padding: '11px 0', borderRadius: 14,
+    flex: 1, padding: '10px 0', borderRadius: 12,
     border: '1px solid rgba(255,255,255,0.08)',
     background: 'rgba(255,255,255,0.04)',
     color: 'rgba(255,255,255,0.2)',
-    fontSize: 13, fontWeight: 700, cursor: 'not-allowed', opacity: 0.5,
+    fontSize: 12, fontWeight: 700, cursor: 'not-allowed', opacity: 0.5,
   }
 
-  return (
+  const cardContent = (
     <motion.div
       layout
       initial={{ opacity: 0, y: 8 }}
@@ -586,14 +627,25 @@ function BorrowedCard({
         overflow: 'hidden',
       }}
     >
-      {/* ── Card header row (always visible, tappable to expand) ── */}
-      <div onClick={onToggle} style={{ padding: '15px 16px', cursor: 'pointer' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+      {/* Card header row */}
+      <div onClick={reorderMode ? undefined : onToggle}
+        style={{ padding: '14px 14px 10px', cursor: reorderMode ? 'default' : 'pointer' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          {/* Drag handle — only visible in reorder mode */}
+          <AnimatePresence initial={false}>
+            {reorderMode && (
+              <motion.div key="handle" initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}>
+                <DragHandle controls={dragControls} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div style={{
-            width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+            width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
             background: isSettled ? 'rgba(52,211,153,0.15)' : 'rgba(251,146,60,0.15)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, fontWeight: 800, color: isSettled ? '#34D399' : '#FB923C',
+            fontSize: 13, fontWeight: 800, color: isSettled ? '#34D399' : '#FB923C',
           }}>
             {entry.person.charAt(0).toUpperCase()}
           </div>
@@ -623,16 +675,18 @@ function BorrowedCard({
             )}
           </div>
 
-          <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={{ duration: 0.2 }} style={{ flexShrink: 0, marginLeft: 4 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </motion.div>
+          {!reorderMode && (
+            <motion.div animate={{ rotate: expanded ? 90 : 0 }} transition={{ duration: 0.2 }} style={{ flexShrink: 0, marginLeft: 2 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </motion.div>
+          )}
         </div>
 
         {/* Progress bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
             <motion.div
               animate={{ width: `${paidPct}%` }}
               transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -645,9 +699,9 @@ function BorrowedCard({
         </div>
       </div>
 
-      {/* ── Expanded actions — shown for ALL cards (settled and active) ── */}
+      {/* Expanded actions — hidden in reorder mode */}
       <AnimatePresence initial={false}>
-        {expanded && (
+        {expanded && !reorderMode && (
           <motion.div
             key="actions"
             initial={{ height: 0, opacity: 0 }}
@@ -656,57 +710,80 @@ function BorrowedCard({
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             style={{ overflow: 'hidden' }}
           >
-            <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8, alignItems: 'stretch' }}>
+            <div style={{ padding: '0 12px 14px', display: 'flex', gap: 7, alignItems: 'stretch' }}>
 
-              {/* ── [ + ] Add More button — always enabled ── */}
-              <motion.button
-                whileTap={{ scale: 0.93 }}
-                onClick={e => { e.stopPropagation(); onAddMore() }}
+              {/* ── Reorder icon button ── */}
+              <motion.button whileTap={{ scale: 0.9 }}
+                onClick={e => { e.stopPropagation(); onToggle() }}
+                aria-label="Reorder"
+                title="Reorder"
                 style={{
-                  width: 40, flexShrink: 0, borderRadius: 14,
-                  border: '1px solid rgba(251,146,60,0.38)',
-                  background: 'rgba(251,146,60,0.12)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer',
+                  width: 36, flexShrink: 0, borderRadius: 11,
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  background: 'rgba(255,255,255,0.06)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                 }}
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FB923C" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="4" y1="6"  x2="20" y2="6"  />
+                  <line x1="4" y1="12" x2="20" y2="12" />
+                  <line x1="4" y1="18" x2="20" y2="18" />
+                </svg>
+              </motion.button>
+
+              {/* ── Edit icon button ── */}
+              <motion.button whileTap={{ scale: 0.9 }}
+                onClick={e => { e.stopPropagation(); onEdit() }}
+                aria-label="Edit"
+                title="Edit"
+                style={{
+                  width: 36, flexShrink: 0, borderRadius: 11,
+                  border: '1px solid rgba(99,102,241,0.32)',
+                  background: 'rgba(99,102,241,0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#818CF8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </motion.button>
+
+              {/* ── [+] Add More ── */}
+              <motion.button whileTap={{ scale: 0.93 }}
+                onClick={e => { e.stopPropagation(); onAddMore() }}
+                aria-label="Add more"
+                title="Borrow more"
+                style={{
+                  width: 36, flexShrink: 0, borderRadius: 11,
+                  border: '1px solid rgba(251,146,60,0.38)',
+                  background: 'rgba(251,146,60,0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FB923C" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               </motion.button>
 
-              {/* ── Partial Payment ── disabled if no remaining amount ── */}
+              {/* ── Partial Payment ── */}
               {actionsDisabled ? (
-                <button disabled style={disabledBtnStyle}>Partial Payment</button>
+                <button disabled style={disabledBtnStyle}>Partial</button>
               ) : (
                 <motion.button whileTap={{ scale: 0.95 }}
                   onClick={e => { e.stopPropagation(); onPartial() }}
-                  style={{
-                    flex: 1, padding: '11px 0', borderRadius: 14,
-                    border: '1px solid rgba(251,191,36,0.32)',
-                    background: 'rgba(251,191,36,0.1)', color: '#FBBF24',
-                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  }}
-                >
-                  Partial Payment
-                </motion.button>
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 11, border: '1px solid rgba(251,191,36,0.32)', background: 'rgba(251,191,36,0.1)', color: '#FBBF24', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >Partial</motion.button>
               )}
 
-              {/* ── Mark Settled ── disabled if already settled and no remaining ── */}
+              {/* ── Mark Settled ── */}
               {actionsDisabled ? (
-                <button disabled style={disabledBtnStyle}>Mark Settled</button>
+                <button disabled style={disabledBtnStyle}>Settled</button>
               ) : (
                 <motion.button whileTap={{ scale: 0.95 }}
                   onClick={e => { e.stopPropagation(); onSettle() }}
-                  style={{
-                    flex: 1, padding: '11px 0', borderRadius: 14,
-                    border: '1px solid rgba(52,211,153,0.32)',
-                    background: 'rgba(52,211,153,0.1)', color: '#34D399',
-                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  }}
-                >
-                  Mark Settled
-                </motion.button>
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 11, border: '1px solid rgba(52,211,153,0.32)', background: 'rgba(52,211,153,0.1)', color: '#34D399', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >Settled</motion.button>
               )}
             </div>
           </motion.div>
@@ -714,6 +791,23 @@ function BorrowedCard({
       </AnimatePresence>
     </motion.div>
   )
+
+  // In reorder mode, wrap with Reorder.Item
+  if (reorderMode) {
+    return (
+      <Reorder.Item
+        key={entry.id}
+        value={entry}
+        dragControls={dragControls}
+        dragListener={false}
+        style={{ listStyle: 'none' }}
+      >
+        {cardContent}
+      </Reorder.Item>
+    )
+  }
+
+  return cardContent
 }
 
 // ─── Filter pill ──────────────────────────────────────────────────────────────
@@ -723,16 +817,14 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
   return (
     <motion.button whileTap={{ scale: 0.92 }} onClick={onClick}
       style={{
-        height: 30, paddingInline: 14, borderRadius: 99, cursor: 'pointer',
+        height: 29, paddingInline: 13, borderRadius: 99, cursor: 'pointer',
         background: active ? 'rgba(251,146,60,0.22)' : 'rgba(255,255,255,0.07)',
         color: active ? '#FB923C' : 'rgba(255,255,255,0.45)',
         fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
         border: active ? '1px solid rgba(251,146,60,0.38)' : '1px solid rgba(255,255,255,0.1)',
         transition: 'all 0.18s ease',
       }}
-    >
-      {label}
-    </motion.button>
+    >{label}</motion.button>
   )
 }
 
@@ -741,14 +833,17 @@ export function BorrowedScreen() {
   const { activeUser } = useUser()
   const {
     entries, loading, error, saving,
-    addBorrowed, addMoreAmount, makePayment, markSettled,
-    totalOwed, nearestDue,
+    addBorrowed, editBorrowed, reorderEntries,
+    addMoreAmount, makePayment, markSettled,
+    totalOwed, activeBorrowers, nearestDues,
   } = useBorrowed()
   const { wallets } = useWallets()
 
   const [addOpen,       setAddOpen]       = useState(false)
   const [filter,        setFilter]        = useState<FilterMode>('all')
   const [expandedId,    setExpandedId]    = useState<string | null>(null)
+  const [reorderMode,   setReorderMode]   = useState(false)
+  const [editEntry,     setEditEntry]     = useState<BorrowedEntry | null>(null)
   const [paymentEntry,  setPaymentEntry]  = useState<BorrowedEntry | null>(null)
   const [paymentMode,   setPaymentMode]   = useState<'partial' | 'settle'>('partial')
   const [addMoreEntry,  setAddMoreEntry]  = useState<BorrowedEntry | null>(null)
@@ -770,8 +865,6 @@ export function BorrowedScreen() {
     return true
   })
 
-  const dueLabel = nearestDue?.due_date ? dueDateLabel(nearestDue.due_date) : null
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
@@ -783,7 +876,7 @@ export function BorrowedScreen() {
         backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
       }}>
 
-        {/* Summary Card */}
+        {/* ── Smart Summary Card ── */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -793,57 +886,155 @@ export function BorrowedScreen() {
             background: 'linear-gradient(160deg,#0d0800 0%,#040607 58%,#060a08 100%)',
             border: '1px solid rgba(251,146,60,0.24)',
             boxShadow: '0 0 0 1px rgba(251,146,60,0.05), 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 rgba(251,146,60,0.08) inset',
-            minHeight: 112,
+            minHeight: 130,
           }}
         >
           <SummaryWaveCanvas />
+          {/* top shimmer line */}
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,rgba(251,146,60,0.55),transparent)' }} />
 
-          <div style={{ position: 'relative', zIndex: 2, display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', padding: '22px 20px 24px', gap: 12 }}>
-            <div>
-              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,146,60,0.65)', marginBottom: 6 }}>Total Owed</p>
-              <p style={{ fontSize: 26, fontWeight: 900, color: '#FB923C', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(251,146,60,0.45)' }}>
-                {formatINR(totalOwed)}
-              </p>
+          <div style={{ position: 'relative', zIndex: 2, padding: '18px 18px 16px' }}>
+
+            {/* Top row: total owed + borrower count */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div>
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,146,60,0.65)', marginBottom: 5 }}>Total Owed</p>
+                <p style={{
+                  fontSize: 28, fontWeight: 900, color: '#FB923C',
+                  fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+                  textShadow: '0 0 18px rgba(251,146,60,0.45)',
+                }}>
+                  {formatINR(totalOwed)}
+                </p>
+              </div>
+
+              {/* Borrower count pill */}
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4,
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 10px', borderRadius: 99,
+                  background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.22)',
+                }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FB923C" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                    <circle cx="9" cy="7" r="4" />
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                  </svg>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: '#FB923C', fontVariantNumeric: 'tabular-nums' }}>
+                    {activeBorrowers}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'rgba(251,146,60,0.6)', fontWeight: 600 }}>
+                    {activeBorrowers === 1 ? 'borrower' : 'borrowers'}
+                  </span>
+                </div>
+              </div>
             </div>
-            {nearestDue && dueLabel && (
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>Next Due</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: '#f5f7ff', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>
-                  {nearestDue.person}
-                </p>
-                <p style={{ fontSize: 12, fontWeight: 800, color: dueLabel.color, fontVariantNumeric: 'tabular-nums' }}>
-                  {dueLabel.text}
-                </p>
+
+            {/* 3 nearest due dates — compact chips row */}
+            {nearestDues.length > 0 && (
+              <div>
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>Upcoming Dues</p>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', overflowX: 'auto' }}>
+                  {nearestDues.map(e => {
+                    const lbl = dueDateLabel(e.due_date!)
+                    return (
+                      <div key={e.id} style={{
+                        display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                        padding: '4px 10px', borderRadius: 99,
+                        background: 'rgba(255,255,255,0.05)',
+                        border: `1px solid ${lbl.color}33`,
+                      }}>
+                        <div style={{
+                          width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+                          background: 'rgba(255,255,255,0.08)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 9, fontWeight: 800, color: '#f5f7ff',
+                        }}>
+                          {e.person.charAt(0).toUpperCase()}
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#f5f7ff', maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {e.person}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: lbl.color, flexShrink: 0 }}>
+                          {lbl.text}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>
         </motion.div>
 
-        {/* Filter + icon-only Add button bar */}
+        {/* ── Toolbar: + · filters · Reorder Done ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
 
-          {/* ── Icon-only + button (no text) ── */}
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setAddOpen(true)}
+          {/* Add button */}
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => setAddOpen(true)}
             aria-label="Add borrowed entry"
             style={{
-              width: 32, height: 32, borderRadius: 99, flexShrink: 0,
+              width: 30, height: 30, borderRadius: 99, flexShrink: 0,
               background: 'linear-gradient(135deg, rgba(251,146,60,0.22), rgba(234,88,12,0.16))',
               border: '1px solid rgba(251,146,60,0.38)', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FB923C" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FB923C" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </motion.button>
 
-          <FilterPill label="All"     active={filter === 'all'}     onClick={() => setFilter('all')} />
-          <FilterPill label="Pending" active={filter === 'pending'} onClick={() => setFilter('pending')} />
-          <FilterPill label="Settled" active={filter === 'settled'} onClick={() => setFilter('settled')} />
+          {!reorderMode && (
+            <>
+              <FilterPill label="All"     active={filter === 'all'}     onClick={() => setFilter('all')} />
+              <FilterPill label="Pending" active={filter === 'pending'} onClick={() => setFilter('pending')} />
+              <FilterPill label="Settled" active={filter === 'settled'} onClick={() => setFilter('settled')} />
+            </>
+          )}
+
+          {/* Reorder toggle */}
+          <motion.button whileTap={{ scale: 0.92 }}
+            onClick={() => { setReorderMode(r => !r); setExpandedId(null) }}
+            style={{
+              marginLeft: 'auto', height: 29, paddingInline: 12, borderRadius: 99, cursor: 'pointer',
+              background: reorderMode ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.07)',
+              color: reorderMode ? '#34D399' : 'rgba(255,255,255,0.45)',
+              fontSize: 12, fontWeight: 700,
+              border: reorderMode ? '1px solid rgba(52,211,153,0.35)' : '1px solid rgba(255,255,255,0.1)',
+              transition: 'all 0.18s ease', display: 'flex', alignItems: 'center', gap: 5,
+            }}
+          >
+            {reorderMode ? (
+              <>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#34D399" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                Done
+              </>
+            ) : (
+              <>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" strokeLinecap="round"><line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /></svg>
+                Reorder
+              </>
+            )}
+          </motion.button>
         </div>
+
+        {/* Reorder mode hint */}
+        <AnimatePresence>
+          {reorderMode && (
+            <motion.p
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center', paddingBottom: 8, overflow: 'hidden' }}
+            >
+              Hold ☰ and drag to reorder · Tap Done when finished
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* ── Scrollable list ── */}
@@ -851,7 +1042,7 @@ export function BorrowedScreen() {
 
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1,2,3].map(i => <div key={i} style={{ height: 78, borderRadius: 18, background: 'rgba(255,255,255,0.04)' }} />)}
+            {[1,2,3].map(i => <div key={i} style={{ height: 72, borderRadius: 18, background: 'rgba(255,255,255,0.04)' }} />)}
           </div>
         )}
 
@@ -869,32 +1060,61 @@ export function BorrowedScreen() {
           </motion.div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <AnimatePresence initial={false}>
+        {/* ── Reorder mode list ── */}
+        {reorderMode ? (
+          <Reorder.Group
+            axis="y"
+            values={filtered}
+            onReorder={reorderEntries}
+            style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 0, margin: 0 }}
+          >
             {filtered.map(entry => (
               <BorrowedCard
                 key={entry.id}
                 entry={entry}
-                expanded={expandedId === entry.id}
-                onToggle={() => setExpandedId(prev => prev === entry.id ? null : entry.id)}
+                expanded={false}
+                reorderMode={true}
+                onToggle={() => {}}
+                onEdit={() => setEditEntry(entry)}
                 onAddMore={() => setAddMoreEntry(entry)}
                 onPartial={() => { setPaymentEntry(entry); setPaymentMode('partial') }}
                 onSettle={()  => { setPaymentEntry(entry); setPaymentMode('settle')  }}
               />
             ))}
-          </AnimatePresence>
-        </div>
+          </Reorder.Group>
+        ) : (
+          /* ── Normal mode list ── */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <AnimatePresence initial={false}>
+              {filtered.map(entry => (
+                <BorrowedCard
+                  key={entry.id}
+                  entry={entry}
+                  expanded={expandedId === entry.id}
+                  reorderMode={false}
+                  onToggle={() => setExpandedId(prev => prev === entry.id ? null : entry.id)}
+                  onEdit={() => setEditEntry(entry)}
+                  onAddMore={() => setAddMoreEntry(entry)}
+                  onPartial={() => { setPaymentEntry(entry); setPaymentMode('partial') }}
+                  onSettle={()  => { setPaymentEntry(entry); setPaymentMode('settle')  }}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
-      {/* ── Add new entry sheet ── */}
-      <AddBorrowedSheet
-        open={addOpen}
-        wallets={wallets}
-        onClose={() => setAddOpen(false)}
-        onSave={handleAdd}
+      {/* ── Sheets ── */}
+      <AddBorrowedSheet open={addOpen} wallets={wallets} onClose={() => setAddOpen(false)} onSave={handleAdd} />
+
+      <EditBorrowedSheet
+        open={editEntry !== null}
+        entry={editEntry}
+        saving={saving}
+        onClose={() => setEditEntry(null)}
+        onSave={editBorrowed}
       />
 
-      {/* ── Add more amount sheet ── */}
       <AddMoreSheet
         open={addMoreEntry !== null}
         entry={addMoreEntry}
@@ -904,7 +1124,6 @@ export function BorrowedScreen() {
         onSave={addMoreAmount}
       />
 
-      {/* ── Payment / Settle sheet ── */}
       <PaymentSheet
         open={paymentEntry !== null}
         mode={paymentMode}

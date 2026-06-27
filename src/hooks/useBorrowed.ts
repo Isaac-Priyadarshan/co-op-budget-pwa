@@ -17,6 +17,7 @@ export interface BorrowedEntry {
   due_date: string | null
   source_wallet_id: string | null
   created_at: string
+  sort_order?: number
 }
 
 export interface NewBorrowed {
@@ -26,6 +27,12 @@ export interface NewBorrowed {
   amount: number
   due_date?: string | null
   source_wallet_id?: string | null
+}
+
+export interface EditBorrowedPayload {
+  person: string
+  description: string
+  due_date: string | null
 }
 
 // ─── Helper: today as YYYY-MM-DD ──────────────────────────────────────────────
@@ -100,6 +107,35 @@ export function useBorrowed() {
     }
   }, [])
 
+  // ── Edit existing entry — person, description, due_date only ─────────────
+  const editBorrowed = useCallback(async (id: string, payload: EditBorrowedPayload) => {
+    setSaving(true); setError(null)
+    try {
+      const { data, error: err } = await supabase
+        .from('borrowed')
+        .update({
+          person:      payload.person,
+          description: payload.description,
+          due_date:    payload.due_date,
+        })
+        .eq('id', id)
+        .select()
+        .single()
+      if (err) throw new Error(err.message)
+      setEntries(prev => prev.map(e => e.id === id ? data as BorrowedEntry : e))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update')
+      throw e
+    } finally {
+      setSaving(false)
+    }
+  }, [])
+
+  // ── Reorder entries locally — optimistic, no schema change needed ─────────
+  const reorderEntries = useCallback((newOrder: BorrowedEntry[]) => {
+    setEntries(newOrder)
+  }, [])
+
   // ── Add more amount to an existing entry (re-opens settled entries) ───────
   const addMoreAmount = useCallback(async (
     id: string,
@@ -112,7 +148,6 @@ export function useBorrowed() {
       if (!entry) throw new Error('Entry not found')
 
       const newTotal  = parseFloat((entry.amount + extraAmount).toFixed(2))
-      // If was settled, revert to pending since there is now new debt
       const newStatus: BorrowedStatus = entry.status === 'settled' ? 'pending' : entry.status
 
       const { data, error: err } = await supabase
@@ -240,18 +275,28 @@ export function useBorrowed() {
     }
   }, [])
 
+  // ── Derived stats ─────────────────────────────────────────────────────────
   const totalOwed = entries
     .filter(e => e.status !== 'settled')
     .reduce((s, e) => s + (e.amount - e.paid_amount), 0)
 
-  const nearestDue = entries
+  const activeBorrowers = new Set(
+    entries.filter(e => e.status !== 'settled').map(e => e.person)
+  ).size
+
+  const nearestDues = entries
     .filter(e => e.status !== 'settled' && e.due_date)
-    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())[0] ?? null
+    .sort((a, b) => new Date(a.due_date!).getTime() - new Date(b.due_date!).getTime())
+    .slice(0, 3)
+
+  // Keep single nearestDue for backward compat
+  const nearestDue = nearestDues[0] ?? null
 
   return {
     entries, loading, error, saving,
-    addBorrowed, addMoreAmount, makePayment, markSettled, removeEntry,
-    totalOwed, nearestDue,
+    addBorrowed, editBorrowed, reorderEntries,
+    addMoreAmount, makePayment, markSettled, removeEntry,
+    totalOwed, activeBorrowers, nearestDues, nearestDue,
     refresh: load,
   }
 }
