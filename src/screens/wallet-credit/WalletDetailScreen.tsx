@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
@@ -14,6 +14,90 @@ function ordinal(day?: number | null) {
   const l = day % 10
   const suffix = s >= 11 && s <= 13 ? 'th' : l === 1 ? 'st' : l === 2 ? 'nd' : l === 3 ? 'rd' : 'th'
   return `${day}${suffix}`
+}
+
+// ─── Animated Wave Canvas ──────────────────────────────────────────────────────
+// Colour tokens are passed in so the wave matches wallet (green) vs credit (red)
+function WaveCanvas({ primary, secondary }: { primary: string; secondary: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rafRef    = useRef<number>(0)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let t = 0
+    const draw = () => {
+      const W = canvas.width
+      const H = canvas.height
+      ctx.clearRect(0, 0, W, H)
+
+      // Wave 1 — primary colour, dominant
+      ctx.beginPath()
+      for (let x = 0; x <= W; x += 2) {
+        const y = H * 0.52
+          + Math.sin((x / W) * Math.PI * 2.4 + t * 0.6) * H * 0.14
+          + Math.sin((x / W) * Math.PI * 1.1 + t * 0.35) * H * 0.07
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath()
+      const g1 = ctx.createLinearGradient(0, 0, 0, H)
+      g1.addColorStop(0, primary.replace(')', ',0.18)').replace('rgb', 'rgba'))
+      g1.addColorStop(1, primary.replace(')', ',0.04)').replace('rgb', 'rgba'))
+      ctx.fillStyle = g1
+      ctx.fill()
+
+      // Wave 2 — secondary colour, quieter
+      ctx.beginPath()
+      for (let x = 0; x <= W; x += 2) {
+        const y = H * 0.64
+          + Math.sin((x / W) * Math.PI * 3.2 + t * 0.9 + 1.2) * H * 0.09
+          + Math.sin((x / W) * Math.PI * 1.8 + t * 0.5 + 0.6) * H * 0.05
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath()
+      const g2 = ctx.createLinearGradient(0, 0, 0, H)
+      g2.addColorStop(0, secondary.replace(')', ',0.14)').replace('rgb', 'rgba'))
+      g2.addColorStop(1, secondary.replace(')', ',0.03)').replace('rgb', 'rgba'))
+      ctx.fillStyle = g2
+      ctx.fill()
+
+      // Wave 1 stroke line
+      ctx.beginPath()
+      for (let x = 0; x <= W; x += 2) {
+        const y = H * 0.52
+          + Math.sin((x / W) * Math.PI * 2.4 + t * 0.6) * H * 0.14
+          + Math.sin((x / W) * Math.PI * 1.1 + t * 0.35) * H * 0.07
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.strokeStyle = primary.replace(')', ',0.28)').replace('rgb', 'rgba')
+      ctx.lineWidth = 1.2
+      ctx.stroke()
+
+      t += 0.012
+      rafRef.current = requestAnimationFrame(draw)
+    }
+
+    draw()
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [primary, secondary])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={600}
+      height={100}
+      style={{
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0,
+        width: '100%', height: '100%',
+        borderRadius: 22,
+        pointerEvents: 'none',
+      }}
+    />
+  )
 }
 
 // ─── Stat Pill ─────────────────────────────────────────────────────────────────
@@ -323,7 +407,30 @@ export function WalletDetailScreen() {
   const accentColor  = isCredit ? '#F87171' : '#34D399'
   const accentGlow   = isCredit ? 'rgba(248,113,113,0.28)' : 'rgba(52,211,153,0.28)'
   const accentBorder = isCredit ? 'rgba(248,113,113,0.22)' : 'rgba(52,211,153,0.22)'
-  const accentBg     = isCredit ? 'rgba(248,113,113,0.07)' : 'rgba(52,211,153,0.07)'
+
+  // Wave colours — red pair for credit, green pair for wallet
+  const wavePRIMARY   = isCredit ? 'rgb(248,113,113)' : 'rgb(52,211,153)'
+  const waveSECONDARY = isCredit ? 'rgb(239,68,68)'   : 'rgb(16,185,129)'
+
+  // 3-column summary values
+  // Wallet:  Spent · Balance · Received
+  // Credit:  Outstanding · Available · Limit
+  const leftLabel  = isCredit ? 'Outstanding' : 'Spent'
+  const leftValue  = isCredit ? formatINR(wallet?.balance ?? 0) : formatINR(monthSpent)
+  const leftColor  = '#F87171'
+
+  const midLabel   = isCredit ? 'Available' : 'Balance'
+  const midValue   = isCredit ? formatINR(available) : formatINR(wallet?.balance ?? 0)
+  const midColor   = isCredit
+    ? (available > 0 ? '#34D399' : '#F87171')
+    : ((wallet?.balance ?? 0) >= 0 ? '#34D399' : '#F87171')
+  const midGlow    = isCredit
+    ? (available > 0 ? 'rgba(52,211,153,0.45)' : 'rgba(248,113,113,0.45)')
+    : ((wallet?.balance ?? 0) >= 0 ? 'rgba(52,211,153,0.45)' : 'rgba(248,113,113,0.45)')
+
+  const rightLabel = isCredit ? 'Credit Limit' : 'Received'
+  const rightValue = isCredit ? formatINR(wallet?.credit_limit ?? 0) : formatINR(monthReceived)
+  const rightColor = isCredit ? '#A5B4FC' : '#34D399'
 
   const dayGroups   = useMemo(() => groupByDay(walletTxs),   [walletTxs])
   const monthGroups = useMemo(() => groupByMonth(walletTxs), [walletTxs])
@@ -396,7 +503,7 @@ export function WalletDetailScreen() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           </motion.button>
 
-          {/* Title — shrinks to give toggle space */}
+          {/* Title */}
           <span style={{
             fontSize: 15, fontWeight: 700, color: '#f5f7ff',
             flex: 1, minWidth: 0,
@@ -406,7 +513,7 @@ export function WalletDetailScreen() {
             {wallet.label}
           </span>
 
-          {/* ── Compact Day / Month toggle — lives in header ── */}
+          {/* Compact Day / Month toggle */}
           <ViewToggle mode={viewMode} onChange={handleModeChange} />
 
           {/* Edit */}
@@ -425,65 +532,83 @@ export function WalletDetailScreen() {
           </motion.button>
         </div>
 
-        {/* ── Hero Summary Card ── */}
+        {/* ── Hero Summary Card — Ledger style ── */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
           style={{
-            borderRadius: 22, marginBottom: 16,
-            background: accentBg,
+            position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 16,
+            background: 'linear-gradient(160deg,#06080a 0%,#040607 60%,#060a08 100%)',
             border: `1px solid ${accentBorder}`,
-            boxShadow: `0 0 0 1px ${accentBorder}, 0 8px 40px rgba(0,0,0,0.6)`,
-            padding: '22px 20px 20px',
-            position: 'relative', overflow: 'hidden',
+            boxShadow: `0 0 0 1px ${accentBorder.replace('0.22','0.06')}, 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 ${accentBorder.replace('0.22','0.12')} inset`,
+            minHeight: 100,
           }}
         >
+          {/* Animated wave background */}
+          <WaveCanvas primary={wavePRIMARY} secondary={waveSECONDARY} />
+
+          {/* Top glint line */}
           <div style={{
-            position: 'absolute', top: -30, right: -30,
-            width: 130, height: 130, borderRadius: '50%',
-            background: accentGlow, filter: 'blur(40px)', pointerEvents: 'none',
+            position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+            background: `linear-gradient(90deg,transparent,${accentColor}88,transparent)`,
           }} />
 
-          <div style={{ marginBottom: 10 }}>
-            <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
-              color: accentColor, background: `${accentColor}18`,
-              border: `1px solid ${accentColor}30`, borderRadius: 99, padding: '3px 10px',
-            }}>
-              {isCredit ? 'Credit Card' : 'Wallet'}
-            </span>
-          </div>
-
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.42)', marginBottom: 6 }}>
-            {isCredit ? 'Outstanding Balance' : 'Current Balance'}
-          </p>
-          <p style={{
-            fontSize: 34, fontWeight: 900, color: accentColor,
-            fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginBottom: 16,
-            textShadow: `0 0 24px ${accentGlow}`,
+          {/* 3-column content grid */}
+          <div style={{
+            position: 'relative', zIndex: 2,
+            display: 'grid', gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center', padding: '20px 20px 22px',
           }}>
-            {formatINR(wallet.balance)}
-          </p>
+            {/* Left — Spent / Outstanding */}
+            <div>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: `${leftColor}99`, marginBottom: 6 }}>
+                {leftLabel}
+              </p>
+              <p style={{ fontSize: 17, fontWeight: 800, color: leftColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                {leftValue}
+              </p>
+            </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {isCredit ? (
-              <>
-                <StatPill label="Credit Limit"     value={formatINR(wallet.credit_limit ?? 0)} accent="#A5B4FC" />
-                <StatPill label="Available"        value={formatINR(available)}                accent="#34D399" />
-                <StatPill label="Spent This Month" value={formatINR(monthSpent)}              accent="#F87171" />
-                <StatPill label="Txns This Month"  value={String(monthCount)}                 accent="rgba(255,255,255,0.65)" />
-                <StatPill label="Billing Date"     value={ordinal(wallet.billing_date)}       accent="#FBBF24" />
-                <StatPill label="Due Date"         value={ordinal(wallet.due_date)}           accent="#FB923C" />
-              </>
-            ) : (
-              <>
-                <StatPill label="Spent This Month"    value={formatINR(monthSpent)}    accent="#F87171" />
-                <StatPill label="Received This Month" value={formatINR(monthReceived)} accent="#34D399" />
-                <StatPill label="Txns This Month"     value={String(monthCount)}       accent="rgba(255,255,255,0.65)" />
-              </>
-            )}
+            {/* Centre — Balance / Available (big glowing number) */}
+            <div style={{ textAlign: 'center', padding: '0 18px' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: `${midColor}88`, marginBottom: 6 }}>
+                {midLabel}
+              </p>
+              <p style={{
+                fontSize: 22, fontWeight: 900,
+                color: midColor,
+                fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+                textShadow: `0 0 18px ${midGlow}`,
+              }}>
+                {midValue}
+              </p>
+            </div>
+
+            {/* Right — Received / Credit Limit */}
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: `${rightColor}99`, marginBottom: 6 }}>
+                {rightLabel}
+              </p>
+              <p style={{ fontSize: 17, fontWeight: 800, color: rightColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                {rightValue}
+              </p>
+            </div>
           </div>
+
+          {/* Stat pills — credit-specific extras (billing / due dates) */}
+          {isCredit && (
+            <div style={{
+              position: 'relative', zIndex: 2,
+              display: 'flex', flexWrap: 'wrap', gap: 8,
+              padding: '0 20px 20px',
+            }}>
+              <StatPill label="Spent This Month" value={formatINR(monthSpent)}         accent="#F87171" />
+              <StatPill label="Txns This Month"  value={String(monthCount)}            accent="rgba(255,255,255,0.65)" />
+              <StatPill label="Billing Date"     value={ordinal(wallet.billing_date)}  accent="#FBBF24" />
+              <StatPill label="Due Date"         value={ordinal(wallet.due_date)}      accent="#FB923C" />
+            </div>
+          )}
         </motion.div>
       </div>
 
