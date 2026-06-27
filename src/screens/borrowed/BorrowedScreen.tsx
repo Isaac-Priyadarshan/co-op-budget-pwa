@@ -1243,14 +1243,6 @@ export function BorrowedScreen() {
                         background: 'rgba(255,255,255,0.05)',
                         border: `1px solid ${lbl.color}33`,
                       }}>
-                        <div style={{
-                          width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                          background: 'rgba(255,255,255,0.08)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 9, fontWeight: 800, color: '#f5f7ff',
-                        }}>
-                          {e.person.charAt(0).toUpperCase()}
-                        </div>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#f5f7ff', maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {e.person}
                         </span>
