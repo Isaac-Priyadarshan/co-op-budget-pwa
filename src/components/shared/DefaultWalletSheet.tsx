@@ -19,6 +19,11 @@ function Avatar({ name, color }: { name: UserName; color: string }) {
 }
 
 // ── Custom wallet selector ───────────────────────────────────────────────────
+// FIX: dropdown now opens UPWARD (bottom: calc(100% + 6px)) so it never
+// gets clipped by the screen edge when the sheet is near the bottom.
+// FIX: dropdown has maxHeight + overflowY: auto so long wallet lists scroll.
+// FIX: sheet content area has overflowY: auto so the whole panel can scroll
+//      if both dropdowns are open simultaneously on a small screen.
 function WalletPicker({
   userId,
   value,
@@ -36,6 +41,7 @@ function WalletPicker({
   const selected = cashWallets.find(w => w.id === value)
 
   return (
+    // position: relative so the absolute dropdown is anchored to this wrapper
     <div style={{ position: 'relative', flex: 1 }}>
       {/* Trigger */}
       <motion.button
@@ -64,24 +70,29 @@ function WalletPicker({
         </svg>
       </motion.button>
 
-      {/* Dropdown */}
+      {/* Dropdown — opens UPWARD, capped at 220px with internal scroll */}
       <AnimatePresence>
         {open && (
           <motion.div
             key={`picker-${userId}`}
-            initial={{ opacity: 0, y: -6, scaleY: 0.92 }}
+            initial={{ opacity: 0, y: 6, scaleY: 0.92 }}
             animate={{ opacity: 1, y: 0, scaleY: 1 }}
-            exit={{ opacity: 0, y: -4, scaleY: 0.94 }}
+            exit={{ opacity: 0, y: 4, scaleY: 0.94 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
-              zIndex: 100,
+              // ✅ FIX 1: bottom instead of top — grows upward away from screen edge
+              position: 'absolute',
+              bottom: 'calc(100% + 6px)',
+              left: 0, right: 0,
+              zIndex: 300,
               borderRadius: 14,
               background: '#0e0e10',
               border: `1px solid ${accentColor}28`,
-              boxShadow: `0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px ${accentColor}18`,
-              overflow: 'hidden',
-              transformOrigin: 'top center',
+              boxShadow: `0 -8px 32px rgba(0,0,0,0.7), 0 0 0 1px ${accentColor}18`,
+              // ✅ FIX 2: cap height and allow internal scroll
+              maxHeight: 220,
+              overflowY: 'auto',
+              transformOrigin: 'bottom center',
             }}
           >
             {/* None option */}
@@ -95,6 +106,7 @@ function WalletPicker({
                 background: value === null ? `${accentColor}12` : 'transparent',
                 cursor: 'pointer',
                 borderBottom: '1px solid rgba(255,255,255,0.05)',
+                display: 'block',
               }}
             >
               None (not set)
@@ -158,6 +170,8 @@ function UserRow({
       borderRadius: 18,
       background: `${accentColor}09`,
       border: `1px solid ${accentColor}1e`,
+      // ✅ FIX 3: allow overflow visible so the upward dropdown escapes this container
+      overflow: 'visible',
     }}>
       <Avatar name={user} color={accentColor} />
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -196,7 +210,6 @@ export function DefaultWalletSheet({
 }) {
   const [local, setLocal] = useState<DefaultWalletState>({ Isaac: null, Jenifa: null })
 
-  // Sync local state whenever sheet opens
   useEffect(() => {
     if (open) setLocal({ ...defaults })
   }, [open, defaults])
@@ -244,16 +257,21 @@ export function DefaultWalletSheet({
               border: '1px solid rgba(99,102,241,0.2)',
               borderBottom: 'none',
               boxShadow: '0 -8px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04) inset',
-              paddingBottom: 'env(safe-area-inset-bottom)',
+              // ✅ FIX 4: cap sheet height so it never fills the whole screen,
+              //    and overflow visible so upward dropdowns escape the sheet boundary
+              maxHeight: '85dvh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'visible',
             }}
           >
             {/* Handle */}
-            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4, flexShrink: 0 }}>
               <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.12)' }} />
             </div>
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 20px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 20px 16px', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -278,37 +296,58 @@ export function DefaultWalletSheet({
             </div>
 
             {/* Subtitle */}
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '0 20px 16px', lineHeight: 1.5 }}>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '0 20px 16px', lineHeight: 1.5, flexShrink: 0 }}>
               The default wallet is auto-selected when that user adds a new transaction.
             </p>
 
-            {/* User rows */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 16px 20px' }}>
-              <UserRow
-                user="Isaac"
-                accentColor="#818CF8"
-                value={local.Isaac}
-                onChange={set('Isaac')}
-                cashWallets={cashWallets}
-              />
-              <UserRow
-                user="Jenifa"
-                accentColor="#F472B6"
-                value={local.Jenifa}
-                onChange={set('Jenifa')}
-                cashWallets={cashWallets}
-              />
+            {/* ✅ FIX 5: scrollable content area — grows to fill, scrolls if needed */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              // extra bottom padding so content clears the save button
+              paddingBottom: 8,
+              // overflow visible on x so dropdowns aren't clipped sideways
+              overflowX: 'visible',
+            }}>
+              {/* User rows — need generous paddingBottom so upward dropdowns have room */}
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 10,
+                padding: '0 16px',
+                // ✅ bottom padding = ~dropdown max height so the upward list never overlaps the header
+                paddingBottom: 240,
+              }}>
+                <UserRow
+                  user="Isaac"
+                  accentColor="#818CF8"
+                  value={local.Isaac}
+                  onChange={set('Isaac')}
+                  cashWallets={cashWallets}
+                />
+                <UserRow
+                  user="Jenifa"
+                  accentColor="#F472B6"
+                  value={local.Jenifa}
+                  onChange={set('Jenifa')}
+                  cashWallets={cashWallets}
+                />
+              </div>
             </div>
 
             {/* Error */}
             {error && (
-              <div style={{ margin: '0 16px 12px', padding: '10px 14px', borderRadius: 12, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 12 }}>
+              <div style={{ margin: '0 16px 12px', padding: '10px 14px', borderRadius: 12, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 12, flexShrink: 0 }}>
                 {error}
               </div>
             )}
 
-            {/* Save button */}
-            <div style={{ padding: '0 16px 16px' }}>
+            {/* Save button — pinned to bottom of sheet */}
+            <div style={{
+              padding: '12px 16px',
+              paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
+              flexShrink: 0,
+              background: '#090a0c',
+              borderTop: '1px solid rgba(255,255,255,0.05)',
+            }}>
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleSave}
