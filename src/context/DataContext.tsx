@@ -13,6 +13,7 @@ import {
   fetchTransactions,
   insertTransaction,
   deleteTransaction,
+  adjustWalletBalance,
   type Transaction,
   type NewTransaction,
 } from '../lib/db'
@@ -148,9 +149,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setTransactionsError(null)
       const data = await fetchTransactions()
       // Always filter out any IDs that are mid-delete.
-      // This closes the resurrection race: if a Supabase fetch resolves
-      // after the optimistic strip (e.g. PWA resume / visibilitychange),
-      // the deleted row is stripped before it can re-enter React state.
       setTransactions(data.filter(t => !deletingIds.current.has(t.id)))
     } catch (e) {
       setTransactionsError(e instanceof Error ? e.message : 'Failed to load transactions')
@@ -163,14 +161,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await Promise.all([loadCategories(), loadTransactions()])
   }, [loadCategories, loadTransactions])
 
-  // ── Initial load ──────────────────────────────────────────────────────────────────
+  // ── Initial load ──────────────────────────────────────────────────────────────────────────────────
   useEffect(() => { void refreshAll() }, [refreshAll])
 
-  // ── PWA visibilitychange reload guard ───────────────────────────────────────────
-  // When the user switches back from another app (PWA background → foreground),
-  // the Realtime WS channel may have missed events. We re-fetch all transactions
-  // on tab/app focus so data is always fresh.
-  // deletingIds is still populated here so any in-progress deletes remain guarded.
+  // ── PWA visibilitychange reload guard ────────────────────────────────────────────────────
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -181,7 +175,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [loadTransactions])
 
-  // ── Supabase Realtime channels ─────────────────────────────────────────────────
+  // ── Supabase Realtime channels ───────────────────────────────────────────────────────────────────
   useEffect(() => {
     const categoriesChannel = supabase
       .channel('realtime-categories')
@@ -195,7 +189,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const transactionsChannel = supabase
       .channel('realtime-transactions')
-      // INSERT — skip if the row is mid-delete (can happen in race)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'transactions' },
@@ -214,7 +207,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
           })
         },
       )
-      // UPDATE — skip if mid-delete
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'transactions' },
@@ -225,7 +217,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setTransactions(prev => prev.map(t => (t.id === updated.id ? updated : t)))
         },
       )
-      // DELETE — strip by id, clear guard
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'transactions' },
@@ -245,7 +236,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [loadCategories])
 
-  // ── Category write ops ───────────────────────────────────────────────────────────
+  // ── Category write ops ──────────────────────────────────────────────────────────────────────────────────────
   const addCategory = useCallback(
     async (
       type: 'expense' | 'income',
@@ -356,26 +347,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [subcategories, loadCategories],
   )
 
-  // ── Transaction write ops ──────────────────────────────────────────────────────
+  // ── Transaction write ops ──────────────────────────────────────────────────────────────────────────────────
+
+  // addTransaction — saves the transaction then adjusts the wallet balance.
+  //
+  // Balance adjustment logic:
+  //   income  → delta = +amount  (wallet balance increases)
+  //   expense → delta = −amount  (wallet balance decreases)
+  //
+  // If the wallet adjustment fails, the transaction is already committed.
+  // We do NOT roll back the transaction — the source of truth is the
+  // transactions table. The wallet balance can be recalculated manually
+  // if needed. We log the error silently so the user is not blocked.
   const addTransaction = useCallback(async (tx: NewTransaction) => {
     await insertTransaction(tx)
+
+    // Adjust wallet balance if a wallet was selected
+    if (tx.wallet_id) {
+      const delta = tx.type === 'income' ? tx.amount : -tx.amount
+      try {
+        await adjustWalletBalance(tx.wallet_id, delta)
+      } catch (e) {
+        // Non-blocking: transaction saved. Balance sync failed silently.
+        // The user's transaction is preserved.
+        console.warn('Wallet balance adjustment failed:', e)
+      }
+    }
   }, [])
 
   // removeTransaction — hardened permanent delete with rollback on failure
-  //
-  // Flow:
-  //   1. Register id in deletingIds BEFORE any await (resurrection guard)
-  //   2. Optimistic strip from local state + capture snapshot for rollback
-  //   3. Await DB delete (db.ts already does post-delete verification)
-  //   4a. On SUCCESS — clear guard, belt-and-suspenders strip, done
-  //   4b. On SUCCESS — secondary DB check: if row still exists, delete again
-  //   5.  On ERROR — clear guard, restore snapshot back into sorted state
-  //       and re-throw so LedgerScreen can show the user an error
   const removeTransaction = useCallback(async (id: string) => {
-    // Step 1 — guard must be set BEFORE any await
     deletingIds.current.add(id)
 
-    // Step 2 — optimistic strip, capture snapshot for rollback
     let snapshot: Transaction | undefined
     setTransactions(prev => {
       snapshot = prev.find(t => t.id === id)
@@ -383,17 +386,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     })
 
     try {
-      // Step 3 — DB delete (db.ts verifies the row is truly gone)
       await deleteTransaction(id)
-
-      // Step 4a — clear guard immediately (don’t wait for Realtime)
       deletingIds.current.delete(id)
-
-      // Step 4a — belt-and-suspenders: strip again in case a concurrent
-      // loadTransactions resolved between steps and sneaked the row back
       setTransactions(prev => prev.filter(t => t.id !== id))
 
-      // Step 4b — secondary DB check (safety net for extreme races)
       const { data: ghost } = await supabase
         .from('transactions')
         .select('id')
@@ -405,7 +401,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setTransactions(prev => prev.filter(t => t.id !== id))
       }
     } catch (e) {
-      // Step 5 — DB delete failed: clear guard and restore snapshot
       deletingIds.current.delete(id)
       if (snapshot) {
         setTransactions(prev => {
@@ -417,12 +412,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
           })
         })
       }
-      // Re-throw so LedgerScreen can display an error to the user
       throw e
     }
   }, [])
 
-  // ── Context value ──────────────────────────────────────────────────────────────
+  // ── Context value ─────────────────────────────────────────────────────────────────────────────────────
   const value = useMemo<DataContextValue>(
     () => ({
       expenseCategories,
