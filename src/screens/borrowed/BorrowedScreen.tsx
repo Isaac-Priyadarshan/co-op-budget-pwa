@@ -351,6 +351,7 @@ function BorrowTransactionLogSheet({ open, entry, onClose }: {
 }
 
 // ─── Wallet picker ────────────────────────────────────────────────────────────
+// FIX: z-index bumped to 600/601 so it always floats above every parent sheet
 function WalletPicker({ open, wallets, title, onSelect, onClose }: {
   open: boolean; wallets: WalletEntry[]; title: string
   onSelect: (w: WalletEntry) => void; onClose: () => void
@@ -361,12 +362,12 @@ function WalletPicker({ open, wallets, title, onSelect, onClose }: {
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200 }} />
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 600 }} />
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 34 }}
             style={{
-              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 201,
+              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 601,
               background: '#111113', borderRadius: '24px 24px 0 0',
               padding: '24px 20px calc(env(safe-area-inset-bottom) + 24px)',
               border: '1px solid rgba(255,255,255,0.1)',
@@ -626,6 +627,7 @@ function EditBorrowedSheet({ open, entry, saving, onClose, onSave }: {
 }
 
 // ─── Add More Sheet ───────────────────────────────────────────────────────────
+// FIX: added maxHeight + overflowY so wallet button is never clipped off-screen
 function AddMoreSheet({ open, entry, wallets, saving, onClose, onSave }: {
   open: boolean; entry: BorrowedEntry | null; wallets: WalletEntry[]; saving: boolean
   onClose: () => void
@@ -672,6 +674,7 @@ function AddMoreSheet({ open, entry, wallets, saving, onClose, onSave }: {
               background: '#111113', borderRadius: '24px 24px 0 0',
               padding: '24px 20px calc(env(safe-area-inset-bottom) + 28px)',
               border: '1px solid rgba(255,255,255,0.1)',
+              maxHeight: '88vh', overflowY: 'auto',
             }}
           >
             <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '0 auto 20px' }} />
@@ -710,6 +713,7 @@ function AddMoreSheet({ open, entry, wallets, saving, onClose, onSave }: {
 }
 
 // ─── Payment / Settle Sheet ───────────────────────────────────────────────────
+// FIX: added maxHeight + overflowY so the wallet selector row is never hidden off-screen
 type PaymentMode = 'partial' | 'settle'
 
 function PaymentSheet({ open, mode, entry, wallets, saving, onClose, onPartial, onSettle }: {
@@ -769,6 +773,7 @@ function PaymentSheet({ open, mode, entry, wallets, saving, onClose, onPartial, 
               background: '#111113', borderRadius: '24px 24px 0 0',
               padding: '24px 20px calc(env(safe-area-inset-bottom) + 28px)',
               border: '1px solid rgba(255,255,255,0.1)',
+              maxHeight: '88vh', overflowY: 'auto',
             }}
           >
             <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '0 auto 20px' }} />
@@ -1022,7 +1027,7 @@ function BorrowedCard({
                 </svg>
               </motion.button>
 
-              {/* ── Log icon button (NEW — between Edit and Add More) ── */}
+              {/* ── Log icon button ── */}
               <motion.button whileTap={{ scale: 0.9 }}
                 onClick={e => { e.stopPropagation(); onLog() }}
                 aria-label="View transaction log"
@@ -1034,7 +1039,6 @@ function BorrowedCard({
                   display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                 }}
               >
-                {/* List / log icon */}
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="5" y="2" width="14" height="20" rx="2" />
                   <line x1="9" y1="7"  x2="15" y2="7"  />
@@ -1434,7 +1438,7 @@ export function BorrowedScreen() {
         onSettle={markSettled}
       />
 
-      {/* ── Transaction Log Sheet (NEW) ── */}
+      {/* ── Transaction Log Sheet ── */}
       <BorrowTransactionLogSheet
         open={logEntry !== null}
         entry={logEntry}
