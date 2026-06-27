@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRecurring } from '../../hooks/useRecurring'
 import { RecurringSheet } from '../../components/shared/RecurringSheet'
 import { formatINR } from '../../utils/format'
+import type { RecurringEntry } from '../../lib/db'
 
 const FREQ_LABEL: Record<string, string> = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly', yearly: 'Yearly' }
 const FREQ_COLOR: Record<string, string> = { daily: '#fcd34d', weekly: '#86efac', monthly: '#a5b4fc', quarterly: '#f9a8d4', yearly: '#6ee7b7' }
 
-function daysUntil(dateStr: string): number {
+function daysUntil(dateStr: string | null): number {
+  if (!dateStr) return 999
   const today = new Date(); today.setHours(0,0,0,0)
   const due = new Date(dateStr); due.setHours(0,0,0,0)
   return Math.ceil((due.getTime() - today.getTime()) / 86400000)
@@ -71,7 +73,7 @@ export function RecurringPaymentScreen() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <AnimatePresence initial={false}>
-            {filtered.map(item => {
+            {filtered.map((item: RecurringEntry) => {
               const days = daysUntil(item.next_due)
               const urgent = days <= 3 && item.active
               const overdue = days < 0 && item.active
@@ -87,9 +89,11 @@ export function RecurringPaymentScreen() {
                         {!item.active && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 100, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>PAUSED</span>}
                       </div>
                       <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
-                        {item.category} · {item.owner} ·{' '}
+                        {item.owner} ·{' '}
                         <span style={{ color: overdue ? '#fca5a5' : urgent ? '#fcd34d' : 'rgba(255,255,255,0.35)' }}>
-                          {overdue ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due today!' : `Due in ${days}d`}
+                          {item.next_due
+                            ? overdue ? `${Math.abs(days)}d overdue` : days === 0 ? 'Due today!' : `Due in ${days}d`
+                            : 'No due date'}
                         </span>
                       </p>
                     </div>

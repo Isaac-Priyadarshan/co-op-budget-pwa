@@ -31,7 +31,7 @@ export function useLoans() {
   }, [])
 
   const totalOutstanding = loans.filter(l => !l.closed).reduce((s, l) => s + l.outstanding, 0)
-  const totalEMI = loans.filter(l => !l.closed).reduce((s, l) => s + l.emi_amount, 0)
+  const totalEMI = loans.filter(l => !l.closed).reduce((s, l) => s + (l.emi_amount ?? 0), 0)
 
   return { loans, loading, error, add, close, remove, totalOutstanding, totalEMI, refresh: load }
 }

@@ -39,9 +39,9 @@ export function OverviewScreen() {
   const topCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).slice(0, 5)
   const maxCat = topCategories[0]?.[1] ?? 1
 
-  // Upcoming dues in next 7 days
+  // Upcoming dues in next 7 days — guard against null next_due
   const upcoming = recurring.filter(r => {
-    if (!r.active) return false
+    if (!r.active || !r.next_due) return false
     const days = Math.ceil((new Date(r.next_due).getTime() - Date.now()) / 86400000)
     return days >= 0 && days <= 7
   })

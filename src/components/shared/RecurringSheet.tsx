@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { NewRecurring } from '../../lib/db'
 
 const CATEGORIES = ['Streaming', 'Utilities', 'Insurance', 'Rent', 'Subscriptions', 'EMI', 'Phone', 'Internet', 'Other']
-const FREQUENCIES = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] as const
-const OWNERS = ['Isaac', 'Jenifa', 'Both']
+const FREQUENCIES: Array<'daily' | 'weekly' | 'monthly' | 'yearly'> = ['daily', 'weekly', 'monthly', 'yearly']
+const OWNERS: Array<'Isaac' | 'Jenifa' | 'Both'> = ['Isaac', 'Jenifa', 'Both']
 
 interface Props { open: boolean; onClose: () => void; onSave: (r: NewRecurring) => Promise<void> }
 
@@ -12,9 +12,9 @@ export function RecurringSheet({ open, onClose, onSave }: Props) {
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
-  const [frequency, setFrequency] = useState<typeof FREQUENCIES[number]>('monthly')
+  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly')
   const [nextDue, setNextDue] = useState('')
-  const [owner, setOwner] = useState('Both')
+  const [owner, setOwner] = useState<'Isaac' | 'Jenifa' | 'Both'>('Both')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')

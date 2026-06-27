@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { NewAsset } from '../../lib/db'
 
 const CATEGORIES = ['Gold & Jewellery', 'Property', 'Vehicle', 'Investments', 'Savings', 'Electronics', 'Business', 'Other']
-const OWNERS = ['Isaac', 'Jenifa', 'Both']
+const OWNERS: Array<'Isaac' | 'Jenifa' | 'Both'> = ['Isaac', 'Jenifa', 'Both']
 
 interface Props {
   open: boolean
@@ -15,7 +15,7 @@ export function AssetSheet({ open, onClose, onSave }: Props) {
   const [label, setLabel] = useState('')
   const [category, setCategory] = useState('')
   const [value, setValue] = useState('')
-  const [owner, setOwner] = useState('Both')
+  const [owner, setOwner] = useState<'Isaac' | 'Jenifa' | 'Both'>('Both')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')

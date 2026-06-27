@@ -80,7 +80,10 @@ export function LoansScreen() {
                         <p style={{ fontSize: 15, fontWeight: 700, color: loan.closed ? 'rgba(255,255,255,0.4)' : '#f5f7ff', textDecoration: loan.closed ? 'line-through' : 'none' }}>{loan.label}</p>
                         {loan.closed && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 100, background: 'rgba(110,231,183,0.15)', color: '#6ee7b7', fontWeight: 600 }}>CLOSED</span>}
                       </div>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{loan.lender} · {loan.owner} · {formatShortDate(loan.created_at)}{loan.interest_rate > 0 ? ` · ${loan.interest_rate}% p.a.` : ''}</p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
+                        {loan.lender} · {loan.owner} · {formatShortDate(loan.created_at)}
+                        {(loan.interest_rate ?? 0) > 0 ? ` · ${loan.interest_rate}% p.a.` : ''}
+                      </p>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
                       <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>Outstanding</p>
@@ -90,7 +93,7 @@ export function LoansScreen() {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
                     <span>Principal: <span style={{ color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>{formatINR(loan.principal)}</span></span>
-                    <span>EMI: <span style={{ color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>{formatINR(loan.emi_amount)}/mo</span></span>
+                    <span>EMI: <span style={{ color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>{formatINR(loan.emi_amount ?? 0)}/mo</span></span>
                   </div>
 
                   {!loan.closed && (

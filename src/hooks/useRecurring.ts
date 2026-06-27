@@ -17,7 +17,11 @@ export function useRecurring() {
 
   const add = useCallback(async (entry: NewRecurring) => {
     const inserted = await insertRecurring(entry)
-    setItems(prev => [...prev, inserted].sort((a, b) => a.next_due.localeCompare(b.next_due)))
+    setItems(prev => [...prev, inserted].sort((a, b) => {
+      const da = a.next_due ?? ''
+      const db = b.next_due ?? ''
+      return da.localeCompare(db)
+    }))
   }, [])
 
   const toggle = useCallback(async (id: string, active: boolean) => {
