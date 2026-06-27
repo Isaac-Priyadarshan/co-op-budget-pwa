@@ -56,14 +56,20 @@ export async function deleteTransaction(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // WALLET MODULE
-// owner field removed — wallets are shared between Isaac & Jenifa
+// Wallets are shared between Isaac & Jenifa.
+// The DB column owner is NOT NULL — we use the constant 'shared' to satisfy it.
 // ══════════════════════════════════════════════════════════════════════════════
+
+// Sentinel value that satisfies the NOT NULL constraint on wallets.owner.
+// Wallets belong to both users, so we use a fixed shared identifier.
+const WALLET_OWNER = 'shared'
 
 export interface WalletEntry {
   id: string
   label: string
   type: 'cash' | 'credit' | string
   balance: number
+  owner: string
   updated_at: string
   credit_limit?: number | null
   billing_date?: number | null
@@ -91,6 +97,7 @@ export async function fetchWallets(): Promise<WalletEntry[]> {
 
 export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
   const payload = {
+    owner: WALLET_OWNER,
     label: entry.label,
     type: entry.type,
     balance: entry.balance,
