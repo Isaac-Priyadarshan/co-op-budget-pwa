@@ -164,7 +164,6 @@ function CategoryManagerSheet({
   }
 
   const handleDeleteCategory = async (id: string) => {
-    if (categories.length <= 1) { setError('Need at least 1 category.'); return }
     setSaving(true)
     const { error: err } = await onDeleteCategory(id)
     setSaving(false)
@@ -214,7 +213,7 @@ function CategoryManagerSheet({
     setError('')
   }
 
-  const syncCategories = orderedCategories.map(local => categories.find(category => category.id === local.id) ?? local)
+  const syncCategories = orderedCategories.map(local => categories.find(category => category.id === local.id) ?? local).filter(cat => categories.some(c => c.id === cat.id))
 
   return (
     <>
@@ -565,10 +564,9 @@ function MonthNavigator({ year, month, selectedDate, onPrev, onNext, onSelectDat
         </motion.button>
 
         <motion.button whileTap={{ scale: 0.97 }} onClick={() => setCalOpen(v => !v)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           <span style={{ fontSize: 18, fontWeight: 700, color: '#F5F5F5', letterSpacing: '-0.01em', lineHeight: 1.1 }}>{MONTH_NAMES[month]} {year}</span>
-          <motion.svg animate={{ rotate: calOpen ? 180 : 0 }} transition={{ duration: 0.22 }} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(251,191,36,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></motion.svg>
         </motion.button>
 
         <motion.button whileTap={{ scale: 0.85 }} onClick={onNext}
