@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { NewWallet } from '../../lib/db'
 
@@ -6,12 +6,13 @@ interface Props {
   open: boolean
   onClose: () => void
   onSave: (w: NewWallet) => Promise<void>
+  defaultType?: 'cash' | 'credit'
 }
 
 const DEFAULT_OWNER = 'Isaac' as const
 
-export function WalletSheet({ open, onClose, onSave }: Props) {
-  const [type, setType] = useState<'cash' | 'credit'>('cash')
+export function WalletSheet({ open, onClose, onSave, defaultType = 'cash' }: Props) {
+  const [type, setType] = useState<'cash' | 'credit'>(defaultType)
   const [label, setLabel] = useState('')
   const [balance, setBalance] = useState('')
   const [creditLimit, setCreditLimit] = useState('')
@@ -20,8 +21,13 @@ export function WalletSheet({ open, onClose, onSave }: Props) {
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
+  // When sheet opens or defaultType changes, sync the type selection
+  useEffect(() => {
+    if (open) setType(defaultType)
+  }, [open, defaultType])
+
   const reset = () => {
-    setType('cash')
+    setType(defaultType)
     setLabel('')
     setBalance('')
     setCreditLimit('')
@@ -52,7 +58,6 @@ export function WalletSheet({ open, onClose, onSave }: Props) {
         setErr('Enter a valid total limit')
         return
       }
-
       const billing = Number(billingDate)
       const due = Number(dueDate)
       if (!billingDate || !Number.isInteger(billing) || billing < 1 || billing > 31) {
@@ -143,7 +148,7 @@ export function WalletSheet({ open, onClose, onSave }: Props) {
             </div>
 
             <h2 style={{ fontSize: 20, fontWeight: 700, color: '#f5f7ff', marginBottom: 20, letterSpacing: '-0.02em' }}>
-              Add Wallet / Card
+              {defaultType === 'credit' ? 'Add Credit Card' : 'Add Wallet'}
             </h2>
 
             <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
