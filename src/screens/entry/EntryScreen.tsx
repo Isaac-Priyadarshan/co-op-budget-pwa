@@ -14,163 +14,22 @@ const KEY_ROWS = [
   ['.', '0', '⌫'],
 ]
 
-// ─── Inline Date Picker ───────────────────────────────────────────────────────
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-function DatePickerPanel({
-  value,
-  onChange,
-  accent,
-}: {
-  value: Date
-  onChange: (d: Date) => void
-  accent: string
-}) {
-  const [y, setY] = useState(value.getFullYear())
-  const [m, setM] = useState(value.getMonth())
-  const [d, setD] = useState(value.getDate())
-
-  const daysInMonth = new Date(y, m + 1, 0).getDate()
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
-
-  const confirm = useCallback((dy: number, dm: number, dd: number) => {
-    const safe = Math.min(dd, new Date(dy, dm + 1, 0).getDate())
-    setD(safe)
-    onChange(new Date(dy, dm, safe))
-  }, [onChange])
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      style={{
-        borderRadius: 18,
-        background: 'rgba(255,255,255,0.04)',
-        border: `1px solid ${accent}33`,
-        padding: '14px 14px 10px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 10,
-      }}
-    >
-      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-        {MONTH_NAMES.map((mn, i) => (
-          <motion.button
-            key={mn}
-            whileTap={{ scale: 0.88 }}
-            onClick={() => { setM(i); confirm(y, i, d) }}
-            style={{
-              flexShrink: 0, height: 32, minWidth: 44, borderRadius: 10,
-              border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
-              background: m === i ? `${accent}33` : 'rgba(255,255,255,0.05)',
-              color: m === i ? accent : 'rgba(255,255,255,0.50)',
-            }}
-          >{mn}</motion.button>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2 }}>
-        {days.map(dd2 => (
-          <motion.button
-            key={dd2}
-            whileTap={{ scale: 0.85 }}
-            onClick={() => { setD(dd2); confirm(y, m, dd2) }}
-            style={{
-              flexShrink: 0, width: 34, height: 34, borderRadius: 10,
-              border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-              background: d === dd2 ? `linear-gradient(135deg,${accent},${accent}bb)` : 'rgba(255,255,255,0.05)',
-              color: d === dd2 ? '#000' : 'rgba(255,255,255,0.55)',
-              boxShadow: d === dd2 ? `0 2px 8px ${accent}55` : 'none',
-            }}
-          >{dd2}</motion.button>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-        {years.map(yr => (
-          <motion.button
-            key={yr}
-            whileTap={{ scale: 0.88 }}
-            onClick={() => { setY(yr); confirm(yr, m, d) }}
-            style={{
-              height: 28, minWidth: 52, borderRadius: 8,
-              border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
-              background: y === yr ? `${accent}33` : 'rgba(255,255,255,0.05)',
-              color: y === yr ? accent : 'rgba(255,255,255,0.45)',
-            }}
-          >{yr}</motion.button>
-        ))}
-      </div>
-    </motion.div>
-  )
-}
-
-// ─── Wallet Panel ─────────────────────────────────────────────────────────────
-function WalletPanel({
-  wallets, loading, selectedId, onSelect, accent,
-}: {
-  wallets: { id: string; label: string; type: 'cash' | 'credit'; balance: number; owner: string }[]
-  loading: boolean
-  selectedId: string | null
-  onSelect: (id: string, label: string) => void
-  accent: string
-}) {
-  const walletIcon = (type: 'cash' | 'credit') => type === 'credit' ? '💳' : '👛'
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      style={{
-        borderRadius: 18, background: 'rgba(255,255,255,0.04)',
-        border: `1px solid ${accent}33`, padding: '14px',
-        display: 'flex', flexDirection: 'column', gap: 8,
-      }}
-    >
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.40)', letterSpacing: '0.08em', marginBottom: 2 }}>
-        SELECT WALLET / CARD
-      </div>
-      {loading ? (
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '8px 0' }}>Loading…</div>
-      ) : wallets.length === 0 ? (
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', padding: '8px 0', lineHeight: 1.5 }}>
-          No wallets yet. Add them in the<br />
-          <span style={{ color: accent, fontWeight: 700 }}>Wallet &amp; Credit</span> screen.
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {wallets.map(w => (
-            <motion.button
-              key={w.id}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => onSelect(w.id, w.label)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 12,
-                border: `1px solid ${selectedId === w.id ? accent : 'rgba(255,255,255,0.08)'}`,
-                background: selectedId === w.id ? `${accent}18` : 'rgba(255,255,255,0.03)',
-                cursor: 'pointer',
-              }}
-            >
-              <span style={{ fontSize: 16 }}>{walletIcon(w.type)}</span>
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: selectedId === w.id ? accent : '#F5F5F5' }}>{w.label}</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', marginTop: 1 }}>
-                  {w.type === 'credit' ? 'Credit Card' : 'Cash / UPI'} · {w.owner}
-                </div>
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.45)' }}>
-                ₹{w.balance.toLocaleString('en-IN')}
-              </div>
-            </motion.button>
-          ))}
-        </div>
-      )}
-    </motion.div>
-  )
-}
+// ───────────────────────────────────────────────────────────────────────────────
+const FINAL_LAYOUT_ORDER = `
+  AMOUNT ZONE  (flex:1)
+    └ big amount
+    └ wallet + sub status chips
+    └ error
+    └ expand panels (open here, never move bottom)
+  ─────────────── BOTTOM (fixed height, never moves) ───────────────
+  1. SUBCATEGORY CHIPS  (above toolbar)
+  2. ACTION TOOLBAR     (Note · Wallet · Calendar)
+  3. NUMPAD
+  4. CONFIRM BUTTON
+`
+void FINAL_LAYOUT_ORDER
 
 // ─── Main EntryScreen ─────────────────────────────────────────────────────────
 export function EntryScreen() {
@@ -187,16 +46,20 @@ export function EntryScreen() {
   const accent = category?.accent ?? '#FBBF24'
   const glow   = category?.glow   ?? 'rgba(251,191,36,0.22)'
 
-  const [raw, setRaw]                   = useState('0')
-  const [selectedSub, setSelectedSub]   = useState<string | null>(null)
-  const [note, setNote]                 = useState('')
-  const [txDate, setTxDate]             = useState(new Date())
-  const [walletId, setWalletId]         = useState<string | null>(null)
-  const [walletLabel, setWalletLabel]   = useState('')
-  const [activePanel, setActivePanel]   = useState<'note' | 'wallet' | 'calendar' | null>(null)
-  const [saving, setSaving]             = useState(false)
-  const [success, setSuccess]           = useState(false)
-  const [errMsg, setErrMsg]             = useState<string | null>(null)
+  const [raw, setRaw]                 = useState('0')
+  const [selectedSub, setSelectedSub] = useState<string | null>(null)
+  const [note, setNote]               = useState('')
+  const [txDate, setTxDate]           = useState(new Date())
+  const [walletId, setWalletId]       = useState<string | null>(null)
+  const [walletLabel, setWalletLabel] = useState('')
+  const [activePanel, setActivePanel] = useState<'note' | 'wallet' | 'calendar' | null>(null)
+  // for date picker internal state
+  const [pickerY, setPickerY] = useState(new Date().getFullYear())
+  const [pickerM, setPickerM] = useState(new Date().getMonth())
+  const [pickerD, setPickerD] = useState(new Date().getDate())
+  const [saving, setSaving]   = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [errMsg, setErrMsg]   = useState<string | null>(null)
 
   const togglePanel = (p: 'note' | 'wallet' | 'calendar') =>
     setActivePanel(prev => (prev === p ? null : p))
@@ -217,14 +80,13 @@ export function EntryScreen() {
     })
   }, [])
 
-  const amountValue  = parseFloat(raw) || 0
-  const hasAmount    = amountValue > 0
-  const hasWallet    = walletId !== null
-  const hasSub       = selectedSub !== null
-  const subRequired  = subs.length > 0
-  const canConfirm   = hasAmount && hasWallet && (!subRequired || hasSub)
+  const amountValue = parseFloat(raw) || 0
+  const hasAmount   = amountValue > 0
+  const hasWallet   = walletId !== null
+  const hasSub      = selectedSub !== null
+  const subRequired = subs.length > 0
+  const canConfirm  = hasAmount && hasWallet && (!subRequired || hasSub)
 
-  // Progressive confirm button glow (0–3 readiness levels)
   const readinessLevel      = (hasAmount ? 1 : 0) + (hasWallet ? 1 : 0) + (!subRequired || hasSub ? 1 : 0)
   const confirmOpacity      = [0.18, 0.42, 0.70, 1][readinessLevel]
   const confirmGlowStrength = [0, 0.15, 0.35, 1][readinessLevel]
@@ -258,14 +120,22 @@ export function EntryScreen() {
     ? 'Today'
     : `${txDate.getDate()} ${MONTH_NAMES[txDate.getMonth()]} ${txDate.getFullYear()}`
 
-  // The selected subcategory label (for inline chip display below amount)
   const selectedSubLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
+
+  // date picker helpers
+  const daysInMonth = new Date(pickerY, pickerM + 1, 0).getDate()
+  const pickerDays = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+  const pickerYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
+  const applyDate = useCallback((dy: number, dm: number, dd: number) => {
+    const safe = Math.min(dd, new Date(dy, dm + 1, 0).getDate())
+    setPickerY(dy); setPickerM(dm); setPickerD(safe)
+    setTxDate(new Date(dy, dm, safe))
+  }, [])
 
   const handleConfirm = useCallback(async () => {
     if (!canConfirm) return
     if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
-    setSaving(true)
-    setErrMsg(null)
+    setSaving(true); setErrMsg(null)
     const subLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
     const descParts = [subLabel, note].filter(Boolean)
     try {
@@ -276,8 +146,7 @@ export function EntryScreen() {
         created_by: activeUser,
         type: (type as 'income' | 'expense') ?? 'expense',
       })
-      setSaving(false)
-      setSuccess(true)
+      setSaving(false); setSuccess(true)
       setTimeout(() => navigate(-1), 1500)
     } catch (e) {
       setSaving(false)
@@ -346,13 +215,7 @@ export function EntryScreen() {
         }}>{dateLabel}</div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          AMOUNT ZONE  (flex:1 — absorbs all leftover height)
-          • Big amount display
-          • Inline status chips (wallet + selected sub) below amount
-          • Error message
-          • ▼ EXPAND PANELS open here — slides into this space, never compresses bottom
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ────────────────────────── AMOUNT ZONE (flex:1) ────────────────────────── */}
       <div style={{
         position: 'relative', zIndex: 1,
         flex: 1, display: 'flex', flexDirection: 'column',
@@ -373,16 +236,12 @@ export function EntryScreen() {
             color: amountValue > 0 ? accent : 'rgba(255,255,255,0.20)',
             letterSpacing: '-0.03em',
             textShadow: amountValue > 0 ? `0 0 40px ${glow}, 0 0 80px ${glow}` : 'none',
-            lineHeight: 1,
+            lineHeight: 1, flexShrink: 0,
             transition: 'font-size 0.15s ease, color 0.2s ease',
-            flexShrink: 0,
           }}
         >{formattedDisplay}</motion.div>
 
-        {/*
-          ── INLINE STATUS ROW: wallet chip + selected sub chip in one line ──
-          Appears below the amount as soon as either is set.
-        */}
+        {/* Inline status chips: wallet + selected sub — single line below amount */}
         <AnimatePresence>
           {(walletLabel || selectedSubLabel) && (
             <motion.div
@@ -393,16 +252,14 @@ export function EntryScreen() {
               transition={{ duration: 0.18 }}
               style={{
                 marginTop: 12, flexShrink: 0,
-                display: 'flex', alignItems: 'center',
-                gap: 6, flexWrap: 'nowrap',
+                display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
               {walletLabel && (
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 5,
                   padding: '4px 11px', borderRadius: 20,
-                  background: `${accent}18`, border: `1px solid ${accent}33`,
-                  flexShrink: 0,
+                  background: `${accent}18`, border: `1px solid ${accent}33`, flexShrink: 0,
                 }}>
                   <span style={{ fontSize: 12 }}>💳</span>
                   <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{walletLabel}</span>
@@ -417,8 +274,7 @@ export function EntryScreen() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 11px', borderRadius: 20,
-                    background: `${accent}22`, border: `1px solid ${accent}55`,
-                    flexShrink: 0,
+                    background: `${accent}22`, border: `1px solid ${accent}55`, flexShrink: 0,
                   }}
                 >
                   <span style={{ fontSize: 12, fontWeight: 700, color: accent }}>{selectedSubLabel}</span>
@@ -428,7 +284,7 @@ export function EntryScreen() {
           )}
         </AnimatePresence>
 
-        {/* Error message */}
+        {/* Error */}
         <AnimatePresence>
           {errMsg && (
             <motion.div
@@ -438,8 +294,8 @@ export function EntryScreen() {
               transition={{ duration: 0.18 }}
               style={{
                 marginTop: 10, flexShrink: 0,
-                fontSize: 12, fontWeight: 600,
-                color: '#F87171', background: 'rgba(239,68,68,0.12)',
+                fontSize: 12, fontWeight: 600, color: '#F87171',
+                background: 'rgba(239,68,68,0.12)',
                 border: '1px solid rgba(239,68,68,0.25)',
                 borderRadius: 10, padding: '5px 14px',
               }}
@@ -448,81 +304,201 @@ export function EntryScreen() {
         </AnimatePresence>
 
         {/*
-          ── EXPAND PANELS — float here in the amount zone ──
-          They open UPWARD into this flex space.
-          The bottom section (toolbar → subcats → numpad → confirm) NEVER moves.
+          EXPAND PANELS — render here in the amount zone.
+          Compact, space-efficient. Never move the bottom section.
         */}
         <AnimatePresence mode="wait">
           {activePanel !== null && (
             <motion.div
               key={activePanel}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              style={{
-                width: '100%', marginTop: 16, flexShrink: 0,
-              }}
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              style={{ width: '100%', marginTop: 14, flexShrink: 0 }}
             >
+
+              {/* NOTE — compact single-line input */}
               {activePanel === 'note' && (
-                <textarea
-                  ref={noteRef}
-                  value={note}
-                  onChange={e => setNote(e.target.value)}
-                  placeholder="Add a note for this transaction…"
-                  maxLength={200}
-                  rows={2}
-                  style={{
-                    width: '100%', borderRadius: 16, padding: '12px 14px',
-                    fontSize: 13, fontWeight: 500,
-                    background: 'rgba(255,255,255,0.05)',
-                    border: `1px solid ${accent}44`,
-                    color: '#F5F5F5', outline: 'none', resize: 'none',
-                    lineHeight: 1.5, caretColor: accent,
-                  }}
-                />
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${accent}44`,
+                  borderRadius: 14, padding: '0 14px', height: 44,
+                }}>
+                  <span style={{ fontSize: 14, flexShrink: 0 }}>✏️</span>
+                  <input
+                    ref={noteRef as React.RefObject<HTMLInputElement>}
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                    placeholder="Add a note…"
+                    maxLength={120}
+                    style={{
+                      flex: 1, background: 'none', border: 'none', outline: 'none',
+                      fontSize: 13, fontWeight: 500, color: '#F5F5F5',
+                      caretColor: accent,
+                    }}
+                  />
+                  {note && (
+                    <motion.button
+                      whileTap={{ scale: 0.88 }}
+                      onClick={() => { setNote(''); setActivePanel(null) }}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: 16, color: 'rgba(255,255,255,0.30)', flexShrink: 0,
+                      }}
+                    >×</motion.button>
+                  )}
+                </div>
               )}
+
+              {/* WALLET — compact horizontal pill list */}
               {activePanel === 'wallet' && (
-                <WalletPanel
-                  wallets={wallets} loading={walletsLoading}
-                  selectedId={walletId}
-                  onSelect={(id, label) => {
-                    setWalletId(id); setWalletLabel(label); setActivePanel(null)
-                  }}
-                  accent={accent}
-                />
+                <div style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${accent}28`,
+                  borderRadius: 14, padding: '10px 12px',
+                  display: 'flex', flexDirection: 'column', gap: 6,
+                }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', marginBottom: 2 }}>
+                    WALLET / CARD
+                  </div>
+                  {walletsLoading ? (
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)', padding: '4px 0' }}>Loading…</div>
+                  ) : wallets.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>
+                      No wallets yet — add them in <span style={{ color: accent, fontWeight: 700 }}>Wallet &amp; Credit</span>.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {wallets.map(w => (
+                        <motion.button
+                          key={w.id}
+                          whileTap={{ scale: 0.93 }}
+                          onClick={() => { setWalletId(w.id); setWalletLabel(w.label); setActivePanel(null) }}
+                          style={{
+                            height: 32, paddingInline: 12, borderRadius: 20,
+                            border: `1px solid ${walletId === w.id ? accent : 'rgba(255,255,255,0.12)'}`,
+                            background: walletId === w.id ? `${accent}22` : 'rgba(255,255,255,0.05)',
+                            color: walletId === w.id ? accent : 'rgba(255,255,255,0.65)',
+                            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: 5,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <span style={{ fontSize: 13 }}>{w.type === 'credit' ? '💳' : '👛'}</span>
+                          {w.label}
+                        </motion.button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
+
+              {/* CALENDAR — compact horizontal scroll rows */}
               {activePanel === 'calendar' && (
-                <DatePickerPanel
-                  value={txDate}
-                  onChange={d => { setTxDate(d); setActivePanel(null) }}
-                  accent={accent}
-                />
+                <div style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${accent}28`,
+                  borderRadius: 14, padding: '10px 12px',
+                  display: 'flex', flexDirection: 'column', gap: 7,
+                }}>
+                  {/* Month row */}
+                  <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 1 }}>
+                    {MONTH_NAMES.map((mn, i) => (
+                      <motion.button
+                        key={mn}
+                        whileTap={{ scale: 0.88 }}
+                        onClick={() => applyDate(pickerY, i, pickerD)}
+                        style={{
+                          flexShrink: 0, height: 28, minWidth: 38, borderRadius: 8,
+                          border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                          background: pickerM === i ? `${accent}33` : 'rgba(255,255,255,0.05)',
+                          color: pickerM === i ? accent : 'rgba(255,255,255,0.45)',
+                        }}
+                      >{mn}</motion.button>
+                    ))}
+                  </div>
+                  {/* Day row */}
+                  <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 1 }}>
+                    {pickerDays.map(dd => (
+                      <motion.button
+                        key={dd}
+                        whileTap={{ scale: 0.85 }}
+                        onClick={() => applyDate(pickerY, pickerM, dd)}
+                        style={{
+                          flexShrink: 0, width: 30, height: 30, borderRadius: 8,
+                          border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                          background: pickerD === dd ? `linear-gradient(135deg,${accent},${accent}bb)` : 'rgba(255,255,255,0.05)',
+                          color: pickerD === dd ? '#000' : 'rgba(255,255,255,0.50)',
+                          boxShadow: pickerD === dd ? `0 2px 6px ${accent}44` : 'none',
+                        }}
+                      >{dd}</motion.button>
+                    ))}
+                  </div>
+                  {/* Year row */}
+                  <div style={{ display: 'flex', gap: 5, justifyContent: 'center' }}>
+                    {pickerYears.map(yr => (
+                      <motion.button
+                        key={yr}
+                        whileTap={{ scale: 0.88 }}
+                        onClick={() => applyDate(yr, pickerM, pickerD)}
+                        style={{
+                          height: 24, minWidth: 46, borderRadius: 7,
+                          border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                          background: pickerY === yr ? `${accent}33` : 'rgba(255,255,255,0.05)',
+                          color: pickerY === yr ? accent : 'rgba(255,255,255,0.40)',
+                        }}
+                      >{yr}</motion.button>
+                    ))}
+                  </div>
+                </div>
               )}
+
             </motion.div>
           )}
         </AnimatePresence>
 
-      </div>
+      </div>{/* end AMOUNT ZONE */}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          BOTTOM SECTION — FIXED HEIGHT, NEVER MOVES
-          Order (top → bottom):
-            1. ACTION TOOLBAR  (Note · Wallet · Calendar)
-            2. SUBCATEGORY CHIPS  (below toolbar, right above numpad)
-            3. NUMPAD
-            4. CONFIRM BUTTON
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ────────────────── BOTTOM (fixed, never moves) ────────────────── */}
       <div style={{
         position: 'relative', zIndex: 1, flexShrink: 0,
-        display: 'flex', flexDirection: 'column', gap: 0,
+        display: 'flex', flexDirection: 'column',
         paddingBottom: 'env(safe-area-inset-bottom, 12px)',
       }}>
 
-        {/* ── 1. ACTION TOOLBAR (Note · Wallet · Calendar) ── */}
-        <div style={{ display: 'flex', gap: 8, paddingInline: 16, paddingBottom: 8 }}>
+        {/* 1. SUBCATEGORY CHIPS — above toolbar */}
+        {subs.length > 0 && (
+          <div style={{
+            paddingInline: 16, paddingBottom: 6,
+            display: 'flex', flexWrap: 'wrap', gap: 6,
+          }}>
+            {subs.map(sub => {
+              const sel = selectedSub === sub.id
+              return (
+                <motion.button
+                  key={sub.id}
+                  whileTap={{ scale: 0.92 }}
+                  onClick={() => setSelectedSub(sel ? null : sub.id)}
+                  style={{
+                    height: 28, paddingInline: 11, borderRadius: 20,
+                    border: `1px solid ${sel ? accent : 'rgba(255,255,255,0.12)'}`,
+                    background: sel ? `${accent}22` : 'rgba(255,255,255,0.05)',
+                    color: sel ? accent : 'rgba(255,255,255,0.60)',
+                    fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                    whiteSpace: 'nowrap', transition: 'all 0.15s ease',
+                  }}
+                >{sub.label}</motion.button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* 2. ACTION TOOLBAR — Note · Wallet · Calendar */}
+        <div style={{ display: 'flex', gap: 7, paddingInline: 16, paddingBottom: 8 }}>
           {([
-            { id: 'note'     as const, icon: '✏️', label: note ? 'Note ✓' : 'Note' },
+            { id: 'note'     as const, icon: '✏️', label: note ? `“${note.slice(0,12)}${note.length > 12 ? '…' : ''}”` : 'Note' },
             { id: 'wallet'   as const, icon: '💳', label: walletLabel || 'Wallet' },
             { id: 'calendar' as const, icon: '📅', label: dateLabel },
           ] as const).map(btn => {
@@ -534,54 +510,27 @@ export function EntryScreen() {
                 whileTap={{ scale: 0.93 }}
                 onClick={() => togglePanel(btn.id)}
                 style={{
-                  flex: 1, height: 38, borderRadius: 12,
+                  flex: 1, height: 36, borderRadius: 11,
                   border: `1px solid ${isActive ? accent : isDone ? `${accent}55` : 'rgba(255,255,255,0.10)'}`,
                   background: isActive ? `${accent}22` : isDone ? `${accent}10` : 'rgba(255,255,255,0.04)',
-                  color: isActive ? accent : isDone ? `${accent}cc` : 'rgba(255,255,255,0.50)',
+                  color: isActive ? accent : isDone ? `${accent}cc` : 'rgba(255,255,255,0.45)',
                   fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                   letterSpacing: '0.02em', transition: 'all 0.15s ease',
                   whiteSpace: 'nowrap', overflow: 'hidden', paddingInline: 6,
                 }}
               >
-                <span style={{ fontSize: 13 }}>{btn.icon}</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 70 }}>{btn.label}</span>
+                <span style={{ fontSize: 12, flexShrink: 0 }}>{btn.icon}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 68 }}>{btn.label}</span>
               </motion.button>
             )
           })}
         </div>
 
-        {/* ── 2. SUBCATEGORY CHIPS — below toolbar, right above numpad ── */}
-        {subs.length > 0 && (
-          <div style={{
-            paddingInline: 16, paddingBottom: 8,
-            display: 'flex', flexWrap: 'wrap', gap: 6,
-          }}>
-            {subs.map(sub => {
-              const isSelected = selectedSub === sub.id
-              return (
-                <motion.button
-                  key={sub.id}
-                  whileTap={{ scale: 0.92 }}
-                  onClick={() => setSelectedSub(isSelected ? null : sub.id)}
-                  style={{
-                    height: 30, paddingInline: 12, borderRadius: 20,
-                    border: `1px solid ${isSelected ? accent : 'rgba(255,255,255,0.12)'}`,
-                    background: isSelected ? `${accent}22` : 'rgba(255,255,255,0.05)',
-                    color: isSelected ? accent : 'rgba(255,255,255,0.60)',
-                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    whiteSpace: 'nowrap', transition: 'all 0.15s ease',
-                  }}
-                >{sub.label}</motion.button>
-              )
-            })}
-          </div>
-        )}
-
-        {/* ── 3. NUMPAD ── */}
+        {/* 3. NUMPAD */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 8, paddingInline: 16, paddingBottom: 8,
+          gap: 7, paddingInline: 16, paddingBottom: 8,
         }}>
           {KEY_ROWS.flat().map(k => (
             <motion.button
@@ -589,7 +538,7 @@ export function EntryScreen() {
               whileTap={{ scale: 0.88 }}
               onClick={() => handleKey(k)}
               style={{
-                height: 58, borderRadius: 16, border: 'none',
+                height: 56, borderRadius: 15, border: 'none',
                 background: k === '⌫' ? `${accent}18` : k === '.' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.07)',
                 color: k === '⌫' ? accent : '#FFFFFF',
                 fontSize: k === '⌫' ? 20 : 22,
@@ -602,7 +551,7 @@ export function EntryScreen() {
           ))}
         </div>
 
-        {/* ── 4. CONFIRM BUTTON — always pinned at the bottom ── */}
+        {/* 4. CONFIRM BUTTON — always pinned at the very bottom */}
         <div style={{ paddingInline: 16, paddingBottom: 8 }}>
           <AnimatePresence>
             {success ? (
@@ -612,10 +561,10 @@ export function EntryScreen() {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 style={{
-                  height: 56, borderRadius: 18,
+                  height: 54, borderRadius: 17,
                   background: 'linear-gradient(135deg, #22c55e, #16a34a)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 18, fontWeight: 800, color: '#fff', gap: 8,
+                  fontSize: 17, fontWeight: 800, color: '#fff', gap: 8,
                   boxShadow: '0 4px 24px rgba(34,197,94,0.4)',
                 }}
               >✓ Saved</motion.div>
@@ -626,9 +575,9 @@ export function EntryScreen() {
                 onClick={handleConfirm}
                 disabled={saving}
                 style={{
-                  width: '100%', height: 56, borderRadius: 18,
+                  width: '100%', height: 54, borderRadius: 17,
                   border: confirmBorder, background: confirmBg,
-                  color: confirmTextColor, fontSize: 16, fontWeight: 800,
+                  color: confirmTextColor, fontSize: 15, fontWeight: 800,
                   cursor: canConfirm ? 'pointer' : 'default',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   boxShadow: confirmShadow, transition: 'all 0.25s ease',
@@ -657,7 +606,7 @@ export function EntryScreen() {
           </AnimatePresence>
         </div>
 
-      </div>
+      </div>{/* end BOTTOM */}
     </div>
   )
 }
