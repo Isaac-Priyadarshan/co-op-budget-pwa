@@ -87,7 +87,6 @@ export function EntryScreen() {
     ? `0 3px ${8 + readinessLevel * 10}px ${glow.replace(')', `, ${confirmGlowStrength})`).replace('rgba(', 'rgba(')}`
     : 'none'
 
-  // Rupee symbol via string concat — avoids any unicode escape rendering in toolbar/notes
   const rupee = '\u20B9'
   const formattedDisplay = (() => {
     const [int, dec] = raw.split('.')
@@ -197,7 +196,6 @@ export function EntryScreen() {
 
     if (activePanel === 'calendar') return (
       <div style={{ padding: '10px 14px 14px', borderBottom: `1px solid ${accent}25` }}>
-        {/* Year row */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 8, overflowX: 'auto' }}>
           {pickerYears.map(y => (
             <motion.button key={y} whileTap={{ scale: 0.92 }}
@@ -210,7 +208,6 @@ export function EntryScreen() {
             >{y}</motion.button>
           ))}
         </div>
-        {/* Month row */}
         <div style={{ display: 'flex', gap: 5, marginBottom: 8, overflowX: 'auto' }}>
           {MONTH_NAMES.map((mn, idx) => (
             <motion.button key={mn} whileTap={{ scale: 0.92 }}
@@ -223,7 +220,6 @@ export function EntryScreen() {
             >{mn}</motion.button>
           ))}
         </div>
-        {/* Day grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
           {pickerDays.map(d => (
             <motion.button key={d} whileTap={{ scale: 0.88 }}
@@ -272,7 +268,7 @@ export function EntryScreen() {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* ── HEADER — back arrow LEFT, category icon+label CENTER ── */}
+      {/* ── HEADER ── */}
       <div style={{
         position: 'relative', zIndex: 10,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -280,7 +276,6 @@ export function EntryScreen() {
         paddingTop: 'max(env(safe-area-inset-top), 12px)',
         paddingBottom: 4,
       }}>
-        {/* Back button — always top-left */}
         <motion.button whileTap={{ scale: 0.85 }} onClick={() => navigate(-1)}
           style={{
             width: 38, height: 38, borderRadius: 13,
@@ -294,7 +289,6 @@ export function EntryScreen() {
           </svg>
         </motion.button>
 
-        {/* Category label — center */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div style={{
             width: 34, height: 34, borderRadius: 11,
@@ -305,7 +299,6 @@ export function EntryScreen() {
           <p style={{ fontSize: 15, fontWeight: 700, color: accent }}>{category.label}</p>
         </div>
 
-        {/* Spacer to keep center balanced */}
         <div style={{ width: 38, flexShrink: 0 }} />
       </div>
 
@@ -314,7 +307,7 @@ export function EntryScreen() {
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '18px 24px 10px',
+        padding: '12px 24px 8px',
       }}>
         <motion.p
           key={formattedDisplay}
@@ -322,7 +315,7 @@ export function EntryScreen() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.14 }}
           style={{
-            fontSize: amountValue === 0 ? 48 : Math.max(32, 52 - Math.max(0, raw.length - 4) * 3),
+            fontSize: amountValue === 0 ? 46 : Math.max(30, 50 - Math.max(0, raw.length - 4) * 3),
             fontWeight: 900,
             color: amountValue === 0 ? 'rgba(255,255,255,0.18)' : accent,
             fontVariantNumeric: 'tabular-nums',
@@ -335,9 +328,8 @@ export function EntryScreen() {
           {formattedDisplay}
         </motion.p>
 
-        {/* Subcategory chips */}
         {subs.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 8 }}>
             {subs.map(s => (
               <motion.button key={s.id} whileTap={{ scale: 0.90 }}
                 onClick={() => setSelectedSub(prev => prev === s.id ? null : s.id)}
@@ -369,7 +361,6 @@ export function EntryScreen() {
           backdropFilter: 'blur(16px)',
           boxShadow: `0 4px 24px rgba(0,0,0,0.6), 0 0 0 1px ${accent}0A`,
         }}>
-          {/* Animated tray panel */}
           <AnimatePresence initial={false}>
             {activePanel && (
               <motion.div
@@ -385,11 +376,10 @@ export function EntryScreen() {
             )}
           </AnimatePresence>
 
-          {/* Toolbar icon row */}
           <div style={{
             display: 'flex', alignItems: 'center',
-            padding: '8px 14px',
-            gap: 6,
+            padding: '7px 12px',
+            gap: 5,
           }}>
             <ToolbarBtn
               active={activePanel === 'note'}
@@ -419,32 +409,28 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* ── NUMPAD — fills remaining space proportionally ── */}
+      {/* ── NUMPAD — compact fixed height, never grows ── */}
       <div style={{
         position: 'relative', zIndex: 2,
-        flex: '1 1 0',
-        display: 'flex', flexDirection: 'column',
-        padding: '8px 16px 0',
-        overflow: 'hidden',
-        minHeight: 0,
+        flex: '0 0 auto',
+        padding: '10px 16px 0',
       }}>
         <div style={{
-          flex: 1,
           display: 'grid',
-          gridTemplateRows: 'repeat(4, 1fr)',
-          gap: 6,
-          minHeight: 0,
+          gridTemplateRows: 'repeat(4, 52px)',
+          gap: 5,
         }}>
           {KEY_ROWS.map((row, ri) => (
-            <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, minHeight: 0 }}>
+            <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
               {row.map(k => (
                 <motion.button
                   key={k}
                   whileTap={{ scale: 0.88, backgroundColor: `${accent}22` }}
                   onClick={() => handleKey(k)}
                   style={{
-                    width: '100%', height: '100%',
-                    borderRadius: 16,
+                    width: '100%',
+                    height: 52,
+                    borderRadius: 14,
                     background: k === '⌫' ? 'rgba(248,113,113,0.10)' : 'rgba(255,255,255,0.055)',
                     border: `1px solid ${
                       k === '⌫' ? 'rgba(248,113,113,0.18)'
@@ -452,7 +438,7 @@ export function EntryScreen() {
                       : 'rgba(255,255,255,0.07)'
                     }`,
                     cursor: 'pointer',
-                    fontSize: k === '⌫' ? 18 : 22,
+                    fontSize: k === '⌫' ? 17 : 20,
                     fontWeight: k === '⌫' ? 600 : 700,
                     color: k === '⌫' ? '#F87171'
                       : k === '.' ? accent
@@ -469,7 +455,8 @@ export function EntryScreen() {
       {/* ── CONFIRM BUTTON ── */}
       <div style={{
         position: 'relative', zIndex: 2,
-        flex: '0 0 auto',
+        flex: '1 1 auto',
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
         padding: '8px 16px',
         paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
       }}>
@@ -478,7 +465,7 @@ export function EntryScreen() {
           onClick={handleConfirm}
           disabled={!canConfirm || saving}
           style={{
-            width: '100%', height: 56,
+            width: '100%', height: 54,
             borderRadius: 18,
             background: confirmBg,
             border: confirmBorder,
@@ -535,7 +522,7 @@ function ToolbarBtn({ active, accent, onClick, label, icon, filled }: ToolbarBtn
       style={{
         flex: 1,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-        padding: '7px 8px',
+        padding: '6px 8px',
         borderRadius: 12,
         border: 'none',
         cursor: 'pointer',
@@ -545,7 +532,7 @@ function ToolbarBtn({ active, accent, onClick, label, icon, filled }: ToolbarBtn
         transition: 'background 0.15s',
       }}
     >
-      <span style={{ fontSize: 15, lineHeight: 1 }}>{icon}</span>
+      <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
       <span style={{
         fontSize: 11, fontWeight: 600,
         color: active ? accent : filled ? `${accent}CC` : 'rgba(255,255,255,0.35)',
