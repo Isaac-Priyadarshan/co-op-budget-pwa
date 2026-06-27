@@ -66,7 +66,6 @@ export function useLent() {
   useEffect(() => { load() }, [load])
 
   // ── Add new lent entry + DEDUCT from wallet + auto ledger transaction ─────
-  // Logic: when you LEND money, it goes OUT of your wallet (expense)
   const addLent = useCallback(async (entry: NewLent) => {
     setSaving(true); setError(null)
     try {
@@ -86,7 +85,6 @@ export function useLent() {
         .single()
       if (err) throw new Error(err.message)
 
-      // DEDUCT from wallet — money left your wallet
       if (entry.source_wallet_id) {
         await adjustWalletBalance(entry.source_wallet_id, -entry.amount)
       }
@@ -133,13 +131,12 @@ export function useLent() {
     }
   }, [])
 
-  // ── Reorder entries locally — optimistic, no schema change needed ─────────
+  // ── Reorder entries locally ───────────────────────────────────────────────
   const reorderEntries = useCallback((newOrder: LentEntry[]) => {
     setEntries(newOrder)
   }, [])
 
-  // ── Lend more — DEDUCT more from wallet (re-opens settled entries) ────────
-  // Logic: lending MORE money = more goes OUT of your wallet
+  // ── Lend more ─────────────────────────────────────────────────────────────
   const addMoreAmount = useCallback(async (
     id: string,
     extraAmount: number,
@@ -161,7 +158,6 @@ export function useLent() {
         .single()
       if (err) throw new Error(err.message)
 
-      // DEDUCT from wallet — more money went out
       await adjustWalletBalance(walletId, -extraAmount)
 
       await insertTransaction({
@@ -182,8 +178,7 @@ export function useLent() {
     }
   }, [entries])
 
-  // ── Partial recovery — ADD to wallet (money comes back) ───────────────────
-  // Logic: when someone returns part of the money, wallet INCREASES
+  // ── Partial recovery ──────────────────────────────────────────────────────
   const makePayment = useCallback(async (
     id: string,
     payAmount: number,
@@ -205,13 +200,12 @@ export function useLent() {
         .single()
       if (err) throw new Error(err.message)
 
-      // ADD to wallet — money came back
       await adjustWalletBalance(walletId, payAmount)
 
       await insertTransaction({
         type:             'income',
         category:         'Recovery',
-        description:      `Received from ${entry.person} — partial`,
+        description:      `Received from ${entry.person} \u2014 partial`,
         amount:           payAmount,
         created_by:       entry.lent_by,
         wallet_id:        walletId,
@@ -226,8 +220,7 @@ export function useLent() {
     }
   }, [entries])
 
-  // ── Mark fully settled — ADD remaining to wallet ──────────────────────────
-  // Logic: all money returned = full remaining amount added back to wallet
+  // ── Mark fully settled ────────────────────────────────────────────────────
   const markSettled = useCallback(async (
     id: string,
     walletId: string,
@@ -247,13 +240,12 @@ export function useLent() {
       if (err) throw new Error(err.message)
 
       if (remaining > 0) {
-        // ADD remaining to wallet — rest of money came back
         await adjustWalletBalance(walletId, remaining)
 
         await insertTransaction({
           type:             'income',
           category:         'Recovery',
-          description:      `Received from ${entry.person} — settled`,
+          description:      `Received from ${entry.person} \u2014 settled`,
           amount:           remaining,
           created_by:       entry.lent_by,
           wallet_id:        walletId,
@@ -288,6 +280,9 @@ export function useLent() {
     .filter(e => e.status !== 'settled')
     .reduce((s, e) => s + (e.amount - e.paid_amount), 0)
 
+  // totalOwedToUs = alias for AccountOverview + Overview screens
+  const totalOwedToUs = totalToRecover
+
   const activeLenders = new Set(
     entries.filter(e => e.status !== 'settled').map(e => e.person)
   ).size
@@ -303,7 +298,7 @@ export function useLent() {
     entries, loading, error, saving,
     addLent, editLent, reorderEntries,
     addMoreAmount, makePayment, markSettled, removeEntry,
-    totalToRecover, activeLenders, nearestDues, nearestDue,
+    totalToRecover, totalOwedToUs, activeLenders, nearestDues, nearestDue,
     refresh: load,
   }
 }
