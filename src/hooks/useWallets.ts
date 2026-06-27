@@ -32,7 +32,7 @@ export function useWallets() {
     setWallets(prev => prev.filter(w => w.id !== id))
   }, [])
 
-  const totalCash = wallets.filter(w => w.type === 'cash').reduce((s, w) => s + w.balance, 0)
+  const totalCash   = wallets.filter(w => w.type === 'cash').reduce((s, w) => s + w.balance, 0)
   const totalCredit = wallets.filter(w => w.type === 'credit').reduce((s, w) => s + w.balance, 0)
 
   return { wallets, loading, error, save, remove, totalCash, totalCredit, refresh: load }

@@ -56,7 +56,8 @@ export async function deleteTransaction(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // WALLET MODULE
-// WalletEntry.owner: AppUser  WalletEntry.label: string
+// wallets table has: id, owner, type, label, balance, updated_at
+// credit-only extras: credit_limit, billing_date, due_date (nullable)
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface WalletEntry {
@@ -65,7 +66,11 @@ export interface WalletEntry {
   type: 'cash' | 'credit' | string
   balance: number
   owner: AppUser
-  created_at: string
+  updated_at: string
+  // credit-only fields (nullable for cash/wallet rows)
+  credit_limit?: number | null
+  billing_date?: number | null
+  due_date?: number | null
 }
 
 export interface NewWallet {
@@ -73,23 +78,36 @@ export interface NewWallet {
   label: string
   type: 'cash' | 'credit' | string
   balance: number
-  owner: AppUser
+  owner?: AppUser
+  // credit-only
+  credit_limit?: number | null
+  billing_date?: number | null
+  due_date?: number | null
 }
 
 export async function fetchWallets(): Promise<WalletEntry[]> {
   const { data, error } = await supabase
     .from('wallets')
     .select('*')
-    .order('created_at', { ascending: false })
+    .order('updated_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as WalletEntry[]
 }
 
 export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
+  const payload: Record<string, unknown> = {
+    label:        entry.label,
+    type:         entry.type,
+    balance:      entry.balance,
+    owner:        entry.owner ?? 'Isaac',
+    credit_limit: entry.credit_limit ?? null,
+    billing_date: entry.billing_date ?? null,
+    due_date:     entry.due_date ?? null,
+  }
   if (entry.id) {
     const { data, error } = await supabase
       .from('wallets')
-      .update({ label: entry.label, type: entry.type, balance: entry.balance, owner: entry.owner })
+      .update(payload)
       .eq('id', entry.id)
       .select()
       .single()
@@ -98,7 +116,7 @@ export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
   }
   const { data, error } = await supabase
     .from('wallets')
-    .insert({ label: entry.label, type: entry.type, balance: entry.balance, owner: entry.owner })
+    .insert(payload)
     .select()
     .single()
   if (error) throw new Error(error.message)
@@ -112,8 +130,6 @@ export async function deleteWallet(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LOAN MODULE
-// LoanEntry.label, .lender, .owner, .principal, .outstanding,
-// .emi_amount, .interest_rate, .closed  — all required, no optional created_at
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface LoanEntry {
@@ -180,8 +196,6 @@ export async function deleteLoan(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // RECURRING MODULE
-// RecurringEntry.label, .category, .owner, .amount, .frequency,
-// .next_due, .active  — owner typed as string to match RecurringSheet usage
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface RecurringEntry {
@@ -247,8 +261,6 @@ export async function deleteRecurring(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LENT MODULE
-// LentEntry.person, .description, .lent_by, .amount, .settled
-// created_at is string (not optional) so formatShortDate() accepts it directly
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface LentEntry {
@@ -306,8 +318,6 @@ export async function deleteLent(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BORROWED MODULE
-// BorrowedEntry.borrowed_by matches BorrowedScreen usage
-// created_at is string (not optional) so formatShortDate() accepts it directly
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface BorrowedEntry {
@@ -365,7 +375,6 @@ export async function deleteBorrowed(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ASSET MODULE
-// AssetEntry.created_at is string (not optional) so formatShortDate() works
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface AssetEntry {
