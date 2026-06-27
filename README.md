@@ -1,32 +1,21 @@
-# React + TypeScript + Vite
+# Co-Op Budget PWA
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A premium private 2-person budget and finance management PWA for Isaac & Jenifa.
 
-Currently, two official plugins are available:
+## Tech Stack
+- React 19 + TypeScript + Vite 8
+- Tailwind CSS v4 + Framer Motion 12
+- Supabase (PostgreSQL backend)
+- Vercel (hosting + auto-deploy)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
+- 12 screens across 4 navigation groups
+- Premium dark / pitch-black theme with glassmorphism
+- Fluid animations, mobile-first UX
+- No traditional login — session-only user identity engine
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Screens
+**Group 1 — Finance:** Budget · Home · Ledger  
+**Group 2 — Tracking:** Borrowed · Wallet & Credit · Lent  
+**Group 3 — Assets:** Loans · Account Overview · Asset  
+**Group 4 — More:** Recurring Payment · Overview · Settings
