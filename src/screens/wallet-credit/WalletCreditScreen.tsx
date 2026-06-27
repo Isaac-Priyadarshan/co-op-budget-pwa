@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
 import { WalletSheet } from '../../components/shared/WalletSheet'
+import { TransferSheet } from '../../components/shared/TransferSheet'
 import { formatINR } from '../../utils/format'
 import type { WalletEntry, NewWallet } from '../../lib/db'
 
@@ -29,7 +30,8 @@ export function WalletCreditScreen() {
   const navigate = useNavigate()
   const { wallets, loading, error, save, update, remove, totalCash, totalCredit, totalCreditLimit } = useWallets()
 
-  const [sheet, setSheet] = useState<SheetMode>(null)
+  const [sheet, setSheet]             = useState<SheetMode>(null)
+  const [transferOpen, setTransferOpen] = useState(false)
 
   const walletEntries = wallets.filter(w => w.type === 'cash')
   const creditEntries = wallets.filter(w => w.type === 'credit')
@@ -38,12 +40,14 @@ export function WalletCreditScreen() {
   const handleUpdate = async (id: string, w: NewWallet) => { await update(id, w) }
   const handleDelete = async (id: string) => { await remove(id) }
 
-  const SectionHeader = ({ label, accent, onAdd }: { label: string; accent: string; onAdd: () => void }) => (
+  // ── Wallets section header with + Add and ⇄ Transfer buttons ──
+  const WalletsSectionHeader = () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      {/* + Add */}
       <motion.button
         whileTap={{ scale: 0.82 }}
-        onClick={onAdd}
-        aria-label={`Add ${label}`}
+        onClick={() => setSheet({ type: 'add-cash' })}
+        aria-label="Add Wallet"
         style={{
           width: 28, height: 28, borderRadius: '50%',
           background: 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(217,119,6,0.12))',
@@ -57,7 +61,55 @@ export function WalletCreditScreen() {
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </motion.button>
-      <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{label}</p>
+
+      <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.8)' }}>Wallets</p>
+
+      {/* ⇄ Transfer */}
+      <motion.button
+        whileTap={{ scale: 0.82 }}
+        onClick={() => setTransferOpen(true)}
+        aria-label="Transfer funds"
+        style={{
+          height: 24, paddingInline: 10,
+          borderRadius: 99,
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12))',
+          border: '1px solid rgba(99,102,241,0.32)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+          cursor: 'pointer', flexShrink: 0,
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#818CF8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#818CF8' }}>Transfer</span>
+      </motion.button>
+    </div>
+  )
+
+  // ── Credit cards section header (+ Add only) ──
+  const CreditSectionHeader = () => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <motion.button
+        whileTap={{ scale: 0.82 }}
+        onClick={() => setSheet({ type: 'add-credit' })}
+        aria-label="Add Credit Card"
+        style={{
+          width: 28, height: 28, borderRadius: '50%',
+          background: 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(217,119,6,0.12))',
+          border: '1px solid rgba(251,191,36,0.32)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', flexShrink: 0,
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
+      </motion.button>
+      <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.8)' }}>Credit Cards</p>
     </div>
   )
 
@@ -112,11 +164,7 @@ export function WalletCreditScreen() {
           {/* ── Wallets Section ── */}
           {!loading && (
             <section style={{ marginBottom: 24, paddingTop: 8 }}>
-              <SectionHeader
-                label="Wallets"
-                accent="rgba(52,211,153,0.8)"
-                onAdd={() => setSheet({ type: 'add-cash' })}
-              />
+              <WalletsSectionHeader />
               {walletEntries.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '22px 16px', borderRadius: 16, background: 'rgba(52,211,153,0.04)', border: '1px dashed rgba(52,211,153,0.18)' }}>
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No wallets yet — tap + to add one</p>
@@ -144,12 +192,9 @@ export function WalletCreditScreen() {
                         <p style={{ flex: 1, fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                           {wallet.label}
                         </p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>
-                            {formatINR(wallet.balance)}
-                          </p>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                        </div>
+                        <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                          {formatINR(wallet.balance)}
+                        </p>
                       </motion.div>
                     ))}
                   </AnimatePresence>
@@ -161,11 +206,7 @@ export function WalletCreditScreen() {
           {/* ── Credit Cards Section ── */}
           {!loading && (
             <section>
-              <SectionHeader
-                label="Credit Cards"
-                accent="rgba(248,113,113,0.8)"
-                onAdd={() => setSheet({ type: 'add-credit' })}
-              />
+              <CreditSectionHeader />
               {creditEntries.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '22px 16px', borderRadius: 16, background: 'rgba(248,113,113,0.04)', border: '1px dashed rgba(248,113,113,0.18)' }}>
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No credit cards yet — tap + to add one</p>
@@ -193,12 +234,9 @@ export function WalletCreditScreen() {
                         <p style={{ flex: 1, fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                           {card.label}
                         </p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                          <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums' }}>
-                            {formatINR(card.balance)}
-                          </p>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                        </div>
+                        <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                          {formatINR(card.balance)}
+                        </p>
                       </motion.div>
                     ))}
                   </AnimatePresence>
@@ -209,7 +247,7 @@ export function WalletCreditScreen() {
         </motion.div>
       </div>
 
-      {/* ── Sheets ── */}
+      {/* ── Wallet Sheet ── */}
       <WalletSheet
         open={sheet?.type === 'add-cash'}
         onClose={() => setSheet(null)}
@@ -232,6 +270,12 @@ export function WalletCreditScreen() {
         editItem={sheet?.type === 'edit' ? sheet.item : undefined}
         onUpdate={handleUpdate}
         onDelete={handleDelete}
+      />
+
+      {/* ── Transfer Sheet ── */}
+      <TransferSheet
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
       />
     </div>
   )
