@@ -2,16 +2,11 @@ import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { NewWallet } from '../../lib/db'
 
-// ─── Day-of-Month Drum Picker ────────────────────────────────────────────────
+// Bottom nav is ~112px tall (3 tabs + group pills + safe-area).
+// All fixed sheets must clear it with this constant.
+const NAV_CLEARANCE = 'calc(env(safe-area-inset-bottom) + 120px)'
 
-interface DayPickerProps {
-  value: number | null
-  onChange: (day: number) => void
-  onClose: () => void
-}
-
-const DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
-
+// ─── Ordinal helper ──────────────────────────────────────────────────────────────
 function ordinal(n: number): string {
   const last2 = n % 100
   const last1 = n % 10
@@ -22,17 +17,24 @@ function ordinal(n: number): string {
   return `${n}th`
 }
 
+// ─── Day-of-Month Drum Picker ──────────────────────────────────────────────────────
+interface DayPickerProps {
+  value: number | null
+  onChange: (day: number) => void
+  onClose: () => void
+}
+
+const DAYS = Array.from({ length: 31 }, (_, i) => i + 1)
+
 function DayPickerSheet({ value, onChange, onClose }: DayPickerProps) {
   const ITEM_H = 52
   const VISIBLE = 5
   const listRef = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState(value ?? 1)
 
-  // Scroll to selected on open
   useEffect(() => {
     if (listRef.current) {
-      const idx = selected - 1
-      listRef.current.scrollTop = idx * ITEM_H
+      listRef.current.scrollTop = (selected - 1) * ITEM_H
     }
   }, [])
 
@@ -42,102 +44,60 @@ function DayPickerSheet({ value, onChange, onClose }: DayPickerProps) {
     setSelected(DAYS[Math.min(Math.max(idx, 0), 30)])
   }
 
-  const handleConfirm = () => {
-    onChange(selected)
-    onClose()
-  }
-
   return (
     <>
-      {/* backdrop */}
       <motion.div
         key="day-bd"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose}
         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', zIndex: 60 }}
       />
-      {/* sheet */}
       <motion.div
         key="day-sh"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
         style={{
-          position: 'fixed',
-          bottom: 0, left: 0, right: 0,
-          zIndex: 70,
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 70,
           background: '#0e0f1a',
-          border: '1px solid rgba(99,102,241,0.22)',
-          borderBottom: 'none',
+          border: '1px solid rgba(99,102,241,0.22)', borderBottom: 'none',
           borderRadius: '28px 28px 0 0',
-          padding: '0 20px',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+          padding: `0 20px ${NAV_CLEARANCE}`,
         }}
       >
-        {/* handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 8px' }}>
           <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
         </div>
-
         <p style={{ fontSize: 16, fontWeight: 700, color: '#f5f7ff', marginBottom: 16, textAlign: 'center', letterSpacing: '-0.01em' }}>
           Select Day of Month
         </p>
 
         {/* drum */}
         <div style={{ position: 'relative', height: ITEM_H * VISIBLE, overflow: 'hidden', marginBottom: 16 }}>
-          {/* selection band */}
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: 0, right: 0,
-            height: ITEM_H,
-            transform: 'translateY(-50%)',
-            background: 'rgba(99,102,241,0.14)',
-            border: '1px solid rgba(99,102,241,0.32)',
-            borderRadius: 14,
-            pointerEvents: 'none',
-            zIndex: 2,
-          }} />
-          {/* fade top */}
+          <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: ITEM_H, transform: 'translateY(-50%)', background: 'rgba(99,102,241,0.14)', border: '1px solid rgba(99,102,241,0.32)', borderRadius: 14, pointerEvents: 'none', zIndex: 2 }} />
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: ITEM_H * 1.8, background: 'linear-gradient(to bottom, #0e0f1a 0%, transparent 100%)', pointerEvents: 'none', zIndex: 3 }} />
-          {/* fade bottom */}
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: ITEM_H * 1.8, background: 'linear-gradient(to top, #0e0f1a 0%, transparent 100%)', pointerEvents: 'none', zIndex: 3 }} />
-          {/* scroll list */}
           <div
             ref={listRef}
             onScroll={handleScroll}
             style={{
-              height: '100%',
-              overflowY: 'scroll',
+              height: '100%', overflowY: 'scroll',
               scrollSnapType: 'y mandatory',
               WebkitOverflowScrolling: 'touch',
               scrollbarWidth: 'none',
-              paddingTop: ITEM_H * 2,
-              paddingBottom: ITEM_H * 2,
+              paddingTop: ITEM_H * 2, paddingBottom: ITEM_H * 2,
             }}
           >
             {DAYS.map((d) => (
               <div
                 key={d}
-                onClick={() => {
-                  setSelected(d)
-                  if (listRef.current) listRef.current.scrollTop = (d - 1) * ITEM_H
-                }}
+                onClick={() => { setSelected(d); if (listRef.current) listRef.current.scrollTop = (d - 1) * ITEM_H }}
                 style={{
-                  height: ITEM_H,
-                  scrollSnapAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  height: ITEM_H, scrollSnapAlign: 'center',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: d === selected ? 26 : 18,
                   fontWeight: d === selected ? 800 : 400,
                   color: d === selected ? '#a5b4fc' : 'rgba(255,255,255,0.28)',
-                  transition: 'all 0.14s ease',
-                  cursor: 'pointer',
-                  userSelect: 'none',
+                  transition: 'all 0.14s ease', cursor: 'pointer', userSelect: 'none',
                 }}
               >
                 {ordinal(d)}
@@ -151,15 +111,8 @@ function DayPickerSheet({ value, onChange, onClose }: DayPickerProps) {
         </p>
 
         <button
-          onClick={handleConfirm}
-          style={{
-            width: '100%', padding: '15px',
-            background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-            border: 'none', borderRadius: 16,
-            color: '#fff', fontSize: 16, fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 4px 20px rgba(99,102,241,0.35)',
-          }}
+          onClick={() => { onChange(selected); onClose() }}
+          style={{ width: '100%', padding: '15px', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(99,102,241,0.35)' }}
         >
           Confirm — {ordinal(selected)}
         </button>
@@ -168,8 +121,7 @@ function DayPickerSheet({ value, onChange, onClose }: DayPickerProps) {
   )
 }
 
-// ─── Wallet Add Sheet (cash only) ────────────────────────────────────────────
-
+// ─── Wallet Add Sheet (cash only) ───────────────────────────────────────────────────
 interface WalletAddProps {
   open: boolean
   onClose: () => void
@@ -216,35 +168,31 @@ function WalletAddSheet({ open, onClose, onSave }: WalletAddProps) {
               background: 'linear-gradient(180deg,#0d0f1c 0%,#08091a 100%)',
               border: '1px solid rgba(52,211,153,0.22)', borderBottom: 'none',
               borderRadius: '28px 28px 0 0',
-              padding: '0 20px',
-              paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)',
-              maxHeight: '80dvh', overflowY: 'auto',
+              // KEY FIX: padding-bottom must clear the full bottom nav height
+              padding: `0 20px ${NAV_CLEARANCE}`,
+              maxHeight: '88dvh', overflowY: 'auto',
             }}
           >
-            {/* handle */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 8px' }}>
               <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
             </div>
 
-            {/* title row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.02em' }}>New Wallet</h2>
               <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>✕</button>
             </div>
 
-            {/* name */}
             <label style={{ display: 'block', marginBottom: 16 }}>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.7)', marginBottom: 8 }}>Wallet Name</p>
               <input type="text" inputMode="text" placeholder="e.g. Pocket Cash, Savings" value={name} onChange={e => setName(e.target.value)} style={inp} />
             </label>
 
-            {/* balance */}
-            <label style={{ display: 'block', marginBottom: 20 }}>
+            <label style={{ display: 'block', marginBottom: 28 }}>
               <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.7)', marginBottom: 8 }}>Balance (₹)</p>
               <input type="number" inputMode="decimal" placeholder="0" value={balance} onChange={e => setBalance(e.target.value)} style={amt} />
             </label>
 
-            {err && <p style={{ fontSize: 13, color: '#fca5a5', marginBottom: 14, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)' }}>{err}</p>}
+            {err && <p style={{ fontSize: 13, color: '#fca5a5', marginBottom: 16, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)' }}>{err}</p>}
 
             <button
               onClick={handleSave} disabled={saving}
@@ -259,8 +207,7 @@ function WalletAddSheet({ open, onClose, onSave }: WalletAddProps) {
   )
 }
 
-// ─── Credit Card Add Sheet ────────────────────────────────────────────────────
-
+// ─── Credit Card Add Sheet ───────────────────────────────────────────────────────────
 interface CreditAddProps {
   open: boolean
   onClose: () => void
@@ -336,56 +283,50 @@ function CreditCardAddSheet({ open, onClose, onSave }: CreditAddProps) {
                 background: 'linear-gradient(180deg,#130a10 0%,#08060f 100%)',
                 border: '1px solid rgba(248,113,113,0.22)', borderBottom: 'none',
                 borderRadius: '28px 28px 0 0',
-                padding: '0 20px',
-                paddingBottom: 'calc(env(safe-area-inset-bottom) + 28px)',
+                // KEY FIX: padding-bottom must clear the full bottom nav height
+                padding: `0 20px ${NAV_CLEARANCE}`,
                 maxHeight: '88dvh', overflowY: 'auto',
               }}
             >
-              {/* handle */}
               <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 8px' }}>
                 <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
               </div>
 
-              {/* title */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
                 <h2 style={{ fontSize: 20, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.02em' }}>New Credit Card</h2>
                 <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>✕</button>
               </div>
 
-              {/* card name */}
               <label style={{ display: 'block', marginBottom: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.7)', marginBottom: 8 }}>Card Name</p>
                 <input type="text" inputMode="text" placeholder="e.g. HDFC Credit, SBI Card" value={name} onChange={e => setName(e.target.value)} style={inp} />
               </label>
 
-              {/* total limit */}
               <label style={{ display: 'block', marginBottom: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.7)', marginBottom: 8 }}>Total Limit (₹)</p>
                 <input type="number" inputMode="decimal" placeholder="0" value={limit} onChange={e => setLimit(e.target.value)} style={amt} />
               </label>
 
-              {/* outstanding */}
               <label style={{ display: 'block', marginBottom: 20 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.7)', marginBottom: 8 }}>Outstanding Balance (₹)</p>
                 <input type="number" inputMode="decimal" placeholder="0" value={outstanding} onChange={e => setOutstanding(e.target.value)} style={amt} />
               </label>
 
-              {/* bill + due date row */}
-              <div style={{ display: 'flex', gap: 12, marginBottom: 22 }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
                 <DateBtn label="Bill Date" val={billDate} field="bill" />
                 <DateBtn label="Due Date" val={dueDate} field="due" />
               </div>
 
               {(billDate || dueDate) && (
-                <div style={{ marginBottom: 18, padding: '12px 16px', borderRadius: 14, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+                <div style={{ marginBottom: 20, padding: '12px 16px', borderRadius: 14, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.8 }}>
                     {billDate && <>📅 Bill generated every month on the <span style={{ color: '#a5b4fc', fontWeight: 700 }}>{ordinal(billDate)}</span><br /></>}
                     {dueDate && <>⏰ Payment due every month on the <span style={{ color: '#fca5a5', fontWeight: 700 }}>{ordinal(dueDate)}</span></>}
                   </p>
                 </div>
               )}
 
-              {err && <p style={{ fontSize: 13, color: '#fca5a5', marginBottom: 14, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)' }}>{err}</p>}
+              {err && <p style={{ fontSize: 13, color: '#fca5a5', marginBottom: 16, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)' }}>{err}</p>}
 
               <button
                 onClick={handleSave} disabled={saving}
@@ -398,7 +339,6 @@ function CreditCardAddSheet({ open, onClose, onSave }: CreditAddProps) {
         )}
       </AnimatePresence>
 
-      {/* Day picker — renders above the credit sheet (zIndex 60/70) */}
       <AnimatePresence>
         {dayPicker !== null && (
           <DayPickerSheet
@@ -412,8 +352,7 @@ function CreditCardAddSheet({ open, onClose, onSave }: CreditAddProps) {
   )
 }
 
-// ─── Public WalletSheet Wrapper ───────────────────────────────────────────────
-
+// ─── Public WalletSheet Wrapper ─────────────────────────────────────────────────
 export interface WalletSheetProps {
   open: boolean
   onClose: () => void
