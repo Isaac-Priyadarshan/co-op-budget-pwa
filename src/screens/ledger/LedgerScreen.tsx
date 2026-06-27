@@ -5,7 +5,7 @@ import { useCategories } from '../../hooks/useCategories'
 import { useWallets } from '../../hooks/useWallets'
 import { formatINR } from '../../utils/format'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ──────────────────────────────────────────────────────────────────────────────
 const MONTH_NAMES = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December',
@@ -33,7 +33,35 @@ function formatTxDate(iso: string): string {
 
 type TxList = ReturnType<typeof useTransactions>['transactions']
 
-// ── dedupeTransfers ──────────────────────────────────────────────────────────
+// ── parseTransferLabel ───────────────────────────────────────────────────────────
+// Extracts FROM and TO wallet names from the stored description so the ledger
+// can render  "HDFC → SBI"  instead of the raw description string.
+//
+// OUT leg description format: "Transfer → {toLabel}"  or "Transfer → {toLabel}  ·  {note}"
+// We derive the FROM name by looking up which wallet_id owns this row, then
+// match its label from the walletLookup map.
+//
+// Returns { from, to, note } where note may be empty string.
+function parseTransferLabel(
+  description: string,
+  walletId: string | null | undefined,
+  walletLookup: Record<string, { label: string; type: string }>,
+): { from: string; to: string; note: string } {
+  // Strip the leading "Transfer → " prefix
+  const withoutPrefix = description.replace(/^Transfer [→←]\s*/, '').trim()
+
+  // Split on the optional note separator " · "
+  const parts = withoutPrefix.split(/\s*·\s*/)
+  const rawTo = parts[0]?.trim() ?? ''
+  const note  = parts.slice(1).join(' · ').trim()
+
+  // FROM = the wallet that owns the OUT leg row
+  const fromLabel = (walletId && walletLookup[walletId]?.label) ? walletLookup[walletId].label : 'Wallet'
+
+  return { from: fromLabel, to: rawTo || 'Wallet', note }
+}
+
+// ── dedupeTransfers ────────────────────────────────────────────────────────────
 // For each transfer pair, keep only the OUT leg (description contains '→').
 // If for some reason neither leg has '→', keep the first one encountered.
 // Non-transfer rows pass through unchanged.
@@ -73,7 +101,7 @@ function groupByDate(txs: TxList) {
   return Object.entries(groups).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
 }
 
-// ─── Animated Wave Canvas ─────────────────────────────────────────────────────
+// ─── Animated Wave Canvas ─────────────────────────────────────────────────────────────────
 function WaveCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef<number>(0)
@@ -153,7 +181,41 @@ function WaveCanvas() {
   )
 }
 
-// ─── Wallet Pill ──────────────────────────────────────────────────────────────
+// ─── Transfer Route Label ────────────────────────────────────────────────────────────
+// Renders  "HDFC → SBI"  with styled wallet name chips and an amber arrow.
+function TransferRouteLabel({ from, to }: { from: string; to: string }) {
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      flexWrap: 'nowrap',
+    }}>
+      <span style={{
+        fontSize: 12, fontWeight: 700,
+        color: '#F5F5F5',
+        background: 'rgba(255,255,255,0.08)',
+        border: '1px solid rgba(255,255,255,0.13)',
+        borderRadius: 8, padding: '2px 8px',
+        whiteSpace: 'nowrap',
+      }}>{from}</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+      >
+        <line x1="5" y1="12" x2="19" y2="12" />
+        <polyline points="12 5 19 12 12 19" />
+      </svg>
+      <span style={{
+        fontSize: 12, fontWeight: 700,
+        color: '#F5F5F5',
+        background: 'rgba(255,255,255,0.08)',
+        border: '1px solid rgba(255,255,255,0.13)',
+        borderRadius: 8, padding: '2px 8px',
+        whiteSpace: 'nowrap',
+      }}>{to}</span>
+    </div>
+  )
+}
+
+// ─── Wallet Pill ────────────────────────────────────────────────────────────────────────────
 function WalletPill({ label, type }: { label: string; type: string }) {
   const isCash = type === 'cash'
   const icon   = isCash ? '💵' : '💳'
@@ -174,7 +236,7 @@ function WalletPill({ label, type }: { label: string; type: string }) {
   )
 }
 
-// ─── Delete Error Toast ───────────────────────────────────────────────────────
+// ─── Delete Error Toast ────────────────────────────────────────────────────────────────────
 function DeleteErrorToast({
   message,
   onDismiss,
@@ -218,7 +280,7 @@ function DeleteErrorToast({
   )
 }
 
-// ─── Compact filter pill ──────────────────────────────────────────────────────
+// ─── Compact filter pill ──────────────────────────────────────────────────────────────────
 function FilterPill({
   label,
   active,
@@ -252,7 +314,7 @@ function FilterPill({
   )
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// ─── Main Screen ────────────────────────────────────────────────────────────────────────────
 export function LedgerScreen() {
   const today   = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
@@ -536,8 +598,13 @@ export function LedgerScreen() {
 
                       // Confirm message varies for transfers
                       const confirmMsg = isTransfer
-                        ? 'Delete both legs of this transfer?'
-                        : 'Remove this transaction?'
+                        ? 'Delete this transfer? Both wallets will be adjusted.'
+                        : 'Remove this transaction? Wallet balance will be restored.'
+
+                      // Parse transfer route for display: "HDFC → SBI"
+                      const transferRoute = isTransfer
+                        ? parseTransferLabel(tx.description ?? '', tx.wallet_id, walletLookup)
+                        : null
 
                       return (
                         <motion.div
@@ -576,13 +643,25 @@ export function LedgerScreen() {
                             {/* Details */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5', lineHeight: 1.2 }}>
-                                  {tx.description || tx.category}
-                                </span>
+                                {/* Transfer: show "HDFC → SBI" route; others: show description */}
+                                {isTransfer && transferRoute ? (
+                                  <TransferRouteLabel from={transferRoute.from} to={transferRoute.to} />
+                                ) : (
+                                  <span style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5', lineHeight: 1.2 }}>
+                                    {tx.description || tx.category}
+                                  </span>
+                                )}
                                 {wallet && <WalletPill label={wallet.label} type={wallet.type} />}
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                {!isTransfer && (
+                                {/* Transfer: show note if any; others: show category */}
+                                {isTransfer ? (
+                                  transferRoute?.note ? (
+                                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.30)', fontStyle: 'italic' }}>
+                                      {transferRoute.note}
+                                    </span>
+                                  ) : null
+                                ) : (
                                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
                                     {tx.category}
                                   </span>
