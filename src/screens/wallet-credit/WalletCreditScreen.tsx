@@ -31,26 +31,12 @@ function formatDayOfMonth(day?: number | null) {
   return `${day}${suffix}`
 }
 
-// ─── Jiggle animation ─────────────────────────────────────────────────────────
-const JIGGLE = {
-  animate: {
-    rotate: [-1.4, 1.4, -1.4, 1.4, -1.4],
-    transition: { duration: 0.45, repeat: Infinity, ease: 'easeInOut' as const },
-  },
-  idle: { rotate: 0, transition: { duration: 0.2 } },
-}
-
 type SheetMode = { type: 'add-cash' } | { type: 'add-credit' } | { type: 'edit'; item: WalletEntry } | null
 
 export function WalletCreditScreen() {
   const { wallets, loading, error, save, update, remove, totalCash, totalCredit, totalCreditLimit } = useWallets()
 
-  // null = closed, 'add-cash'/'add-credit'/'edit'
   const [sheet, setSheet] = useState<SheetMode>(null)
-
-  // Edit mode per section — drives the jiggle
-  const [walletEditMode, setWalletEditMode] = useState(false)
-  const [creditEditMode, setCreditEditMode] = useState(false)
 
   const walletEntries = wallets.filter(w => w.type === 'cash')
   const creditEntries = wallets.filter(w => w.type === 'credit')
@@ -61,51 +47,25 @@ export function WalletCreditScreen() {
 
   // ─── Section header ──────────────────────────────────────────────────────────
   const SectionHeader = ({
-    label, count, accent, editMode, onToggleEdit, onAdd,
+    label, accent, onAdd,
   }: {
-    label: string; count: number; accent: string
-    editMode: boolean; onToggleEdit: () => void; onAdd: () => void
+    label: string; accent: string; onAdd: () => void
   }) => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{label}</p>
-        {count > 0 && <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontVariantNumeric: 'tabular-nums' }}>{count} item{count !== 1 ? 's' : ''}</p>}
-      </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        {/* Edit / Done toggle — only show when there are items */}
-        {count > 0 && (
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={onToggleEdit}
-            style={{
-              padding: '5px 12px',
-              borderRadius: 10,
-              border: editMode ? `1px solid ${accent}` : '1px solid rgba(255,255,255,0.12)',
-              background: editMode ? `${accent}22` : 'rgba(255,255,255,0.05)',
-              color: editMode ? accent : 'rgba(255,255,255,0.5)',
-              fontSize: 12, fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.14s ease',
-            }}
-          >
-            {editMode ? 'Done' : '✏️ Edit'}
-          </motion.button>
-        )}
-        {/* Add button */}
-        <motion.button
-          whileTap={{ scale: 0.88 }}
-          onClick={onAdd}
-          aria-label={`Add ${label}`}
-          style={{
-            width: 30, height: 30, borderRadius: 10,
-            border: `1px solid ${accent}44`,
-            background: `${accent}18`,
-            color: accent, fontSize: 20, fontWeight: 400, lineHeight: 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', flexShrink: 0,
-          }}
-        >+</motion.button>
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{label}</p>
+      <motion.button
+        whileTap={{ scale: 0.88 }}
+        onClick={onAdd}
+        aria-label={`Add ${label}`}
+        style={{
+          width: 26, height: 26, borderRadius: 8,
+          border: `1px solid ${accent}44`,
+          background: `${accent}18`,
+          color: accent, fontSize: 18, fontWeight: 400, lineHeight: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', flexShrink: 0,
+        }}
+      >+</motion.button>
     </div>
   )
 
@@ -145,11 +105,9 @@ export function WalletCreditScreen() {
         {!loading && (
           <section style={{ marginBottom: 24 }}>
             <SectionHeader
-              label="Wallets" count={walletEntries.length}
+              label="Wallets"
               accent="rgba(52,211,153,0.8)"
-              editMode={walletEditMode}
-              onToggleEdit={() => setWalletEditMode(p => !p)}
-              onAdd={() => { setWalletEditMode(false); setSheet({ type: 'add-cash' }) }}
+              onAdd={() => setSheet({ type: 'add-cash' })}
             />
 
             {walletEntries.length === 0 ? (
@@ -163,15 +121,17 @@ export function WalletCreditScreen() {
                     <motion.div
                       key={wallet.id}
                       layout
-                      animate={walletEditMode ? JIGGLE.animate : JIGGLE.idle}
-                      onClick={() => { if (walletEditMode) { setSheet({ type: 'edit', item: wallet }) } }}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                      onClick={() => setSheet({ type: 'edit', item: wallet })}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 14, padding: '16px',
                         borderRadius: 18,
-                        background: walletEditMode ? 'rgba(52,211,153,0.12)' : 'rgba(52,211,153,0.08)',
-                        border: walletEditMode ? '1px solid rgba(52,211,153,0.35)' : '1px solid rgba(52,211,153,0.18)',
-                        cursor: walletEditMode ? 'pointer' : 'default',
-                        transition: 'background 0.18s ease, border-color 0.18s ease',
+                        background: 'rgba(52,211,153,0.08)',
+                        border: '1px solid rgba(52,211,153,0.18)',
+                        cursor: 'pointer',
                       }}
                     >
                       <div style={{ width: 44, height: 44, borderRadius: 14, flexShrink: 0, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.24)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>👛</div>
@@ -180,8 +140,7 @@ export function WalletCreditScreen() {
                         <p style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.34)' }}>Wallet</p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>{formatINR(wallet.balance)}</p>
-                        {walletEditMode && <p style={{ fontSize: 11, color: 'rgba(52,211,153,0.6)', fontWeight: 600 }}>tap to edit</p>}
+                        <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>{formatINR(wallet.balance)}</p>
                       </div>
                     </motion.div>
                   ))}
@@ -195,11 +154,9 @@ export function WalletCreditScreen() {
         {!loading && (
           <section>
             <SectionHeader
-              label="Credit Cards" count={creditEntries.length}
+              label="Credit Cards"
               accent="rgba(248,113,113,0.8)"
-              editMode={creditEditMode}
-              onToggleEdit={() => setCreditEditMode(p => !p)}
-              onAdd={() => { setCreditEditMode(false); setSheet({ type: 'add-credit' }) }}
+              onAdd={() => setSheet({ type: 'add-credit' })}
             />
 
             {creditEntries.length === 0 ? (
@@ -213,14 +170,16 @@ export function WalletCreditScreen() {
                     <motion.div
                       key={card.id}
                       layout
-                      animate={creditEditMode ? JIGGLE.animate : JIGGLE.idle}
-                      onClick={() => { if (creditEditMode) { setSheet({ type: 'edit', item: card }) } }}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                      onClick={() => setSheet({ type: 'edit', item: card })}
                       style={{
                         borderRadius: 20, padding: '16px',
-                        background: creditEditMode ? 'rgba(248,113,113,0.12)' : 'rgba(248,113,113,0.08)',
-                        border: creditEditMode ? '1px solid rgba(248,113,113,0.35)' : '1px solid rgba(248,113,113,0.18)',
-                        cursor: creditEditMode ? 'pointer' : 'default',
-                        transition: 'background 0.18s ease, border-color 0.18s ease',
+                        background: 'rgba(248,113,113,0.08)',
+                        border: '1px solid rgba(248,113,113,0.18)',
+                        cursor: 'pointer',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
@@ -232,8 +191,7 @@ export function WalletCreditScreen() {
                               <p style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.34)' }}>Credit Card</p>
                             </div>
                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', marginBottom: 4 }}>{formatINR(card.balance)}</p>
-                              {creditEditMode && <p style={{ fontSize: 11, color: 'rgba(248,113,113,0.6)', fontWeight: 600 }}>tap to edit</p>}
+                              <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.balance)}</p>
                             </div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -282,7 +240,7 @@ export function WalletCreditScreen() {
       />
       <WalletSheet
         open={sheet?.type === 'edit'}
-        onClose={() => { setSheet(null); setWalletEditMode(false); setCreditEditMode(false) }}
+        onClose={() => setSheet(null)}
         onSave={handleSave}
         mode="edit"
         editItem={sheet?.type === 'edit' ? sheet.item : null}
