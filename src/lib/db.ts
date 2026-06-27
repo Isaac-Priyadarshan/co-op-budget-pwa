@@ -56,20 +56,17 @@ export async function deleteTransaction(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // WALLET MODULE
-// Wallets are shared between Isaac & Jenifa.
-// The DB column owner is NOT NULL — we use the constant 'shared' to satisfy it.
+// Wallets are shared between Isaac & Jenifa — no owner field needed.
+// The DB owner column must be nullable (run the migration before deploying):
+//   ALTER TABLE wallets ALTER COLUMN owner DROP NOT NULL;
+//   ALTER TABLE wallets DROP CONSTRAINT IF EXISTS wallets_owner_check;
 // ══════════════════════════════════════════════════════════════════════════════
-
-// Sentinel value that satisfies the NOT NULL constraint on wallets.owner.
-// Wallets belong to both users, so we use a fixed shared identifier.
-const WALLET_OWNER = 'shared'
 
 export interface WalletEntry {
   id: string
   label: string
   type: 'cash' | 'credit' | string
   balance: number
-  owner: string
   updated_at: string
   credit_limit?: number | null
   billing_date?: number | null
@@ -96,14 +93,14 @@ export async function fetchWallets(): Promise<WalletEntry[]> {
 }
 
 export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
+  // owner is intentionally omitted — wallets are shared, column must be nullable in DB
   const payload = {
-    owner: WALLET_OWNER,
     label: entry.label,
     type: entry.type,
     balance: entry.balance,
     credit_limit: entry.type === 'credit' ? (entry.credit_limit ?? null) : null,
     billing_date: entry.type === 'credit' ? (entry.billing_date ?? null) : null,
-    due_date: entry.type === 'credit' ? (entry.due_date ?? null) : null,
+    due_date:     entry.type === 'credit' ? (entry.due_date     ?? null) : null,
   }
 
   if (entry.id) {
