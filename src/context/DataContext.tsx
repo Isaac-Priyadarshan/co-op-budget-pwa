@@ -69,7 +69,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         .order('created_at', { ascending: true })
       if (catErr) throw catErr
 
-      // If table is empty — respect that. Do NOT auto-seed.
       applyCategories((cats ?? []) as Category[])
 
       const ids = (cats ?? []).map(c => c.id)
@@ -229,8 +228,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await insertTransaction(tx)
   }, [])
 
+  // Optimistic delete: remove from DB then immediately strip from local state.
+  // Does NOT rely on Realtime to update the UI.
   const removeTransaction = useCallback(async (id: string) => {
     await deleteTransaction(id)
+    setTransactions(prev => prev.filter(t => t.id !== id))
   }, [])
 
   const value = useMemo<DataContextValue>(

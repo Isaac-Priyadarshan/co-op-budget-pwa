@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTransactions } from '../../hooks/useTransactions'
 import { useCategories } from '../../hooks/useCategories'
+import { useWallets } from '../../hooks/useWallets'
 import { formatINR } from '../../utils/format'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -24,7 +25,6 @@ type TxList = ReturnType<typeof useTransactions>['transactions']
 function groupByDate(txs: TxList) {
   const groups: Record<string, TxList> = {}
   for (const tx of txs) {
-    // Use created_at — the real Supabase column
     const key = new Date(tx.created_at).toDateString()
     if (!groups[key]) groups[key] = []
     groups[key].push(tx)
@@ -109,6 +109,28 @@ function WaveCanvas() {
   )
 }
 
+// ─── Wallet Pill ──────────────────────────────────────────────────────────────
+function WalletPill({ label, type }: { label: string; type: string }) {
+  const isCash   = type === 'cash'
+  const icon     = isCash ? '💵' : '💳'
+  const color    = isCash ? '#34D399' : '#C084FC'
+  const bg       = isCash ? 'rgba(52,211,153,0.10)' : 'rgba(192,132,252,0.10)'
+  const border   = isCash ? 'rgba(52,211,153,0.22)' : 'rgba(192,132,252,0.22)'
+
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      height: 18, padding: '0 7px', borderRadius: 100,
+      background: bg, border: `1px solid ${border}`,
+      fontSize: 10, fontWeight: 600, color,
+      whiteSpace: 'nowrap', flexShrink: 0,
+    }}>
+      <span style={{ fontSize: 9 }}>{icon}</span>
+      <span>{label}</span>
+    </div>
+  )
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export function LedgerScreen() {
   const today   = new Date()
@@ -125,6 +147,14 @@ export function LedgerScreen() {
 
   const { transactions, loading, error, removeTransaction } = useTransactions()
   const { expenseCategories, incomeCategories } = useCategories()
+  const { wallets } = useWallets()
+
+  // wallet id → { label, type } lookup
+  const walletLookup = useMemo(() => {
+    const map: Record<string, { label: string; type: string }> = {}
+    for (const w of wallets) map[w.id] = { label: w.label, type: w.type }
+    return map
+  }, [wallets])
 
   const handlePrev = () => {
     const [ny, nm] = month === 0 ? [year - 1, 11] : [year, month - 1]
@@ -155,7 +185,6 @@ export function LedgerScreen() {
     return { icon: '💳', accent: '#A78BFA', bg: 'rgba(167,139,250,0.12)', glow: 'rgba(167,139,250,0.18)' }
   }
 
-  // Filter by date range using created_at
   const rangeTxs = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00')
     const end   = new Date(endDate   + 'T23:59:59')
@@ -192,7 +221,6 @@ export function LedgerScreen() {
     WebkitAppearance: 'none', colorScheme: 'dark', minWidth: 0,
   }
 
-  // ── RENDER — root div has NO minHeight so AppShell single-scroll works ──
   return (
     <div style={{ padding: '20px 20px 32px' }}>
       <motion.div
@@ -357,6 +385,7 @@ export function LedgerScreen() {
                         const userColor    = (tx.created_by ?? '').toLowerCase() === 'jenifa' ? '#F9A8D4' : '#5EEAD4'
                         const userBg       = (tx.created_by ?? '').toLowerCase() === 'jenifa' ? 'rgba(249,168,212,0.12)' : 'rgba(94,234,212,0.12)'
                         const hasNote      = tx.description && tx.description.toLowerCase().trim() !== (tx.category ?? '').toLowerCase().trim()
+                        const walletMeta   = tx.wallet_id ? walletLookup[tx.wallet_id] : null
 
                         return (
                           <motion.div key={tx.id} layout
@@ -371,6 +400,7 @@ export function LedgerScreen() {
                             }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
+                              {/* Category icon */}
                               <div style={{
                                 width: 44, height: 44, borderRadius: 14, flexShrink: 0,
                                 background: meta.bg, border: `1px solid ${meta.accent}30`,
@@ -378,22 +408,26 @@ export function LedgerScreen() {
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
                               }}>{meta.icon}</div>
 
+                              {/* Middle: category + note + wallet pill */}
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: 13, fontWeight: 700, color: meta.accent, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: hasNote ? 3 : 0 }}>
+                                <p style={{ fontSize: 13, fontWeight: 700, color: meta.accent, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: hasNote ? 2 : walletMeta ? 4 : 0 }}>
                                   {tx.category}
                                 </p>
                                 {hasNote && (
-                                  <p style={{ fontSize: 11, color: 'rgba(245,245,245,0.42)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  <p style={{ fontSize: 11, color: 'rgba(245,245,245,0.42)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: walletMeta ? 4 : 0 }}>
                                     {tx.description}
                                   </p>
                                 )}
+                                {walletMeta && (
+                                  <WalletPill label={walletMeta.label} type={walletMeta.type} />
+                                )}
                               </div>
 
+                              {/* Right: amount + user avatar + delete */}
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
                                 <p style={{ fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: tx.type === 'income' ? '#34D399' : '#F87171' }}>
                                   {tx.type === 'income' ? '+' : '-'}{formatINR(tx.amount)}
                                 </p>
-                                {/* Who + when row */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                                   <div style={{
                                     width: 20, height: 20, borderRadius: '50%',
@@ -415,6 +449,7 @@ export function LedgerScreen() {
                               </div>
                             </div>
 
+                            {/* Confirm delete panel */}
                             <AnimatePresence initial={false}>
                               {isConfirming && (
                                 <motion.div
