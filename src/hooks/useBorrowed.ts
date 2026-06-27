@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { adjustWalletBalance } from '../lib/db'
+import { adjustWalletBalance, insertTransaction } from '../lib/db'
 import type { AppUser } from '../lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,12 +28,17 @@ export interface NewBorrowed {
   source_wallet_id?: string | null
 }
 
+// ─── Helper: today as YYYY-MM-DD ──────────────────────────────────────────────
+function todayISO(): string {
+  return new Date().toISOString().substring(0, 10)
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function useBorrowed() {
-  const [entries, setEntries]   = useState<BorrowedEntry[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [error,   setError]     = useState<string | null>(null)
-  const [saving,  setSaving]    = useState(false)
+  const [entries, setEntries] = useState<BorrowedEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState<string | null>(null)
+  const [saving,  setSaving]  = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -53,7 +58,7 @@ export function useBorrowed() {
 
   useEffect(() => { load() }, [load])
 
-  // ── Add new borrowed entry + credit source wallet ──
+  // ── Add new borrowed entry + credit wallet + auto ledger transaction ──────
   const addBorrowed = useCallback(async (entry: NewBorrowed) => {
     setSaving(true); setError(null)
     try {
@@ -72,10 +77,23 @@ export function useBorrowed() {
         .select()
         .single()
       if (err) throw new Error(err.message)
-      // Credit the wallet — money received
+
+      // Credit wallet — money received
       if (entry.source_wallet_id) {
         await adjustWalletBalance(entry.source_wallet_id, entry.amount)
       }
+
+      // Auto-create income transaction so it appears in Ledger
+      await insertTransaction({
+        type:             'income',
+        category:         'Borrowed',
+        description:      `Borrowed from ${entry.person}`,
+        amount:           entry.amount,
+        created_by:       entry.borrowed_by,
+        wallet_id:        entry.source_wallet_id ?? null,
+        transaction_date: todayISO(),
+      })
+
       setEntries(prev => [data as BorrowedEntry, ...prev])
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save')
@@ -84,7 +102,7 @@ export function useBorrowed() {
     }
   }, [])
 
-  // ── Partial payment — debit wallet, update paid_amount ──
+  // ── Partial payment — debit wallet + auto ledger transaction ─────────────
   const makePayment = useCallback(async (
     id: string,
     payAmount: number,
@@ -94,7 +112,7 @@ export function useBorrowed() {
     try {
       const entry = entries.find(e => e.id === id)
       if (!entry) throw new Error('Entry not found')
-      const newPaid = parseFloat((entry.paid_amount + payAmount).toFixed(2))
+      const newPaid   = parseFloat((entry.paid_amount + payAmount).toFixed(2))
       const remaining = parseFloat((entry.amount - newPaid).toFixed(2))
       const newStatus: BorrowedStatus = remaining <= 0 ? 'settled' : 'partial'
 
@@ -105,8 +123,21 @@ export function useBorrowed() {
         .select()
         .single()
       if (err) throw new Error(err.message)
-      // Debit the wallet — money sent back
+
+      // Debit wallet — money sent back
       await adjustWalletBalance(walletId, -payAmount)
+
+      // Auto-create expense transaction so it appears in Ledger
+      await insertTransaction({
+        type:             'expense',
+        category:         'Repayment',
+        description:      `Repaid ${entry.person} — partial`,
+        amount:           payAmount,
+        created_by:       entry.borrowed_by,
+        wallet_id:        walletId,
+        transaction_date: todayISO(),
+      })
+
       setEntries(prev => prev.map(e => e.id === id ? data as BorrowedEntry : e))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save')
@@ -115,7 +146,7 @@ export function useBorrowed() {
     }
   }, [entries])
 
-  // ── Mark fully settled — debit remaining from wallet ──
+  // ── Mark fully settled — debit remaining + auto ledger transaction ────────
   const markSettled = useCallback(async (
     id: string,
     walletId: string,
@@ -133,9 +164,22 @@ export function useBorrowed() {
         .select()
         .single()
       if (err) throw new Error(err.message)
+
       if (remaining > 0) {
         await adjustWalletBalance(walletId, -remaining)
+
+        // Auto-create expense transaction so it appears in Ledger
+        await insertTransaction({
+          type:             'expense',
+          category:         'Repayment',
+          description:      `Repaid ${entry.person} — settled`,
+          amount:           remaining,
+          created_by:       entry.borrowed_by,
+          wallet_id:        walletId,
+          transaction_date: todayISO(),
+        })
       }
+
       setEntries(prev => prev.map(e => e.id === id ? data as BorrowedEntry : e))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save')
@@ -144,7 +188,7 @@ export function useBorrowed() {
     }
   }, [entries])
 
-  // ── Delete entry (no wallet reversal — manual decision) ──
+  // ── Delete entry (no wallet reversal — manual decision) ──────────────────
   const removeEntry = useCallback(async (id: string) => {
     setSaving(true); setError(null)
     try {
