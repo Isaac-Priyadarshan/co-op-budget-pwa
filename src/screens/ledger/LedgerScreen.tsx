@@ -10,9 +10,7 @@ const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 
 function toDateStr(d: Date): string { return d.toISOString().slice(0, 10) }
 function monthStart(y: number, m: number): string { return `${y}-${String(m + 1).padStart(2, '0')}-01` }
-function monthEnd(y: number, m: number): string {
-  return toDateStr(new Date(y, m + 1, 0))
-}
+function monthEnd(y: number, m: number): string { return toDateStr(new Date(y, m + 1, 0)) }
 function formatTxDate(iso: string): string {
   const d = new Date(iso)
   const today = new Date()
@@ -26,6 +24,7 @@ type TxList = ReturnType<typeof useTransactions>['transactions']
 function groupByDate(txs: TxList) {
   const groups: Record<string, TxList> = {}
   for (const tx of txs) {
+    // Use created_at — the real Supabase column
     const key = new Date(tx.created_at).toDateString()
     if (!groups[key]) groups[key] = []
     groups[key].push(tx)
@@ -50,7 +49,6 @@ function WaveCanvas() {
       const H = canvas.height
       ctx.clearRect(0, 0, W, H)
 
-      // Wave 1 — slow, wide, primary gold
       ctx.beginPath()
       for (let x = 0; x <= W; x += 2) {
         const y = H * 0.52 + Math.sin((x / W) * Math.PI * 2.4 + t * 0.6) * H * 0.14
@@ -64,7 +62,6 @@ function WaveCanvas() {
       ctx.fillStyle = g1
       ctx.fill()
 
-      // Wave 2 — faster, narrower, amber
       ctx.beginPath()
       for (let x = 0; x <= W; x += 2) {
         const y = H * 0.64 + Math.sin((x / W) * Math.PI * 3.2 + t * 0.9 + 1.2) * H * 0.09
@@ -78,7 +75,6 @@ function WaveCanvas() {
       ctx.fillStyle = g2
       ctx.fill()
 
-      // Shimmer line on wave 1 crest
       ctx.beginPath()
       for (let x = 0; x <= W; x += 2) {
         const y = H * 0.52 + Math.sin((x / W) * Math.PI * 2.4 + t * 0.6) * H * 0.14
@@ -119,7 +115,6 @@ export function LedgerScreen() {
   const [year,  setYear]  = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
 
-  // Date range — auto-syncs to selected month
   const [startDate, setStartDate] = useState(monthStart(today.getFullYear(), today.getMonth()))
   const [endDate,   setEndDate]   = useState(toDateStr(today))
 
@@ -131,7 +126,6 @@ export function LedgerScreen() {
   const { transactions, loading, error, removeTransaction } = useTransactions()
   const { expenseCategories, incomeCategories } = useCategories()
 
-  // ── Month nav handlers — auto-set full month range ──────────────────────────
   const handlePrev = () => {
     const [ny, nm] = month === 0 ? [year - 1, 11] : [year, month - 1]
     setYear(ny); setMonth(nm)
@@ -145,7 +139,6 @@ export function LedgerScreen() {
     setEndDate(monthEnd(ny, nm))
   }
 
-  // ── Category lookup ─────────────────────────────────────────────────────────
   const catLookup = useMemo(() => {
     const map: Record<string, { icon: string; accent: string; bg: string; glow: string }> = {}
     for (const c of [...expenseCategories, ...incomeCategories]) {
@@ -162,7 +155,7 @@ export function LedgerScreen() {
     return { icon: '💳', accent: '#A78BFA', bg: 'rgba(167,139,250,0.12)', glow: 'rgba(167,139,250,0.18)' }
   }
 
-  // ── Date-range scoped transactions ──────────────────────────────────────────
+  // Filter by date range using created_at
   const rangeTxs = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00')
     const end   = new Date(endDate   + 'T23:59:59')
@@ -190,36 +183,25 @@ export function LedgerScreen() {
     finally { setDeletingId(null); setConfirmId(null) }
   }
 
-  // ── Shared date input style ──────────────────────────────────────────────────
   const dateInputStyle: React.CSSProperties = {
-    flex: 1,
-    height: 34,
-    borderRadius: 10,
+    flex: 1, height: 34, borderRadius: 10,
     background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(251,191,36,0.22)',
-    color: '#F5F5F5',
-    fontSize: 11,
-    fontWeight: 600,
-    padding: '0 8px',
-    cursor: 'pointer',
-    outline: 'none',
-    WebkitAppearance: 'none',
-    colorScheme: 'dark',
-    minWidth: 0,
+    color: '#F5F5F5', fontSize: 11, fontWeight: 600,
+    padding: '0 8px', cursor: 'pointer', outline: 'none',
+    WebkitAppearance: 'none', colorScheme: 'dark', minWidth: 0,
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ── RENDER — root div has NO minHeight so AppShell single-scroll works ──
   return (
-    <div style={{ minHeight: '100%', padding: '20px 20px 32px' }}>
+    <div style={{ padding: '20px 20px 32px' }}>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
       >
 
-        {/* ════════════════════════════════════════════
-            MONTH NAVIGATOR  (matches HomeScreen style)
-        ════════════════════════════════════════════ */}
+        {/* Month navigator */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <motion.button whileTap={{ scale: 0.85 }} onClick={handlePrev}
             style={{
@@ -250,76 +232,41 @@ export function LedgerScreen() {
           </motion.button>
         </div>
 
-        {/* ════════════════════════════════════════════
-            PREMIUM SUMMARY CARD  (black + gold wave)
-        ════════════════════════════════════════════ */}
-        <div style={{ position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 18,
+        {/* Summary card */}
+        <div style={{
+          position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 18,
           background: 'linear-gradient(160deg,#0d0b06 0%,#0a0800 60%,#0e0c02 100%)',
           border: '1px solid rgba(251,191,36,0.28)',
           boxShadow: '0 0 0 1px rgba(251,191,36,0.06), 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 rgba(251,191,36,0.12) inset',
           minHeight: 100,
         }}>
-
-          {/* Animated wave — sits behind the numbers */}
           <WaveCanvas />
-
-          {/* Top shimmer line */}
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, height: 1,
-            background: 'linear-gradient(90deg,transparent,rgba(251,191,36,0.55),transparent)',
-          }} />
-
-          {/* Numbers grid */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,rgba(251,191,36,0.55),transparent)' }} />
           <div style={{
             position: 'relative', zIndex: 2,
             display: 'grid', gridTemplateColumns: '1fr auto 1fr',
-            alignItems: 'center', gap: 0,
-            padding: '20px 20px 22px',
+            alignItems: 'center', padding: '20px 20px 22px',
           }}>
-
-            {/* Left — Spent */}
             <div>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.60)', marginBottom: 6 }}>Spent</p>
-              <p style={{ fontSize: 17, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                {formatINR(rangeExpense)}
-              </p>
+              <p style={{ fontSize: 17, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatINR(rangeExpense)}</p>
             </div>
-
-            {/* Center — Balance (no divider lines) */}
-            <div style={{
-              textAlign: 'center',
-              padding: '0 18px',
-            }}>
+            <div style={{ textAlign: 'center', padding: '0 18px' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.55)', marginBottom: 6 }}>Balance</p>
-              <p style={{
-                fontSize: 22, fontWeight: 900,
-                color: rangeBalance >= 0 ? '#34D399' : '#F87171',
-                fontVariantNumeric: 'tabular-nums', lineHeight: 1,
-                textShadow: rangeBalance >= 0 ? '0 0 18px rgba(52,211,153,0.45)' : '0 0 18px rgba(248,113,113,0.45)',
-              }}>
+              <p style={{ fontSize: 22, fontWeight: 900, color: rangeBalance >= 0 ? '#34D399' : '#F87171', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: rangeBalance >= 0 ? '0 0 18px rgba(52,211,153,0.45)' : '0 0 18px rgba(248,113,113,0.45)' }}>
                 {rangeBalance < 0 ? '-' : ''}{formatINR(Math.abs(rangeBalance))}
               </p>
             </div>
-
-            {/* Right — Income */}
             <div style={{ textAlign: 'right' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.60)', marginBottom: 6 }}>Income</p>
-              <p style={{ fontSize: 17, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
-                {formatINR(rangeIncome)}
-              </p>
+              <p style={{ fontSize: 17, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatINR(rangeIncome)}</p>
             </div>
           </div>
         </div>
 
-        {/* ════════════════════════════════════════════
-            FILTER BAR  — 3 groups
-        ════════════════════════════════════════════ */}
+        {/* Filter bar */}
         <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-
-          {/* Row: type pills | divider | user pills | divider | date range */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-
-            {/* Group 1 — Type */}
             {(['all', 'income', 'expense'] as const).map(f => (
               <motion.button key={f} whileTap={{ scale: 0.93 }} onClick={() => setTypeFilter(f)}
                 style={{
@@ -332,11 +279,7 @@ export function LedgerScreen() {
                 }}
               >{f}</motion.button>
             ))}
-
-            {/* Divider */}
             <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
-
-            {/* Group 2 — User */}
             {(['all', 'Isaac', 'Jenifa'] as const).map(u => (
               <motion.button key={u} whileTap={{ scale: 0.93 }} onClick={() => setUserFilter(u)}
                 style={{
@@ -349,40 +292,20 @@ export function LedgerScreen() {
                 }}
               >{u === 'all' ? 'Both' : u}</motion.button>
             ))}
-
-            {/* Divider */}
             <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
-
-            {/* Group 3 — Date range (compact) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: 1, minWidth: 170 }}>
-              <input
-                type="date"
-                value={startDate}
-                max={endDate}
-                onChange={e => setStartDate(e.target.value)}
-                style={dateInputStyle}
-              />
+              <input type="date" value={startDate} max={endDate} onChange={e => setStartDate(e.target.value)} style={dateInputStyle} />
               <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, flexShrink: 0 }}>→</span>
-              <input
-                type="date"
-                value={endDate}
-                min={startDate}
-                onChange={e => setEndDate(e.target.value)}
-                style={dateInputStyle}
-              />
+              <input type="date" value={endDate} min={startDate} onChange={e => setEndDate(e.target.value)} style={dateInputStyle} />
             </div>
           </div>
         </div>
 
-        {/* Count badge */}
         <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.26)', marginBottom: 14, fontWeight: 500 }}>
           {filtered.length} transaction{filtered.length !== 1 ? 's' : ''}
         </p>
 
-        {/* ════════════════════════════════════════════
-            TRANSACTION LIST
-        ════════════════════════════════════════════ */}
-
+        {/* Transaction list */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[1,2,3,4].map(i => (
@@ -414,7 +337,6 @@ export function LedgerScreen() {
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                   transition={{ duration: 0.22 }}
                 >
-                  {/* Date group header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(251,191,36,0.65)', letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                       {formatTxDate(txs[0].created_at)}
@@ -471,13 +393,23 @@ export function LedgerScreen() {
                                 <p style={{ fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: tx.type === 'income' ? '#34D399' : '#F87171' }}>
                                   {tx.type === 'income' ? '+' : '-'}{formatINR(tx.amount)}
                                 </p>
+                                {/* Who + when row */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: userBg, border: `1px solid ${userColor}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: userColor }}>
-                                    {userInitial}
-                                  </div>
+                                  <div style={{
+                                    width: 20, height: 20, borderRadius: '50%',
+                                    background: userBg, border: `1px solid ${userColor}40`,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: 10, fontWeight: 700, color: userColor,
+                                  }}>{userInitial}</div>
                                   <motion.button whileTap={{ scale: 0.82 }}
                                     onClick={() => setConfirmId(prev => prev === tx.id ? null : tx.id)}
-                                    style={{ width: 22, height: 22, borderRadius: '50%', background: isConfirming ? 'rgba(248,113,113,0.20)' : 'rgba(255,255,255,0.06)', border: isConfirming ? '1px solid rgba(248,113,113,0.40)' : '1px solid rgba(255,255,255,0.10)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 11 }}
+                                    style={{
+                                      width: 22, height: 22, borderRadius: '50%',
+                                      background: isConfirming ? 'rgba(248,113,113,0.20)' : 'rgba(255,255,255,0.06)',
+                                      border: isConfirming ? '1px solid rgba(248,113,113,0.40)' : '1px solid rgba(255,255,255,0.10)',
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      cursor: 'pointer', fontSize: 11,
+                                    }}
                                   >🗑️</motion.button>
                                 </div>
                               </div>

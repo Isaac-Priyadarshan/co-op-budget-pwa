@@ -87,10 +87,12 @@ export function EntryScreen() {
     ? `0 3px ${8 + readinessLevel * 10}px ${glow.replace(')', `, ${confirmGlowStrength})`).replace('rgba(', 'rgba(')}`
     : 'none'
 
+  // Rupee symbol via string concat — avoids any unicode escape rendering in toolbar/notes
+  const rupee = '\u20B9'
   const formattedDisplay = (() => {
     const [int, dec] = raw.split('.')
     const intFormatted = parseInt(int || '0', 10).toLocaleString('en-IN')
-    return dec !== undefined ? `\u20B9${intFormatted}.${dec}` : `\u20B9${intFormatted}`
+    return dec !== undefined ? `${rupee}${intFormatted}.${dec}` : `${rupee}${intFormatted}`
   })()
 
   const today   = new Date()
@@ -100,9 +102,6 @@ export function EntryScreen() {
   const dateLabel = isToday
     ? 'Today'
     : `${txDate.getDate()} ${MONTH_NAMES[txDate.getMonth()]} ${txDate.getFullYear()}`
-
-  const selectedSubLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
-  void selectedSubLabel
 
   const daysInMonth = new Date(pickerY, pickerM + 1, 0).getDate()
   const pickerDays  = Array.from({ length: daysInMonth }, (_, i) => i + 1)
@@ -114,7 +113,6 @@ export function EntryScreen() {
     setTxDate(new Date(dy, dm, safe))
   }, [])
 
-  // BUG 2 FIX: pass user-chosen date as transaction_date
   const handleConfirm = useCallback(async () => {
     if (!canConfirm) return
     if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
@@ -130,7 +128,7 @@ export function EntryScreen() {
       )
       await addTransaction({
         amount:           amountValue,
-        description:      descParts.join(' \u00B7 ') || category.label,
+        description:      descParts.join(' · ') || category.label,
         category:         category.label,
         created_by:       activeUser,
         type:             (type as 'income' | 'expense') ?? 'expense',
@@ -145,7 +143,7 @@ export function EntryScreen() {
     }
   }, [canConfirm, category, activeUser, selectedSub, note, subs, addTransaction, amountValue, type, navigate, txDate, walletId])
 
-  // TRAY CONTENT
+  // ── TRAY CONTENT ─────────────────────────────────────────────────────────────
   const renderTrayContent = () => {
     if (activePanel === 'note') return (
       <div style={{
@@ -153,12 +151,12 @@ export function EntryScreen() {
         padding: '10px 14px',
         borderBottom: `1px solid ${accent}25`,
       }}>
-        <span style={{ fontSize: 15, flexShrink: 0 }}>&#x270F;&#xFE0F;</span>
+        <span style={{ fontSize: 15, flexShrink: 0 }}>✏️</span>
         <input
           ref={noteInputRef}
           value={note}
           onChange={e => setNote(e.target.value)}
-          placeholder="Add a note\u2026"
+          placeholder="Add a note…"
           maxLength={120}
           style={{
             flex: 1, background: 'none', border: 'none', outline: 'none',
@@ -168,7 +166,7 @@ export function EntryScreen() {
         {note && (
           <button onClick={() => setNote('')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.35)' }}
-          >&#x2715;</button>
+          >✕</button>
         )}
       </div>
     )
@@ -177,7 +175,7 @@ export function EntryScreen() {
       <div style={{ padding: '10px 14px', borderBottom: `1px solid ${accent}25` }}>
         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: `${accent}88`, marginBottom: 8 }}>Select wallet</p>
         {walletsLoading ? (
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>Loading&#x2026;</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>Loading…</p>
         ) : wallets.length === 0 ? (
           <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>No wallets found. Add one in Wallet &amp; Credit.</p>
         ) : (
@@ -244,11 +242,11 @@ export function EntryScreen() {
     return null
   }
 
-  // RENDER
+  // ── NOT FOUND ─────────────────────────────────────────────────────────────────
   if (!category) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100dvh', gap: 12 }}>
-        <p style={{ fontSize: 40 }}>&#x1F914;</p>
+        <p style={{ fontSize: 40 }}>🤔</p>
         <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.55)' }}>Category not found</p>
         <button onClick={() => navigate(-1)}
           style={{ marginTop: 8, padding: '10px 20px', borderRadius: 12, background: 'rgba(255,255,255,0.08)', border: 'none', color: '#F5F5F5', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
@@ -257,6 +255,7 @@ export function EntryScreen() {
     )
   }
 
+  // ── MAIN RENDER ───────────────────────────────────────────────────────────────
   return (
     <div style={{
       position: 'fixed', inset: 0,
@@ -273,24 +272,29 @@ export function EntryScreen() {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* HEADER */}
+      {/* ── HEADER — back arrow LEFT, category icon+label CENTER ── */}
       <div style={{
         position: 'relative', zIndex: 10,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: 'env(safe-area-inset-top) 20px 0',
+        paddingLeft: 16, paddingRight: 16,
         paddingTop: 'max(env(safe-area-inset-top), 12px)',
         paddingBottom: 4,
       }}>
+        {/* Back button — always top-left */}
         <motion.button whileTap={{ scale: 0.85 }} onClick={() => navigate(-1)}
           style={{
             width: 38, height: 38, borderRadius: 13,
             background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            flexShrink: 0,
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </motion.button>
 
+        {/* Category label — center */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div style={{
             width: 34, height: 34, borderRadius: 11,
@@ -301,15 +305,16 @@ export function EntryScreen() {
           <p style={{ fontSize: 15, fontWeight: 700, color: accent }}>{category.label}</p>
         </div>
 
-        <div style={{ width: 38 }} />
+        {/* Spacer to keep center balanced */}
+        <div style={{ width: 38, flexShrink: 0 }} />
       </div>
 
-      {/* AMOUNT DISPLAY */}
+      {/* ── AMOUNT DISPLAY ── */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        padding: '18px 24px 12px',
+        padding: '18px 24px 10px',
       }}>
         <motion.p
           key={formattedDisplay}
@@ -332,7 +337,7 @@ export function EntryScreen() {
 
         {/* Subcategory chips */}
         {subs.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: 10 }}>
             {subs.map(s => (
               <motion.button key={s.id} whileTap={{ scale: 0.90 }}
                 onClick={() => setSelectedSub(prev => prev === s.id ? null : s.id)}
@@ -350,7 +355,7 @@ export function EntryScreen() {
         )}
       </div>
 
-      {/* TOOLBAR CARD */}
+      {/* ── TOOLBAR CARD ── */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
@@ -364,7 +369,7 @@ export function EntryScreen() {
           backdropFilter: 'blur(16px)',
           boxShadow: `0 4px 24px rgba(0,0,0,0.6), 0 0 0 1px ${accent}0A`,
         }}>
-          {/* Tray content (panels) */}
+          {/* Animated tray panel */}
           <AnimatePresence initial={false}>
             {activePanel && (
               <motion.div
@@ -380,7 +385,7 @@ export function EntryScreen() {
             )}
           </AnimatePresence>
 
-          {/* Icon row */}
+          {/* Toolbar icon row */}
           <div style={{
             display: 'flex', alignItems: 'center',
             padding: '8px 14px',
@@ -391,7 +396,7 @@ export function EntryScreen() {
               accent={accent}
               onClick={() => togglePanel('note')}
               label={note || 'Note'}
-              icon="\u270F\uFE0F"
+              icon="✏️"
               filled={!!note}
             />
             <ToolbarBtn
@@ -399,7 +404,7 @@ export function EntryScreen() {
               accent={accent}
               onClick={() => togglePanel('wallet')}
               label={walletLabel || 'Wallet'}
-              icon="\uD83D\uDC5B"
+              icon="👛"
               filled={!!walletId}
             />
             <ToolbarBtn
@@ -407,29 +412,31 @@ export function EntryScreen() {
               accent={accent}
               onClick={() => togglePanel('calendar')}
               label={dateLabel}
-              icon="\uD83D\uDCC5"
+              icon="📅"
               filled={!isToday}
             />
           </div>
         </div>
       </div>
 
-      {/* NUMPAD */}
+      {/* ── NUMPAD — fills remaining space proportionally ── */}
       <div style={{
         position: 'relative', zIndex: 2,
-        flex: '1 1 auto',
+        flex: '1 1 0',
         display: 'flex', flexDirection: 'column',
         padding: '8px 16px 0',
         overflow: 'hidden',
+        minHeight: 0,
       }}>
         <div style={{
           flex: 1,
           display: 'grid',
           gridTemplateRows: 'repeat(4, 1fr)',
           gap: 6,
+          minHeight: 0,
         }}>
           {KEY_ROWS.map((row, ri) => (
-            <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+            <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, minHeight: 0 }}>
               {row.map(k => (
                 <motion.button
                   key={k}
@@ -438,16 +445,16 @@ export function EntryScreen() {
                   style={{
                     width: '100%', height: '100%',
                     borderRadius: 16,
-                    background: k === '\u232B' ? 'rgba(248,113,113,0.10)' : 'rgba(255,255,255,0.055)',
+                    background: k === '⌫' ? 'rgba(248,113,113,0.10)' : 'rgba(255,255,255,0.055)',
                     border: `1px solid ${
-                      k === '\u232B' ? 'rgba(248,113,113,0.18)'
+                      k === '⌫' ? 'rgba(248,113,113,0.18)'
                       : k === '.' ? `${accent}22`
                       : 'rgba(255,255,255,0.07)'
                     }`,
                     cursor: 'pointer',
-                    fontSize: k === '\u232B' ? 18 : 22,
-                    fontWeight: k === '\u232B' ? 600 : 700,
-                    color: k === '\u232B' ? '#F87171'
+                    fontSize: k === '⌫' ? 18 : 22,
+                    fontWeight: k === '⌫' ? 600 : 700,
+                    color: k === '⌫' ? '#F87171'
                       : k === '.' ? accent
                       : '#F5F5F5',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -459,7 +466,7 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* CONFIRM BUTTON */}
+      {/* ── CONFIRM BUTTON ── */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
@@ -490,11 +497,11 @@ export function EntryScreen() {
                 animate={{ rotate: 360 }}
                 transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
                 style={{ display: 'inline-block', fontSize: 16 }}
-              >&#x27F3;</motion.span>
-              Saving&#x2026;
+              >⟳</motion.span>
+              Saving…
             </>
           ) : success ? (
-            <motion.span initial={{ scale: 0.5 }} animate={{ scale: 1 }} style={{ fontSize: 18 }}>&#x2705;</motion.span>
+            <motion.span initial={{ scale: 0.5 }} animate={{ scale: 1 }} style={{ fontSize: 18 }}>✅</motion.span>
           ) : 'Confirm'}
         </motion.button>
 
@@ -511,7 +518,7 @@ export function EntryScreen() {
   )
 }
 
-// Toolbar button helper
+// ── Toolbar button component ──────────────────────────────────────────────────
 interface ToolbarBtnProps {
   active: boolean
   accent: string
@@ -538,7 +545,7 @@ function ToolbarBtn({ active, accent, onClick, label, icon, filled }: ToolbarBtn
         transition: 'background 0.15s',
       }}
     >
-      <span style={{ fontSize: 13 }}>{icon}</span>
+      <span style={{ fontSize: 15, lineHeight: 1 }}>{icon}</span>
       <span style={{
         fontSize: 11, fontWeight: 600,
         color: active ? accent : filled ? `${accent}CC` : 'rgba(255,255,255,0.35)',
