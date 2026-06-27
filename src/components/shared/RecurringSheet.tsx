@@ -11,7 +11,7 @@ interface Props { open: boolean; onClose: () => void; onSave: (r: NewRecurring) 
 export function RecurringSheet({ open, onClose, onSave }: Props) {
   const [label, setLabel] = useState('')
   const [amount, setAmount] = useState('')
-  const [category, setCategory] = useState('')
+  const [_category, setCategory] = useState('')
   const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly')
   const [nextDue, setNextDue] = useState('')
   const [owner, setOwner] = useState<'Isaac' | 'Jenifa' | 'Both'>('Both')
@@ -25,11 +25,10 @@ export function RecurringSheet({ open, onClose, onSave }: Props) {
   const handleSubmit = async () => {
     if (!label.trim()) { setErr('Enter a label'); return }
     if (!amount || Number(amount) <= 0) { setErr('Enter a valid amount'); return }
-    if (!category) { setErr('Select a category'); return }
     if (!nextDue) { setErr('Select next due date'); return }
     try {
       setSaving(true); setErr('')
-      await onSave({ label: label.trim(), amount: parseFloat(Number(amount).toFixed(2)), category, frequency, next_due: nextDue, owner, notes: notes.trim() })
+      await onSave({ label: label.trim(), amount: parseFloat(Number(amount).toFixed(2)), frequency, next_due: nextDue, owner, notes: notes.trim() })
       reset(); onClose()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed') }
     finally { setSaving(false) }
@@ -66,7 +65,7 @@ export function RecurringSheet({ open, onClose, onSave }: Props) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
               {CATEGORIES.map(cat => (
                 <button key={cat} onClick={() => setCategory(cat)}
-                  style={{ padding: '7px 14px', borderRadius: 100, border: category === cat ? '1px solid rgba(165,180,252,0.5)' : '1px solid rgba(255,255,255,0.1)', background: category === cat ? 'rgba(165,180,252,0.15)' : 'rgba(255,255,255,0.04)', color: category === cat ? '#a5b4fc' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: category === cat ? 600 : 400, cursor: 'pointer', transition: 'all 0.14s ease' }}
+                  style={{ padding: '7px 14px', borderRadius: 100, border: _category === cat ? '1px solid rgba(165,180,252,0.5)' : '1px solid rgba(255,255,255,0.1)', background: _category === cat ? 'rgba(165,180,252,0.15)' : 'rgba(255,255,255,0.04)', color: _category === cat ? '#a5b4fc' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: _category === cat ? 600 : 400, cursor: 'pointer', transition: 'all 0.14s ease' }}
                 >{cat}</button>
               ))}
             </div>

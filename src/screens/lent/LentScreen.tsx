@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import { useLent } from '../../hooks/useLent'
+import type { LentEntry, LentStatus } from '../../hooks/useLent'
 import { useWallets } from '../../hooks/useWallets'
 import { useUser } from '../../context/UserContext'
 import { formatINR } from '../../utils/format'
 import { supabase } from '../../lib/supabase'
-import type { LentEntry, LentStatus, EditLentPayload } from '../../hooks/useLent'
 import type { WalletEntry } from '../../lib/db'
 
 // ─── Animated wave canvas ─────────────────────────────────────────────────────
@@ -437,7 +437,7 @@ function LentCard({
   )
 }
 
-// ─── Action Sheet (detail/actions for a lent entry) ───────────────────────────
+// ─── Action Sheet ─────────────────────────────────────────────────────────────
 function LentActionSheet({ open, entry, wallets, onClose, onEdit, onAddMore, onPayment, onSettle, onLogSheet }: {
   open: boolean
   entry: LentEntry | null
@@ -473,7 +473,6 @@ function LentActionSheet({ open, entry, wallets, onClose, onEdit, onAddMore, onP
             }}
           >
             <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '16px auto 12px' }} />
-            {/* Header */}
             <div style={{ padding: '0 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{
@@ -496,7 +495,6 @@ function LentActionSheet({ open, entry, wallets, onClose, onEdit, onAddMore, onP
                 </div>
               </div>
             </div>
-            {/* Actions */}
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {entry.status !== 'settled' && (
                 <>
@@ -547,9 +545,21 @@ function LentActionSheet({ open, entry, wallets, onClose, onEdit, onAddMore, onP
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function LentScreen() {
-  const { lent, loading, error, add, recordPayment, settle, addMore, edit, remove } = useLent()
+  const {
+    entries,
+    loading,
+    error,
+    addLent,
+    makePayment,
+    markSettled,
+    addMoreAmount,
+    editLent,
+    removeEntry,
+    totalOwedToUs,
+    reorderEntries,
+  } = useLent()
   const { wallets } = useWallets()
-  const { user } = useUser()
+  const { activeUser } = useUser()
 
   const [filter, setFilter] = useState<'all' | 'pending' | 'partial' | 'settled'>('all')
   const [actionEntry, setActionEntry] = useState<LentEntry | null>(null)
@@ -557,25 +567,28 @@ export default function LentScreen() {
   const [logEntry,    setLogEntry]    = useState<LentEntry | null>(null)
   const [logOpen,     setLogOpen]     = useState(false)
   const [reorderMode, setReorderMode] = useState(false)
-  const [items, setItems] = useState<LentEntry[]>(lent)
+  const [items, setItems] = useState<LentEntry[]>(entries)
 
-  useEffect(() => { setItems(lent) }, [lent])
+  useEffect(() => { setItems(entries) }, [entries])
 
-  const { totalOwedToUs, settledCount } = useLent()
-  const filtered = filter === 'all' ? lent : lent.filter(e => e.status === filter)
+  const settledCount = entries.filter((e: LentEntry) => e.status === 'settled').length
+  const filtered = filter === 'all' ? entries : entries.filter((e: LentEntry) => e.status === filter)
+
+  // Suppress unused var warning — activeUser used for future per-user filtering
+  void activeUser
 
   const handleTap = (entry: LentEntry) => {
     setActionEntry(entry); setActionOpen(true)
   }
   const handleDelete = async (id: string) => {
-    try { await remove(id) } catch (e) { console.error(e) }
+    try { await removeEntry(id) } catch (e) { console.error(e) }
   }
   const handlePayment = async () => {
     setActionOpen(false)
   }
   const handleSettle = async () => {
-    if (!actionEntry) return
-    try { await settle(actionEntry.id); setActionOpen(false) } catch (e) { console.error(e) }
+    if (!actionEntry || !wallets[0]) return
+    try { await markSettled(actionEntry.id, wallets[0].id); setActionOpen(false) } catch (e) { console.error(e) }
   }
   const handleAddMore = async () => {
     setActionOpen(false)
@@ -611,7 +624,7 @@ export default function LentScreen() {
             <p style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.7)', marginBottom: 6 }}>Total Outstanding</p>
             <p style={{ fontSize: 32, fontWeight: 700, color: '#34D399', letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalOwedToUs)}</p>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 6 }}>
-              {lent.length} entries · {settledCount} settled
+              {entries.length} entries · {settledCount} settled
             </p>
           </div>
         </motion.div>
@@ -642,7 +655,7 @@ export default function LentScreen() {
         {!loading && !reorderMode && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <AnimatePresence initial={false}>
-              {filtered.map(entry => {
+              {filtered.map((entry: LentEntry) => {
                 const dc = useDragControls()
                 return (
                   <LentCard key={entry.id} entry={entry} onTap={() => handleTap(entry)}
@@ -656,10 +669,10 @@ export default function LentScreen() {
         )}
 
         {!loading && reorderMode && (
-          <Reorder.Group axis="y" values={items} onReorder={setItems}
+          <Reorder.Group axis="y" values={items} onReorder={(newOrder) => { setItems(newOrder); reorderEntries(newOrder) }}
             style={{ display: 'flex', flexDirection: 'column', gap: 10, listStyle: 'none', padding: 0 }}
           >
-            {items.map(entry => {
+            {items.map((entry: LentEntry) => {
               const dc = useDragControls()
               return (
                 <Reorder.Item key={entry.id} value={entry} dragControls={dc} dragListener={false}
