@@ -16,8 +16,10 @@ function formatTxDate(iso: string): string {
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`
 }
 
-function groupByDate(txs: ReturnType<typeof useTransactions>['transactions']) {
-  const groups: Record<string, typeof txs> = {}
+type TxList = ReturnType<typeof useTransactions>['transactions']
+
+function groupByDate(txs: TxList) {
+  const groups: Record<string, TxList> = {}
   for (const tx of txs) {
     const key = new Date(tx.created_at).toDateString()
     if (!groups[key]) groups[key] = []
@@ -35,7 +37,7 @@ export function LedgerScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmId, setConfirmId]   = useState<string | null>(null)
 
-  const { transactions, loading, error, removeTransaction, totalIncome, totalExpenses, balance } = useTransactions()
+  const { transactions, loading, error, removeTransaction } = useTransactions()
   const { expenseCategories, incomeCategories } = useCategories()
 
   // Build a lookup: category label → { icon, accent, bg, glow }
@@ -49,7 +51,6 @@ export function LedgerScreen() {
 
   const getCatMeta = (category: string) => {
     const key = (category ?? '').toLowerCase()
-    // Try exact match first, then partial
     if (catLookup[key]) return catLookup[key]
     const partial = Object.keys(catLookup).find(k => key.includes(k) || k.includes(key))
     if (partial) return catLookup[partial]
@@ -69,9 +70,9 @@ export function LedgerScreen() {
   [monthTxs, typeFilter, userFilter])
 
   // Month-scoped totals
-  const monthIncome   = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthTxs])
-  const monthExpense  = useMemo(() => monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [monthTxs])
-  const monthBalance  = monthIncome - monthExpense
+  const monthIncome  = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthTxs])
+  const monthExpense = useMemo(() => monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [monthTxs])
+  const monthBalance = monthIncome - monthExpense
 
   const grouped = useMemo(() => groupByDate(filtered), [filtered])
 
@@ -228,6 +229,8 @@ export function LedgerScreen() {
                         const userInitial  = (tx.created_by ?? 'U')[0].toUpperCase()
                         const userColor    = (tx.created_by ?? '').toLowerCase() === 'jenifa' ? '#F9A8D4' : '#5EEAD4'
                         const userBg       = (tx.created_by ?? '').toLowerCase() === 'jenifa' ? 'rgba(249,168,212,0.12)' : 'rgba(94,234,212,0.12)'
+                        // Show description as note only when it differs meaningfully from the category name
+                        const hasNote = tx.description && tx.description.toLowerCase().trim() !== (tx.category ?? '').toLowerCase().trim()
 
                         return (
                           <motion.div key={tx.id}
@@ -260,17 +263,10 @@ export function LedgerScreen() {
 
                               {/* Info */}
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                                  <p style={{ fontSize: 13, fontWeight: 700, color: meta.accent, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>
-                                    {tx.category}
-                                  </p>
-                                  {tx.subcategory && (
-                                    <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', background: 'rgba(255,255,255,0.07)', borderRadius: 100, padding: '1px 7px', whiteSpace: 'nowrap' }}>
-                                      {tx.subcategory}
-                                    </span>
-                                  )}
-                                </div>
-                                {tx.description && tx.description !== tx.category && (
+                                <p style={{ fontSize: 13, fontWeight: 700, color: meta.accent, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: hasNote ? 3 : 0 }}>
+                                  {tx.category}
+                                </p>
+                                {hasNote && (
                                   <p style={{ fontSize: 11, color: 'rgba(245,245,245,0.42)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {tx.description}
                                   </p>
@@ -285,8 +281,8 @@ export function LedgerScreen() {
                                 }}>
                                   {tx.type === 'income' ? '+' : '-'}{formatINR(tx.amount)}
                                 </p>
-                                {/* User badge */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                  {/* User badge */}
                                   <div style={{
                                     width: 20, height: 20, borderRadius: '50%',
                                     background: userBg,
