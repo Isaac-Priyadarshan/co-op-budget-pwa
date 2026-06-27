@@ -352,6 +352,7 @@ function BorrowTransactionLogSheet({ open, entry, onClose }: {
 
 // ─── Wallet picker ────────────────────────────────────────────────────────────
 // FIX: z-index bumped to 600/601 so it always floats above every parent sheet
+// (PaymentSheet, AddMoreSheet, AddBorrowedSheet) regardless of stacking context
 function WalletPicker({ open, wallets, title, onSelect, onClose }: {
   open: boolean; wallets: WalletEntry[]; title: string
   onSelect: (w: WalletEntry) => void; onClose: () => void
@@ -627,7 +628,7 @@ function EditBorrowedSheet({ open, entry, saving, onClose, onSave }: {
 }
 
 // ─── Add More Sheet ───────────────────────────────────────────────────────────
-// FIX: added maxHeight + overflowY so wallet button is never clipped off-screen
+// FIX: maxHeight + overflowY added so wallet selector button is never clipped
 function AddMoreSheet({ open, entry, wallets, saving, onClose, onSave }: {
   open: boolean; entry: BorrowedEntry | null; wallets: WalletEntry[]; saving: boolean
   onClose: () => void
@@ -713,7 +714,7 @@ function AddMoreSheet({ open, entry, wallets, saving, onClose, onSave }: {
 }
 
 // ─── Payment / Settle Sheet ───────────────────────────────────────────────────
-// FIX: added maxHeight + overflowY so the wallet selector row is never hidden off-screen
+// FIX: maxHeight + overflowY added so wallet selector is never hidden off-screen
 type PaymentMode = 'partial' | 'settle'
 
 function PaymentSheet({ open, mode, entry, wallets, saving, onClose, onPartial, onSettle }: {
