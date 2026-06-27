@@ -12,6 +12,7 @@ export interface Transaction {
   category: string
   created_by: AppUser
   created_at: string
+  transaction_date: string
   type: 'income' | 'expense'
   wallet_id?: string | null
 }
@@ -30,7 +31,7 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
-    .order('created_at', { ascending: false })
+    .order('transaction_date', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as Transaction[]
 }
@@ -42,9 +43,10 @@ export async function insertTransaction(tx: NewTransaction): Promise<void> {
     category: tx.category,
     created_by: tx.created_by,
     type: tx.type,
+    // Write to dedicated transaction_date column — never touch created_at
+    transaction_date: tx.transaction_date ?? new Date().toISOString(),
   }
   if (tx.wallet_id) payload.wallet_id = tx.wallet_id
-  if (tx.transaction_date) payload.created_at = tx.transaction_date
   const { error } = await supabase.from('transactions').insert([payload])
   if (error) throw new Error(error.message)
 }
