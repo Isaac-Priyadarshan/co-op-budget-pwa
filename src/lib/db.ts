@@ -39,42 +39,88 @@ export async function fetchTransactions(): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
-    // Primary: newest transaction_date first.
-    // Secondary: newest created_at first — stable tiebreaker when two
-    // transactions share the same date (e.g. both picked "today").
     .order('transaction_date', { ascending: false })
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as Transaction[]
 }
 
-export async function insertTransaction(tx: NewTransaction): Promise<void> {
+export async function insertTransaction(tx: NewTransaction): Promise<Transaction> {
   const payload: Record<string, unknown> = {
     amount: tx.amount,
     description: tx.description,
     category: tx.category,
     created_by: tx.created_by,
     type: tx.type,
-    // Always write a clean DATE string — never a full ISO timestamp
     transaction_date: toDateOnly(tx.transaction_date),
   }
   if (tx.wallet_id) payload.wallet_id = tx.wallet_id
-  const { error } = await supabase.from('transactions').insert([payload])
+
+  // Use .select().single() so we get the inserted row back.
+  // This also confirms the INSERT actually landed — if RLS blocks it,
+  // Supabase returns an error here instead of silently swallowing it.
+  const { data, error } = await supabase
+    .from('transactions')
+    .insert([payload])
+    .select()
+    .single()
   if (error) throw new Error(error.message)
+  return data as Transaction
 }
 
+// deleteTransaction — hardened against silent RLS failures.
+//
+// Problem: supabase.delete().eq() returns { error: null } even when RLS
+// blocks the delete — the row is simply not removed. The caller sees
+// "success" but the row survives, causing it to reappear on next load.
+//
+// Fix: after the delete call, immediately SELECT the row. If it still
+// exists, the delete was silently blocked — throw an explicit error so
+// DataContext rolls back the optimistic UI removal and the user sees
+// a real failure message instead of a phantom disappearance.
 export async function deleteTransaction(id: string): Promise<void> {
-  const { error } = await supabase.from('transactions').delete().eq('id', id)
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', id)
+
   if (error) throw new Error(error.message)
+
+  // Post-delete verification: confirm the row is truly gone.
+  const { data: ghost, error: checkError } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (checkError) throw new Error(checkError.message)
+
+  if (ghost) {
+    // Row still exists — delete was silently blocked (RLS or network race).
+    // Retry once with explicit error on second failure.
+    const { error: retryError } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id)
+    if (retryError) throw new Error(retryError.message)
+
+    // Final check after retry
+    const { data: stillGhost } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (stillGhost) {
+      throw new Error(
+        'Delete was blocked by database policy. This transaction could not be permanently removed.'
+      )
+    }
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
 // WALLET MODULE
-// Wallets are shared between Isaac & Jenifa — no owner field needed.
-// DB migration required before deploying:
-//   ALTER TABLE wallets ALTER COLUMN owner DROP NOT NULL;
-//   ALTER TABLE wallets DROP CONSTRAINT IF EXISTS wallets_owner_check;
-//   ALTER TABLE wallets ADD COLUMN IF NOT EXISTS sort_order integer DEFAULT 0;
 // ════════════════════════════════════════════════════════════════════════════
 
 export interface WalletEntry {
@@ -148,7 +194,6 @@ export async function updateWalletBalance(id: string, balance: number): Promise<
   if (error) throw new Error(error.message)
 }
 
-// Batch-update sort_order for a list of wallets after drag-to-reorder.
 export async function updateWalletSortOrders(
   updates: { id: string; sort_order: number }[]
 ): Promise<void> {
