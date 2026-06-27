@@ -287,12 +287,13 @@ export function BudgetScreen() {
   const { expenseCategories, subcategories }  = useCategories()
   const { totalPlanned, getBudget, getParentTotal, upsertBudget, loading: budgetLoading } = useBudgets(mKey)
 
-  // ── Month-scoped expense transactions ───────────────────────────────────────
+  // ── Month-scoped expense transactions (uses transaction_date, not created_at) ─
   const monthTxs = useMemo(() => {
     const start = new Date(mStart + 'T00:00:00')
     const end   = new Date(mEnd   + 'T23:59:59')
     return transactions.filter(tx => {
-      const d = new Date(tx.created_at)
+      const dateStr = (tx.transaction_date ?? tx.created_at ?? '').substring(0, 10)
+      const d = new Date(dateStr + 'T00:00:00')
       return tx.type === 'expense' && d >= start && d <= end
     })
   }, [transactions, mStart, mEnd])
@@ -647,9 +648,14 @@ export function BudgetScreen() {
                                   <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
                                     {formatINR(subSpent)} / {formatINR(subBudget)}
                                   </p>
-                                  {subBudget === 0 && (
+                                  {subBudget === 0 && subSpent === 0 && (
                                     <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.20)', marginTop: 1, letterSpacing: '0.04em' }}>
                                       Tap to set budget
+                                    </p>
+                                  )}
+                                  {subBudget === 0 && subSpent > 0 && (
+                                    <p style={{ fontSize: 9, color: 'rgba(251,191,36,0.50)', marginTop: 1, letterSpacing: '0.04em' }}>
+                                      No budget set · tap to set one
                                     </p>
                                   )}
                                 </div>
