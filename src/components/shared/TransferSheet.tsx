@@ -72,7 +72,7 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
   const { activeUser }       = useUser()
 
   const walletOptions = wallets.filter(w => w.type === 'cash')
-  const destOptions   = wallets  // wallets + credit cards
+  const destOptions   = wallets
 
   const [fromId,  setFromId]  = useState('')
   const [toId,    setToId]    = useState('')
@@ -94,12 +94,16 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
 
   const handleTransfer = async () => {
     setErr('')
-    if (!fromId)                         { setErr('Select a source wallet'); return }
-    if (!toId)                           { setErr('Select a destination account'); return }
-    if (fromId === toId)                 { setErr('Source and destination must be different'); return }
+    if (!fromId)                           { setErr('Select a source wallet'); return }
+    if (!toId)                             { setErr('Select a destination account'); return }
+    if (fromId === toId)                   { setErr('Source and destination must be different'); return }
     const amt = parseFloat(amount)
     if (!amount || isNaN(amt) || amt <= 0) { setErr('Enter a valid amount greater than 0'); return }
     if (fromWallet && amt > fromWallet.balance) { setErr(`Insufficient balance in "${fromWallet.label}"`); return }
+
+    // activeUser can be null before a user is selected. Guard here so the
+    // rest of the function is safe and TypeScript is satisfied.
+    if (!activeUser) { setErr('No active user. Please select Isaac or Jenifa first.'); return }
 
     try {
       setSaving(true)
@@ -107,15 +111,11 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
       const newFromBalance = parseFloat(((fromWallet?.balance ?? 0) - amt).toFixed(2))
       const newToBalance   = parseFloat(((toWallet?.balance   ?? 0) + amt).toFixed(2))
 
-      // 1. Update balances
       await Promise.all([
         updateWalletBalance(fromId, newFromBalance),
         updateWalletBalance(toId,   newToBalance),
       ])
 
-      // 2. Write transfer log rows — one for each wallet so they appear
-      //    in each wallet's own transaction log.
-      //    type: 'transfer' keeps them out of the main Ledger screen.
       await insertTransferPair(
         fromId,
         fromWallet?.label ?? 'Unknown',
@@ -123,7 +123,7 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
         toWallet?.label ?? 'Unknown',
         amt,
         note.trim(),
-        activeUser,
+        activeUser,           // guaranteed non-null by the guard above
       )
 
       await refresh()
