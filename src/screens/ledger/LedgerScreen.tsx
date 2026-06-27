@@ -5,7 +5,7 @@ import { useCategories } from '../../hooks/useCategories'
 import { useWallets } from '../../hooks/useWallets'
 import { formatINR } from '../../utils/format'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────────────────
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
@@ -22,17 +22,21 @@ function formatTxDate(iso: string): string {
 }
 
 type TxList = ReturnType<typeof useTransactions>['transactions']
+
+// Group by the user-chosen transaction_date (not system created_at)
 function groupByDate(txs: TxList) {
   const groups: Record<string, TxList> = {}
   for (const tx of txs) {
-    const key = new Date(tx.created_at).toDateString()
+    // transaction_date is the date the user picked; fall back to created_at
+    const source = tx.transaction_date ?? tx.created_at
+    const key = new Date(source).toDateString()
     if (!groups[key]) groups[key] = []
     groups[key].push(tx)
   }
   return Object.entries(groups).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
 }
 
-// ─── Animated Wave Canvas ─────────────────────────────────────────────────────
+// ─── Animated Wave Canvas ───────────────────────────────────────────────────────────
 function WaveCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef<number>(0)
@@ -109,7 +113,7 @@ function WaveCanvas() {
   )
 }
 
-// ─── Wallet Pill ──────────────────────────────────────────────────────────────
+// ─── Wallet Pill ─────────────────────────────────────────────────────────────────────────
 function WalletPill({ label, type }: { label: string; type: string }) {
   const isCash   = type === 'cash'
   const icon     = isCash ? '💵' : '💳'
@@ -131,7 +135,7 @@ function WalletPill({ label, type }: { label: string; type: string }) {
   )
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// ─── Main Screen ──────────────────────────────────────────────────────────────────────────
 export function LedgerScreen() {
   const today   = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
@@ -149,7 +153,6 @@ export function LedgerScreen() {
   const { expenseCategories, incomeCategories } = useCategories()
   const { wallets } = useWallets()
 
-  // wallet id → { label, type } lookup
   const walletLookup = useMemo(() => {
     const map: Record<string, { label: string; type: string }> = {}
     for (const w of wallets) map[w.id] = { label: w.label, type: w.type }
@@ -185,11 +188,13 @@ export function LedgerScreen() {
     return { icon: '💳', accent: '#A78BFA', bg: 'rgba(167,139,250,0.12)', glow: 'rgba(167,139,250,0.18)' }
   }
 
+  // ❗ Use transaction_date for range filtering (not system created_at)
   const rangeTxs = useMemo(() => {
     const start = new Date(startDate + 'T00:00:00')
     const end   = new Date(endDate   + 'T23:59:59')
     return transactions.filter(tx => {
-      const d = new Date(tx.created_at)
+      const source = tx.transaction_date ?? tx.created_at
+      const d = new Date(source)
       return d >= start && d <= end
     })
   }, [transactions, startDate, endDate])
@@ -350,7 +355,7 @@ export function LedgerScreen() {
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
             style={{ textAlign: 'center', padding: '52px 24px', borderRadius: 24, background: 'rgba(251,191,36,0.03)', border: '1px solid rgba(251,191,36,0.10)' }}
           >
-            <p style={{ fontSize: 40, marginBottom: 14 }}>📒</p>
+            <p style={{ fontSize: 40, marginBottom: 14 }}>📋</p>
             <p style={{ fontSize: 15, fontWeight: 700, color: 'rgba(245,245,245,0.55)', marginBottom: 6 }}>No transactions</p>
             <p style={{ fontSize: 12, color: 'rgba(245,245,245,0.28)' }}>{startDate} → {endDate}</p>
             <p style={{ fontSize: 12, color: 'rgba(245,245,245,0.22)', marginTop: 4 }}>Tap a category on Home to add one</p>
@@ -367,7 +372,8 @@ export function LedgerScreen() {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(251,191,36,0.65)', letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                      {formatTxDate(txs[0].created_at)}
+                      {/* Show the user-chosen date, not the server insert time */}
+                      {formatTxDate(txs[0].transaction_date ?? txs[0].created_at)}
                     </span>
                     <div style={{ flex: 1, height: 1, background: 'rgba(251,191,36,0.10)' }} />
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.28)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
