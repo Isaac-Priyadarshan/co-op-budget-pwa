@@ -245,7 +245,7 @@ export async function deleteTransaction(id: string): Promise<void> {
     const { data: stillGhost } = await supabase
       .from('transactions')
       .select('id')
-      .eq('id', id)
+      .eq('id')
       .maybeSingle()
 
     if (stillGhost) {
