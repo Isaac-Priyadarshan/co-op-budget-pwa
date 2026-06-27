@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
@@ -9,26 +9,87 @@ import { DefaultWalletSheet } from '../../components/shared/DefaultWalletSheet'
 import { formatINR } from '../../utils/format'
 import type { WalletEntry, NewWallet } from '../../lib/db'
 
-// ─── Wave background SVG ───────────────────────────────────────────────────────
-function WalletWaveCanvas() {
+// ─── Animated Wave Canvas ──────────────────────────────────────────────────────
+// Indigo (primary) + Green (secondary) — neutral combined-view palette
+function SummaryWaveCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rafRef    = useRef<number>(0)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    let t = 0
+    const draw = () => {
+      const W = canvas.width
+      const H = canvas.height
+      ctx.clearRect(0, 0, W, H)
+
+      // Wave 1 — Indigo, dominant
+      ctx.beginPath()
+      for (let x = 0; x <= W; x += 2) {
+        const y = H * 0.52
+          + Math.sin((x / W) * Math.PI * 2.4 + t * 0.6) * H * 0.14
+          + Math.sin((x / W) * Math.PI * 1.1 + t * 0.35) * H * 0.07
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath()
+      const g1 = ctx.createLinearGradient(0, 0, 0, H)
+      g1.addColorStop(0, 'rgba(99,102,241,0.20)')
+      g1.addColorStop(1, 'rgba(99,102,241,0.04)')
+      ctx.fillStyle = g1
+      ctx.fill()
+
+      // Wave 2 — Green, quieter
+      ctx.beginPath()
+      for (let x = 0; x <= W; x += 2) {
+        const y = H * 0.64
+          + Math.sin((x / W) * Math.PI * 3.2 + t * 0.9 + 1.2) * H * 0.09
+          + Math.sin((x / W) * Math.PI * 1.8 + t * 0.5 + 0.6) * H * 0.05
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath()
+      const g2 = ctx.createLinearGradient(0, 0, 0, H)
+      g2.addColorStop(0, 'rgba(52,211,153,0.14)')
+      g2.addColorStop(1, 'rgba(52,211,153,0.03)')
+      ctx.fillStyle = g2
+      ctx.fill()
+
+      // Wave 1 stroke line — Indigo tinted
+      ctx.beginPath()
+      for (let x = 0; x <= W; x += 2) {
+        const y = H * 0.52
+          + Math.sin((x / W) * Math.PI * 2.4 + t * 0.6) * H * 0.14
+          + Math.sin((x / W) * Math.PI * 1.1 + t * 0.35) * H * 0.07
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.strokeStyle = 'rgba(99,102,241,0.30)'
+      ctx.lineWidth = 1.2
+      ctx.stroke()
+
+      t += 0.012
+      rafRef.current = requestAnimationFrame(draw)
+    }
+
+    draw()
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [])
+
   return (
-    <svg viewBox="0 0 600 140" preserveAspectRatio="none"
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-    >
-      <defs>
-        <linearGradient id="ww1" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(248,113,113,0.22)" />
-          <stop offset="100%" stopColor="rgba(248,113,113,0.04)" />
-        </linearGradient>
-        <linearGradient id="ww2" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(52,211,153,0.16)" />
-          <stop offset="100%" stopColor="rgba(52,211,153,0.03)" />
-        </linearGradient>
-      </defs>
-      <path d="M0,88 C80,68 150,112 230,92 C320,68 410,42 600,84 L600,140 L0,140 Z" fill="url(#ww1)" />
-      <path d="M0,104 C100,74 180,134 300,108 C410,84 500,58 600,98 L600,140 L0,140 Z" fill="url(#ww2)" />
-      <path d="M0,88 C80,68 150,112 230,92 C320,68 410,42 600,84" fill="none" stroke="rgba(248,113,113,0.32)" strokeWidth="1.4" />
-    </svg>
+    <canvas
+      ref={canvasRef}
+      width={600}
+      height={112}
+      style={{
+        position: 'absolute',
+        bottom: 0, left: 0, right: 0,
+        width: '100%', height: '100%',
+        borderRadius: 22,
+        pointerEvents: 'none',
+      }}
+    />
   )
 }
 
@@ -212,7 +273,7 @@ export function WalletCreditScreen() {
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#818CF8' }}>Transfer</span>
       </motion.button>
 
-      {/* Default button — NEW */}
+      {/* Default button */}
       <motion.button
         whileTap={{ scale: 0.82 }}
         onClick={() => setDefaultOpen(true)}
@@ -266,30 +327,47 @@ export function WalletCreditScreen() {
         background: 'linear-gradient(to bottom, #000000 80%, transparent 100%)',
         backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
       }}>
-        <div style={{
-          position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 16,
-          background: 'linear-gradient(160deg,#110709 0%,#060b11 58%,#07110c 100%)',
-          border: '1px solid rgba(99,102,241,0.24)',
-          boxShadow: '0 0 0 1px rgba(99,102,241,0.05), 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 rgba(255,255,255,0.04) inset',
-          minHeight: 112,
-        }}>
-          <WalletWaveCanvas />
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,rgba(248,113,113,0.45),transparent)' }} />
-          <div style={{ position: 'relative', zIndex: 2, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '22px 20px 24px' }}>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+          style={{
+            position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 16,
+            background: 'linear-gradient(160deg,#06080f 0%,#040607 58%,#060a08 100%)',
+            border: '1px solid rgba(99,102,241,0.24)',
+            boxShadow: '0 0 0 1px rgba(99,102,241,0.05), 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 rgba(99,102,241,0.08) inset',
+            minHeight: 112,
+          }}
+        >
+          {/* Animated wave background */}
+          <SummaryWaveCanvas />
+
+          {/* Top glint line — indigo tinted */}
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+            background: 'linear-gradient(90deg,transparent,rgba(99,102,241,0.55),transparent)',
+          }} />
+
+          {/* 3-column content grid — unchanged */}
+          <div style={{
+            position: 'relative', zIndex: 2,
+            display: 'grid', gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center', padding: '22px 20px 24px',
+          }}>
             <div>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.65)', marginBottom: 6 }}>Credit Owed</p>
               <p style={{ fontSize: 17, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatINR(totalCredit)}</p>
             </div>
             <div style={{ textAlign: 'center', padding: '0 18px' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.65)', marginBottom: 6 }}>Total Cash</p>
-              <p style={{ fontSize: 22, fontWeight: 900, color: '#34D399', lineHeight: 1, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 18px rgba(52,211,153,0.25)' }}>{formatINR(totalCash)}</p>
+              <p style={{ fontSize: 22, fontWeight: 900, color: '#34D399', lineHeight: 1, fontVariantNumeric: 'tabular-nums', textShadow: '0 0 18px rgba(52,211,153,0.45)' }}>{formatINR(totalCash)}</p>
             </div>
             <div style={{ textAlign: 'right' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(165,180,252,0.65)', marginBottom: 6 }}>Total Limit</p>
               <p style={{ fontSize: 17, fontWeight: 800, color: '#A5B4FC', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{formatINR(totalCreditLimit)}</p>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* ── Scrollable content ── */}
