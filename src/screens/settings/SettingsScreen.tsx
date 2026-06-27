@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import type { Variants } from 'framer-motion'
 import { useUser } from '../../context/UserContext'
 import type { AppUser } from '../../lib/types'
 
@@ -9,7 +10,6 @@ const OPTIONS = [
     icon: '🎨',
     label: 'Theme',
     subtitle: 'Dark · System default',
-    // soft lavender
     bubbleBg: 'rgba(139,92,246,0.18)',
     bubbleBorder: 'rgba(139,92,246,0.32)',
     cardBg: 'rgba(139,92,246,0.06)',
@@ -20,7 +20,6 @@ const OPTIONS = [
     icon: '🔔',
     label: 'Reminders',
     subtitle: 'Daily nudges & alerts',
-    // soft amber
     bubbleBg: 'rgba(251,191,36,0.18)',
     bubbleBorder: 'rgba(251,191,36,0.32)',
     cardBg: 'rgba(251,191,36,0.05)',
@@ -31,7 +30,6 @@ const OPTIONS = [
     icon: '📤',
     label: 'Export Data',
     subtitle: 'Download your records',
-    // soft teal
     bubbleBg: 'rgba(20,184,166,0.18)',
     bubbleBorder: 'rgba(20,184,166,0.32)',
     cardBg: 'rgba(20,184,166,0.05)',
@@ -42,7 +40,6 @@ const OPTIONS = [
     icon: '🗑️',
     label: 'Reset Data',
     subtitle: 'Clear all transactions',
-    // soft rose — signals destructive
     bubbleBg: 'rgba(244,63,94,0.18)',
     bubbleBorder: 'rgba(244,63,94,0.32)',
     cardBg: 'rgba(244,63,94,0.06)',
@@ -67,15 +64,20 @@ const USERS: { id: AppUser; emoji: string; accent: string; accentBorder: string;
   },
 ]
 
-// ─── Container animation ─────────────────────────────────────────────────────
-const containerVariants = {
+// ─── Variants ───────────────────────────────────────────────────────────────────
+// Framer-motion v11 requires ease to be a typed tuple, not number[].
+// Declaring the array as `const` narrows it to [0.16, 1, 0.3, 1] which
+// satisfies the Easing type constraint without any cast gymnastics.
+const EASE = [0.16, 1, 0.3, 1] as const
+
+const containerVariants: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.07 } },
 }
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.38, ease: [0.16, 1, 0.3, 1] } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.38, ease: EASE } },
 }
 
 export function SettingsScreen() {
@@ -137,10 +139,8 @@ export function SettingsScreen() {
                     overflow: 'hidden',
                   }}
                 >
-                  {/* emoji avatar */}
                   <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0 }}>{u.emoji}</span>
 
-                  {/* name + status */}
                   <div style={{ textAlign: 'left', minWidth: 0 }}>
                     <p style={{
                       fontSize: 14,
@@ -161,7 +161,7 @@ export function SettingsScreen() {
                           transition={{ duration: 0.18 }}
                           style={{
                             fontSize: 10,
-                            color: isActive ? u.accent : 'transparent',
+                            color: u.accent,
                             opacity: 0.7,
                             margin: 0,
                             marginTop: 2,
@@ -190,7 +190,6 @@ export function SettingsScreen() {
                     </AnimatePresence>
                   </div>
 
-                  {/* active glow ring */}
                   {isActive && (
                     <motion.div
                       layoutId="user-active-ring"
@@ -232,7 +231,6 @@ export function SettingsScreen() {
               key={opt.key}
               variants={itemVariants}
               whileTap={{ scale: 0.97 }}
-              // stub — wired up in future sessions
               onClick={() => {}}
               style={{
                 width: '100%',
@@ -249,7 +247,6 @@ export function SettingsScreen() {
                 WebkitBackdropFilter: 'blur(12px)',
               }}
             >
-              {/* pastel icon bubble */}
               <div style={{
                 width: 42,
                 height: 42,
@@ -265,7 +262,6 @@ export function SettingsScreen() {
                 {opt.icon}
               </div>
 
-              {/* label + subtitle */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{
                   fontSize: 15,
@@ -287,7 +283,6 @@ export function SettingsScreen() {
                 </p>
               </div>
 
-              {/* chevron */}
               <svg
                 width="16"
                 height="16"
