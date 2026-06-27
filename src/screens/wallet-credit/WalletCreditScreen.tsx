@@ -70,11 +70,25 @@ export function WalletCreditScreen() {
   )
 
   return (
-    <div style={{ padding: '20px 20px calc(env(safe-area-inset-bottom) + 96px)' }}>
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-        {/* ── Summary Card ── */}
-        <div style={{ position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 24, background: 'linear-gradient(160deg,#110709 0%,#060b11 58%,#07110c 100%)', border: '1px solid rgba(99,102,241,0.24)', boxShadow: '0 0 0 1px rgba(99,102,241,0.05), 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 rgba(255,255,255,0.04) inset', minHeight: 112 }}>
+      {/* ── Sticky Summary Card ── */}
+      <div style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        padding: '20px 20px 0',
+        background: 'linear-gradient(to bottom, #000000 80%, transparent 100%)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+      }}>
+        <div style={{
+          position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 16,
+          background: 'linear-gradient(160deg,#110709 0%,#060b11 58%,#07110c 100%)',
+          border: '1px solid rgba(99,102,241,0.24)',
+          boxShadow: '0 0 0 1px rgba(99,102,241,0.05), 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 rgba(255,255,255,0.04) inset',
+          minHeight: 112,
+        }}>
           <WalletWaveCanvas />
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,rgba(248,113,113,0.45),transparent)' }} />
           <div style={{ position: 'relative', zIndex: 2, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '22px 20px 24px' }}>
@@ -92,136 +106,136 @@ export function WalletCreditScreen() {
             </div>
           </div>
         </div>
+      </div>
 
-        {loading && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1, 2, 3].map(i => <div key={i} style={{ height: 72, borderRadius: 20, background: 'rgba(255,255,255,0.05)' }} />)}
-          </div>
-        )}
+      {/* ── Scrollable content ── */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 20px calc(env(safe-area-inset-bottom) + 96px)' }}>
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
 
-        {error && <div style={{ padding: 16, borderRadius: 16, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 14, marginBottom: 16 }}>{error}</div>}
+          {loading && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 8 }}>
+              {[1, 2, 3].map(i => <div key={i} style={{ height: 72, borderRadius: 20, background: 'rgba(255,255,255,0.05)' }} />)}
+            </div>
+          )}
 
-        {/* ── Wallets Section ── */}
-        {!loading && (
-          <section style={{ marginBottom: 24 }}>
-            <SectionHeader
-              label="Wallets"
-              accent="rgba(52,211,153,0.8)"
-              onAdd={() => setSheet({ type: 'add-cash' })}
-            />
+          {error && <div style={{ padding: 16, borderRadius: 16, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 14, marginBottom: 16, marginTop: 8 }}>{error}</div>}
 
-            {walletEntries.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '22px 16px', borderRadius: 16, background: 'rgba(52,211,153,0.04)', border: '1px dashed rgba(52,211,153,0.18)' }}>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No wallets yet — tap + to add one</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <AnimatePresence initial={false}>
-                  {walletEntries.map(wallet => (
-                    <motion.div
-                      key={wallet.id}
-                      layout
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                      onClick={() => setSheet({ type: 'edit', item: wallet })}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 14, padding: '16px',
-                        borderRadius: 18,
-                        background: 'rgba(52,211,153,0.08)',
-                        border: '1px solid rgba(52,211,153,0.18)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ width: 44, height: 44, borderRadius: 14, flexShrink: 0, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.24)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>👛</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{wallet.label}</p>
-                        <p style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.34)' }}>Wallet</p>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>{formatINR(wallet.balance)}</p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-          </section>
-        )}
+          {/* ── Wallets Section ── */}
+          {!loading && (
+            <section style={{ marginBottom: 24, paddingTop: 8 }}>
+              <SectionHeader
+                label="Wallets"
+                accent="rgba(52,211,153,0.8)"
+                onAdd={() => setSheet({ type: 'add-cash' })}
+              />
 
-        {/* ── Credit Cards Section ── */}
-        {!loading && (
-          <section>
-            <SectionHeader
-              label="Credit Cards"
-              accent="rgba(248,113,113,0.8)"
-              onAdd={() => setSheet({ type: 'add-credit' })}
-            />
-
-            {creditEntries.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '22px 16px', borderRadius: 16, background: 'rgba(248,113,113,0.04)', border: '1px dashed rgba(248,113,113,0.18)' }}>
-                <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No credit cards yet — tap + to add one</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <AnimatePresence initial={false}>
-                  {creditEntries.map(card => (
-                    <motion.div
-                      key={card.id}
-                      layout
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                      onClick={() => setSheet({ type: 'edit', item: card })}
-                      style={{
-                        borderRadius: 20, padding: '16px',
-                        background: 'rgba(248,113,113,0.08)',
-                        border: '1px solid rgba(248,113,113,0.18)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                        <div style={{ width: 46, height: 46, borderRadius: 16, flexShrink: 0, background: 'rgba(248,113,113,0.14)', border: '1px solid rgba(248,113,113,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>💳</div>
+              {walletEntries.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '22px 16px', borderRadius: 16, background: 'rgba(52,211,153,0.04)', border: '1px dashed rgba(52,211,153,0.18)' }}>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No wallets yet — tap + to add one</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <AnimatePresence initial={false}>
+                    {walletEntries.map(wallet => (
+                      <motion.div
+                        key={wallet.id}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                        onClick={() => setSheet({ type: 'edit', item: wallet })}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 14, padding: '16px',
+                          borderRadius: 18,
+                          background: 'rgba(52,211,153,0.08)',
+                          border: '1px solid rgba(52,211,153,0.18)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ width: 44, height: 44, borderRadius: 14, flexShrink: 0, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.24)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>👛</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-                            <div style={{ minWidth: 0 }}>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', marginBottom: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.label}</p>
-                              <p style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.34)' }}>Credit Card</p>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{wallet.label}</p>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>{formatINR(wallet.balance)}</p>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ── Credit Cards Section ── */}
+          {!loading && (
+            <section>
+              <SectionHeader
+                label="Credit Cards"
+                accent="rgba(248,113,113,0.8)"
+                onAdd={() => setSheet({ type: 'add-credit' })}
+              />
+
+              {creditEntries.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '22px 16px', borderRadius: 16, background: 'rgba(248,113,113,0.04)', border: '1px dashed rgba(248,113,113,0.18)' }}>
+                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No credit cards yet — tap + to add one</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <AnimatePresence initial={false}>
+                    {creditEntries.map(card => (
+                      <motion.div
+                        key={card.id}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                        onClick={() => setSheet({ type: 'edit', item: card })}
+                        style={{
+                          borderRadius: 20, padding: '16px',
+                          background: 'rgba(248,113,113,0.08)',
+                          border: '1px solid rgba(248,113,113,0.18)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                          <div style={{ width: 46, height: 46, borderRadius: 16, flexShrink: 0, background: 'rgba(248,113,113,0.14)', border: '1px solid rgba(248,113,113,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>💳</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                              <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{card.label}</p>
+                              <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{formatINR(card.balance)}</p>
                             </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.balance)}</p>
-                            </div>
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                            <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                              <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Total Limit</p>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: '#A5B4FC', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.credit_limit ?? 0)}</p>
-                            </div>
-                            <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                              <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Outstanding</p>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.balance)}</p>
-                            </div>
-                            <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                              <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Billing Date</p>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatDayOfMonth(card.billing_date)}</p>
-                            </div>
-                            <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                              <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Due Date</p>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatDayOfMonth(card.due_date)}</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                              <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Total Limit</p>
+                                <p style={{ fontSize: 14, fontWeight: 700, color: '#A5B4FC', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.credit_limit ?? 0)}</p>
+                              </div>
+                              <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Outstanding</p>
+                                <p style={{ fontSize: 14, fontWeight: 700, color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.balance)}</p>
+                              </div>
+                              <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Billing Date</p>
+                                <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatDayOfMonth(card.billing_date)}</p>
+                              </div>
+                              <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                                <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Due Date</p>
+                                <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatDayOfMonth(card.due_date)}</p>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            )}
-          </section>
-        )}
-      </motion.div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </section>
+          )}
+        </motion.div>
+      </div>
 
       {/* ── Sheets ── */}
       <WalletSheet
