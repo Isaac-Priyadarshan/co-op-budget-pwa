@@ -65,8 +65,8 @@ export function useLent() {
 
   useEffect(() => { load() }, [load])
 
-  // ── Add new lent entry + DEDUCT from wallet + auto ledger transaction ──────
-  // LOGIC: When we lend money OUT, our wallet DECREASES (we give money away)
+  // ── Add new lent entry + DEDUCT from wallet + auto ledger transaction ─────
+  // Logic: when you LEND money, it goes OUT of your wallet (expense)
   const addLent = useCallback(async (entry: NewLent) => {
     setSaving(true); setError(null)
     try {
@@ -86,7 +86,7 @@ export function useLent() {
         .single()
       if (err) throw new Error(err.message)
 
-      // DEDUCT from wallet — we gave money out
+      // DEDUCT from wallet — money left your wallet
       if (entry.source_wallet_id) {
         await adjustWalletBalance(entry.source_wallet_id, -entry.amount)
       }
@@ -138,8 +138,8 @@ export function useLent() {
     setEntries(newOrder)
   }, [])
 
-  // ── Lend more to an existing person (re-opens settled entries) ───────────
-  // LOGIC: We give more money out — wallet DECREASES again
+  // ── Lend more — DEDUCT more from wallet (re-opens settled entries) ────────
+  // Logic: lending MORE money = more goes OUT of your wallet
   const addMoreAmount = useCallback(async (
     id: string,
     extraAmount: number,
@@ -161,7 +161,7 @@ export function useLent() {
         .single()
       if (err) throw new Error(err.message)
 
-      // DEDUCT from wallet — we gave more money out
+      // DEDUCT from wallet — more money went out
       await adjustWalletBalance(walletId, -extraAmount)
 
       await insertTransaction({
@@ -182,8 +182,8 @@ export function useLent() {
     }
   }, [entries])
 
-  // ── Partial recovery ── ADD to wallet + auto ledger transaction ──────────
-  // LOGIC: We receive money back — wallet INCREASES
+  // ── Partial recovery — ADD to wallet (money comes back) ───────────────────
+  // Logic: when someone returns part of the money, wallet INCREASES
   const makePayment = useCallback(async (
     id: string,
     payAmount: number,
@@ -205,7 +205,7 @@ export function useLent() {
         .single()
       if (err) throw new Error(err.message)
 
-      // ADD to wallet — we received money back
+      // ADD to wallet — money came back
       await adjustWalletBalance(walletId, payAmount)
 
       await insertTransaction({
@@ -226,8 +226,8 @@ export function useLent() {
     }
   }, [entries])
 
-  // ── Mark fully recovered ── ADD remaining to wallet + auto ledger ─────────
-  // LOGIC: Full amount returned — wallet INCREASES by remaining
+  // ── Mark fully settled — ADD remaining to wallet ──────────────────────────
+  // Logic: all money returned = full remaining amount added back to wallet
   const markSettled = useCallback(async (
     id: string,
     walletId: string,
@@ -247,7 +247,7 @@ export function useLent() {
       if (err) throw new Error(err.message)
 
       if (remaining > 0) {
-        // ADD remaining to wallet — we got back the rest
+        // ADD remaining to wallet — rest of money came back
         await adjustWalletBalance(walletId, remaining)
 
         await insertTransaction({

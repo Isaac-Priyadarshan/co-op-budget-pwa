@@ -140,11 +140,14 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
     <AnimatePresence>
       {open && entry && (
         <>
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.78)', zIndex: 400 }}
           />
+
+          {/* Sheet */}
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 340, damping: 34 }}
@@ -157,7 +160,10 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
               display: 'flex', flexDirection: 'column',
             }}
           >
+            {/* Drag pill */}
             <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '16px auto 0', flexShrink: 0 }} />
+
+            {/* Header */}
             <div style={{ padding: '16px 20px 12px', flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
@@ -185,7 +191,9 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
               </div>
             </div>
 
+            {/* Body — scrollable */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px calc(env(safe-area-inset-bottom) + 24px)' }}>
+
               {loading && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {[1,2,3].map(i => (
@@ -193,9 +201,11 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
                   ))}
                 </div>
               )}
+
               {err && (
                 <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center', padding: '20px 0' }}>{err}</p>
               )}
+
               {!loading && !err && rows.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '36px 0' }}>
                   <p style={{ fontSize: 28, marginBottom: 10 }}>📭</p>
@@ -205,12 +215,15 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
                   </p>
                 </div>
               )}
+
               {!loading && !err && rows.length > 0 && (
                 <div style={{ position: 'relative' }}>
+                  {/* Vertical timeline line */}
                   <div style={{
                     position: 'absolute', left: 11, top: 12, bottom: 12, width: 1,
                     background: 'rgba(255,255,255,0.07)',
                   }} />
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                     {rows.map((row, idx) => {
                       const meta = logEventMeta(row)
@@ -226,6 +239,7 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
                             paddingBottom: isLast ? 0 : 16,
                           }}
                         >
+                          {/* Timeline dot */}
                           <div style={{
                             width: 23, height: 23, borderRadius: '50%', flexShrink: 0,
                             background: `${meta.dot}20`,
@@ -233,8 +247,13 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             marginTop: 2, position: 'relative', zIndex: 1,
                           }}>
-                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot }} />
+                            <div style={{
+                              width: 7, height: 7, borderRadius: '50%',
+                              background: meta.dot,
+                            }} />
                           </div>
+
+                          {/* Content */}
                           <div style={{
                             flex: 1, minWidth: 0,
                             padding: '10px 14px',
@@ -244,10 +263,16 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
                           }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                               <div style={{ minWidth: 0 }}>
-                                <p style={{ fontSize: 13, fontWeight: 700, color: '#f5f7ff', marginBottom: 3 }}>
+                                <p style={{
+                                  fontSize: 13, fontWeight: 700, color: '#f5f7ff',
+                                  marginBottom: 3,
+                                }}>
                                   {meta.label}
                                 </p>
-                                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                <p style={{
+                                  fontSize: 11, color: 'rgba(255,255,255,0.35)',
+                                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                }}>
                                   {formatLogDate(row.transaction_date)}
                                 </p>
                               </div>
@@ -266,6 +291,8 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
                       )
                     })}
                   </div>
+
+                  {/* Running balance summary at bottom */}
                   <div style={{
                     marginTop: 20,
                     padding: '12px 14px',
@@ -309,7 +336,7 @@ function LentTransactionLogSheet({ open, entry, onClose }: {
                           : entry.status === 'partial' ? '#FBBF24'
                           : '#14B8A6',
                       }}>
-                        {entry.status}
+                        {entry.status === 'settled' ? 'Recovered' : entry.status}
                       </p>
                     </div>
                   </div>
@@ -593,8 +620,9 @@ function EditLentSheet({ open, entry, onSave, onClose, saving }: {
               onClick={() => onSave(entry.id, { person: person.trim(), description: desc.trim(), due_date: dueDate || null })}
               disabled={saving || !person.trim()}
               style={{
-                width: '100%', marginTop: 24, padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer',
-                background: 'rgba(52,211,153,0.15)', border2: '1px solid rgba(52,211,153,0.3)',
+                width: '100%', marginTop: 24, padding: '15px', borderRadius: 16,
+                border: '1px solid rgba(52,211,153,0.3)', cursor: 'pointer',
+                background: 'rgba(52,211,153,0.12)',
                 color: '#34D399', fontSize: 15, fontWeight: 800,
               }}
             >
@@ -677,6 +705,11 @@ function AddMoreSheet({ open, entry, wallets, defaultWalletId, onAdd, onClose, s
                   )}
                   <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>▾</span>
                 </motion.button>
+                {selectedWallet && (
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginTop: 5, paddingLeft: 4 }}>
+                    ₹{parseFloat(amount || '0').toLocaleString('en-IN')} will be deducted from this wallet
+                  </p>
+                )}
               </div>
             </div>
             <motion.button
@@ -753,7 +786,7 @@ function RecoverySheet({ open, entry, wallets, defaultWalletId, onPay, onClose, 
             <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '0 auto 24px' }} />
             <p style={{ fontSize: 17, fontWeight: 800, color: '#f5f7ff', marginBottom: 4 }}>Record Recovery</p>
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>from {entry.person}</p>
-            <p style={{ fontSize: 12, color: '#34D399', marginBottom: 20, fontVariantNumeric: 'tabular-nums' }}>
+            <p style={{ fontSize: 12, color: '#34D399', marginBottom: 20, fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
               Still to recover: {formatINR(remaining)}
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -966,7 +999,7 @@ function DeleteConfirmSheet({ open, entry, onDelete, onClose, saving }: {
   )
 }
 
-// ─── Lent Card ─────────────────────────────────────────────────────────────────
+// ─── Lent Card ────────────────────────────────────────────────────────────────
 function LentCard({ entry, onEdit, onAddMore, onPartial, onSettle, onDelete, onViewLog }: {
   entry: LentEntry
   onEdit: () => void
@@ -1192,7 +1225,7 @@ function LentCard({ entry, onEdit, onAddMore, onPartial, onSettle, onDelete, onV
   )
 }
 
-// ─── Main Screen ───────────────────────────────────────────────────────────────
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export function LentScreen() {
   const { activeUser } = useUser()
   const {
@@ -1208,13 +1241,13 @@ export function LentScreen() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'settled'>('pending')
 
   // Sheet states
-  const [addOpen,     setAddOpen]     = useState(false)
-  const [editEntry,   setEditEntry]   = useState<LentEntry | null>(null)
-  const [addMoreEntry,setAddMoreEntry]= useState<LentEntry | null>(null)
-  const [partialEntry,setPartialEntry]= useState<LentEntry | null>(null)
-  const [settleEntry, setSettleEntry] = useState<LentEntry | null>(null)
-  const [deleteEntry, setDeleteEntry] = useState<LentEntry | null>(null)
-  const [logEntry,    setLogEntry]    = useState<LentEntry | null>(null)
+  const [addOpen,      setAddOpen]      = useState(false)
+  const [editEntry,    setEditEntry]    = useState<LentEntry | null>(null)
+  const [addMoreEntry, setAddMoreEntry] = useState<LentEntry | null>(null)
+  const [partialEntry, setPartialEntry] = useState<LentEntry | null>(null)
+  const [settleEntry,  setSettleEntry]  = useState<LentEntry | null>(null)
+  const [deleteEntry,  setDeleteEntry]  = useState<LentEntry | null>(null)
+  const [logEntry,     setLogEntry]     = useState<LentEntry | null>(null)
 
   const filtered = entries.filter(e =>
     filter === 'all'     ? true :
@@ -1222,8 +1255,8 @@ export function LentScreen() {
     e.status === 'settled'
   )
 
-  const pendingCount  = entries.filter(e => e.status !== 'settled').length
-  const settledCount  = entries.filter(e => e.status === 'settled').length
+  const pendingCount = entries.filter(e => e.status !== 'settled').length
+  const settledCount = entries.filter(e => e.status === 'settled').length
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1348,8 +1381,8 @@ export function LentScreen() {
               axis="y"
               values={filtered}
               onReorder={newOrder => {
-                const settledEntries = entries.filter(e => !filtered.find(f => f.id === e.id))
-                reorderEntries([...newOrder, ...settledEntries])
+                const otherEntries = entries.filter(e => !filtered.find(f => f.id === e.id))
+                reorderEntries([...newOrder, ...otherEntries])
               }}
               as="div"
               style={{ listStyle: 'none', padding: 0, margin: 0 }}
@@ -1359,12 +1392,12 @@ export function LentScreen() {
                   <LentCard
                     key={entry.id}
                     entry={entry}
-                    onEdit={()      => setEditEntry(entry)}
-                    onAddMore={()   => setAddMoreEntry(entry)}
-                    onPartial={()   => setPartialEntry(entry)}
-                    onSettle={()    => setSettleEntry(entry)}
-                    onDelete={()    => setDeleteEntry(entry)}
-                    onViewLog={()   => setLogEntry(entry)}
+                    onEdit={()     => setEditEntry(entry)}
+                    onAddMore={()  => setAddMoreEntry(entry)}
+                    onPartial={()  => setPartialEntry(entry)}
+                    onSettle={()   => setSettleEntry(entry)}
+                    onDelete={()   => setDeleteEntry(entry)}
+                    onViewLog={()  => setLogEntry(entry)}
                   />
                 ))}
               </AnimatePresence>
@@ -1374,7 +1407,7 @@ export function LentScreen() {
         </motion.div>
       </div>
 
-      {/* ── Sheets ── */}
+      {/* ── All Sheets ── */}
       <AddLentSheet
         open={addOpen}
         wallets={wallets}
