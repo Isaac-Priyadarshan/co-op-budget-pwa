@@ -469,6 +469,7 @@ export interface RecurringEntry {
   next_due: string | null
   owner: 'Isaac' | 'Jenifa' | 'Both'
   active: boolean
+  notes: string | null
   created_at: string
 }
 
@@ -478,6 +479,7 @@ export interface NewRecurring {
   frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
   next_due?: string | null
   owner: 'Isaac' | 'Jenifa' | 'Both'
+  notes?: string | null
 }
 
 export async function fetchRecurring(): Promise<RecurringEntry[]> {
@@ -499,6 +501,7 @@ export async function insertRecurring(entry: NewRecurring): Promise<RecurringEnt
       next_due:  entry.next_due ?? null,
       owner:     entry.owner,
       active:    true,
+      notes:     entry.notes ?? null,
     })
     .select()
     .single()
