@@ -37,19 +37,56 @@ function StatPill({ label, value, accent }: { label: string; value: string; acce
   )
 }
 
+// ─── Day / Month Segmented Toggle ──────────────────────────────────────────────
+function ViewToggle({ mode, onChange }: { mode: 'day' | 'month'; onChange: (m: 'day' | 'month') => void }) {
+  return (
+    <div style={{
+      display: 'flex',
+      background: 'rgba(255,255,255,0.06)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: 99,
+      padding: 3,
+      gap: 0,
+      marginBottom: 16,
+      alignSelf: 'center',
+    }}>
+      {(['day', 'month'] as const).map(m => (
+        <motion.button
+          key={m}
+          onClick={() => onChange(m)}
+          whileTap={{ scale: 0.94 }}
+          style={{
+            flex: 1,
+            padding: '7px 22px',
+            borderRadius: 99,
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            transition: 'all 0.22s cubic-bezier(0.16,1,0.3,1)',
+            background: mode === m ? 'rgba(255,255,255,0.13)' : 'transparent',
+            color: mode === m ? '#f5f7ff' : 'rgba(255,255,255,0.38)',
+            boxShadow: mode === m ? '0 2px 10px rgba(0,0,0,0.35)' : 'none',
+          }}
+        >
+          {m === 'day' ? 'Day' : 'Month'}
+        </motion.button>
+      ))}
+    </div>
+  )
+}
+
 // ─── Transaction Row ───────────────────────────────────────────────────────────
-// Handles all 3 types: income, expense, transfer
 function TxRow({ tx }: { tx: Transaction }) {
   const d = new Date(tx.created_at)
   const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 
   const isTransfer = tx.type === 'transfer'
   const isExpense  = tx.type === 'expense'
-
-  // Determine visual direction of transfer from the description prefix
   const isTransferOut = isTransfer && tx.description.startsWith('Transfer →')
 
-  // Color scheme per type
   const dotColor   = isTransfer ? '#818CF8' : isExpense ? '#F87171' : '#34D399'
   const dotGlow    = isTransfer ? 'rgba(129,140,248,0.5)' : isExpense ? 'rgba(248,113,113,0.5)' : 'rgba(52,211,153,0.5)'
   const rowBg      = isTransfer ? 'rgba(99,102,241,0.05)' : isExpense ? 'rgba(248,113,113,0.05)' : 'rgba(52,211,153,0.05)'
@@ -73,7 +110,6 @@ function TxRow({ tx }: { tx: Transaction }) {
         border: `1px solid ${rowBorder}`,
       }}
     >
-      {/* Indicator dot */}
       <div style={{
         width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
         background: dotColor,
@@ -82,7 +118,6 @@ function TxRow({ tx }: { tx: Transaction }) {
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-          {/* Transfer badge */}
           {isTransfer && (
             <span style={{
               fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
@@ -122,6 +157,155 @@ function TxRow({ tx }: { tx: Transaction }) {
   )
 }
 
+// ─── Day Group Section ─────────────────────────────────────────────────────────
+function DayGroup({ label, txs }: { label: string; txs: Transaction[] }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <p style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase',
+        color: 'rgba(255,255,255,0.32)', marginBottom: 10,
+        paddingLeft: 4,
+      }}>
+        {label}
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <AnimatePresence initial={false}>
+          {txs.map(tx => <TxRow key={tx.id} tx={tx} />)}
+        </AnimatePresence>
+      </div>
+    </div>
+  )
+}
+
+// ─── Month Accordion Section ────────────────────────────────────────────────────
+function MonthGroup({
+  label, txs, isOpen, onToggle, accentColor,
+}: {
+  label: string
+  txs: Transaction[]
+  isOpen: boolean
+  onToggle: () => void
+  accentColor: string
+}) {
+  const total = txs.reduce((sum, t) => {
+    if (t.type === 'expense') return sum - t.amount
+    if (t.type === 'income')  return sum + t.amount
+    return sum
+  }, 0)
+  const totalColor = total >= 0 ? '#34D399' : '#F87171'
+
+  return (
+    <div style={{
+      borderRadius: 18,
+      background: 'rgba(255,255,255,0.03)',
+      border: '1px solid rgba(255,255,255,0.07)',
+      marginBottom: 10,
+      overflow: 'hidden',
+    }}>
+      {/* Month header — tap to expand/collapse */}
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        onClick={onToggle}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '14px 18px',
+          background: 'transparent', border: 'none', cursor: 'pointer',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Chevron */}
+          <motion.div
+            animate={{ rotate: isOpen ? 90 : 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke={accentColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </motion.div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff' }}>{label}</span>
+          <span style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+            color: 'rgba(255,255,255,0.38)',
+            background: 'rgba(255,255,255,0.07)',
+            borderRadius: 99, padding: '2px 8px',
+          }}>
+            {txs.length} txn{txs.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 800, color: totalColor, fontVariantNumeric: 'tabular-nums' }}>
+          {total >= 0 ? '+' : ''}{formatINR(Math.abs(total))}
+        </span>
+      </motion.button>
+
+      {/* Collapsible transaction list */}
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            key="month-body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 8,
+              padding: '0 14px 14px',
+            }}>
+              <AnimatePresence initial={false}>
+                {txs.map(tx => <TxRow key={tx.id} tx={tx} />)}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─── Grouping helpers ──────────────────────────────────────────────────────────
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December']
+
+function groupByDay(txs: Transaction[]): { label: string; key: string; txs: Transaction[] }[] {
+  const map = new Map<string, Transaction[]>()
+  for (const tx of txs) {
+    const d = new Date(tx.created_at)
+    const key = d.toISOString().substring(0, 10) // YYYY-MM-DD
+    const label = d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(tx)
+    map.get(key)!.label = label
+  }
+  // Sort keys descending
+  const sorted = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+  return sorted.map(([key, list]) => ({ key, label: (list as any).label as string, txs: list }))
+}
+
+function groupByMonth(txs: Transaction[]): { label: string; key: string; txs: Transaction[] }[] {
+  const map = new Map<string, Transaction[]>()
+  for (const tx of txs) {
+    const d = new Date(tx.created_at)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const label = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(tx)
+    map.get(key)!.label = label
+  }
+  const sorted = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+  return sorted.map(([key, list]) => ({ key, label: (list as any).label as string, txs: list }))
+}
+
+// Attach label to array (TypeScript helper)
+declare global {
+  interface Array<T> {
+    label?: string
+  }
+}
+
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 export function WalletDetailScreen() {
   const { id } = useParams<{ id: string }>()
@@ -130,16 +314,14 @@ export function WalletDetailScreen() {
   const { wallets, update, remove } = useWallets()
   const { transactions, loading: txLoading } = useTransactions()
   const [editOpen, setEditOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<'day' | 'month'>('day')
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
 
   const fromScreen = new URLSearchParams(location.search).get('from') ?? 'home'
-
-  const handleBack = () => {
-    navigate(`/?screen=${fromScreen}`, { replace: true })
-  }
+  const handleBack = () => navigate(`/?screen=${fromScreen}`, { replace: true })
 
   const wallet = wallets.find(w => w.id === id) as WalletEntry | undefined
 
-  // All transactions for this wallet (income + expense + transfer)
   const walletTxs = useMemo(
     () => transactions
       .filter(t => t.wallet_id === id)
@@ -153,10 +335,9 @@ export function WalletDetailScreen() {
       const d = new Date(t.created_at)
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
     }),
-    [walletTxs]
+    [walletTxs, now]
   )
 
-  // Stats exclude transfer rows from income/expense totals
   const monthSpent    = monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const monthReceived = monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const monthCount    = monthTxs.length
@@ -167,6 +348,26 @@ export function WalletDetailScreen() {
   const accentGlow   = isCredit ? 'rgba(248,113,113,0.28)' : 'rgba(52,211,153,0.28)'
   const accentBorder = isCredit ? 'rgba(248,113,113,0.22)' : 'rgba(52,211,153,0.22)'
   const accentBg     = isCredit ? 'rgba(248,113,113,0.07)' : 'rgba(52,211,153,0.07)'
+
+  // Grouped data
+  const dayGroups   = useMemo(() => groupByDay(walletTxs),   [walletTxs])
+  const monthGroups = useMemo(() => groupByMonth(walletTxs), [walletTxs])
+
+  // Auto-open current month when switching to month view
+  const handleModeChange = (m: 'day' | 'month') => {
+    setViewMode(m)
+    if (m === 'month' && monthGroups.length > 0) {
+      setOpenMonths(new Set([monthGroups[0].key]))
+    }
+  }
+
+  const toggleMonth = (key: string) => {
+    setOpenMonths(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) { next.delete(key) } else { next.add(key) }
+      return next
+    })
+  }
 
   const handleUpdate = async (wid: string, w: NewWallet) => { await update(wid, w); setEditOpen(false) }
   const handleDelete = async (wid: string) => { await remove(wid); handleBack() }
@@ -296,13 +497,13 @@ export function WalletDetailScreen() {
 
       {/* ── Scrollable transaction list ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 20px calc(env(safe-area-inset-bottom) + 32px)' }}>
-        <p style={{
-          fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase',
-          color: 'rgba(255,255,255,0.32)', marginBottom: 12,
-        }}>
-          All Transactions
-        </p>
 
+        {/* Day / Month toggle */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
+          <ViewToggle mode={viewMode} onChange={handleModeChange} />
+        </div>
+
+        {/* ── Loading skeletons ── */}
         {txLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[1,2,3,4].map(i => (
@@ -311,6 +512,7 @@ export function WalletDetailScreen() {
           </div>
         )}
 
+        {/* ── Empty state ── */}
         {!txLoading && walletTxs.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -327,14 +529,45 @@ export function WalletDetailScreen() {
           </motion.div>
         )}
 
-        {!txLoading && walletTxs.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <AnimatePresence initial={false}>
-              {walletTxs.map(tx => (
-                <TxRow key={tx.id} tx={tx} />
+        {/* ── DAY MODE ── */}
+        {!txLoading && walletTxs.length > 0 && viewMode === 'day' && (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="day-view"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {dayGroups.map(group => (
+                <DayGroup key={group.key} label={group.label} txs={group.txs} />
               ))}
-            </AnimatePresence>
-          </div>
+            </motion.div>
+          </AnimatePresence>
+        )}
+
+        {/* ── MONTH MODE ── */}
+        {!txLoading && walletTxs.length > 0 && viewMode === 'month' && (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key="month-view"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {monthGroups.map(group => (
+                <MonthGroup
+                  key={group.key}
+                  label={group.label}
+                  txs={group.txs}
+                  isOpen={openMonths.has(group.key)}
+                  onToggle={() => toggleMonth(group.key)}
+                  accentColor={accentColor}
+                />
+              ))}
+            </motion.div>
+          </AnimatePresence>
         )}
       </div>
 
