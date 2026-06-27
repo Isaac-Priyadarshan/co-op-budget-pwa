@@ -169,6 +169,108 @@ function BudgetBar({ spent, planned, accent }: { spent: number; planned: number;
   )
 }
 
+// ─── Overspend badge ──────────────────────────────────────────────────────────
+function OverspendBadge({ overBy }: { overBy: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.85 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 3,
+        height: 18,
+        padding: '0 7px',
+        borderRadius: 100,
+        background: 'rgba(248,113,113,0.15)',
+        border: '1px solid rgba(248,113,113,0.35)',
+      }}
+    >
+      <svg width="8" height="8" viewBox="0 0 24 24" fill="none"
+        stroke="#F87171" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+      >
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <span style={{
+        fontSize: 9,
+        fontWeight: 800,
+        color: '#F87171',
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+      }}>
+        Overspent · {formatINR(overBy)} over
+      </span>
+    </motion.div>
+  )
+}
+
+// ─── Summary insight tile ─────────────────────────────────────────────────────
+function InsightTile({
+  icon,
+  label,
+  name,
+  value,
+  color,
+  bg,
+  border,
+}: {
+  icon: string
+  label: string
+  name: string | null
+  value: number | null
+  color: string
+  bg: string
+  border: string
+}) {
+  return (
+    <div style={{
+      flex: 1,
+      borderRadius: 14,
+      background: bg,
+      border: `1px solid ${border}`,
+      padding: '10px 12px',
+      minWidth: 0,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 5 }}>
+        <span style={{ fontSize: 12 }}>{icon}</span>
+        <p style={{
+          fontSize: 8,
+          fontWeight: 700,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: `${color}99`,
+        }}>{label}</p>
+      </div>
+      {name && value !== null ? (
+        <>
+          <p style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: '#F5F5F5',
+            marginBottom: 2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}>{name}</p>
+          <p style={{
+            fontSize: 14,
+            fontWeight: 900,
+            color,
+            fontVariantNumeric: 'tabular-nums',
+            lineHeight: 1,
+          }}>{formatINR(value)}</p>
+        </>
+      ) : (
+        <p style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.22)' }}>—</p>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export function BudgetScreen() {
   const today = new Date()
@@ -223,6 +325,36 @@ export function BudgetScreen() {
     }
     return map
   }, [monthTxs])
+
+  // ── Most overspent & most available subcategory ──────────────────────────────
+  const { mostOverspent, mostAvailable } = useMemo(() => {
+    let topOver: { name: string; amount: number } | null = null
+    let topAvail: { name: string; amount: number } | null = null
+
+    for (const cat of expenseCategories) {
+      const subs = (subcategories[cat.id] ?? []) as Subcategory[]
+      for (const sub of subs) {
+        const budget = getBudget(sub.label)
+        if (budget <= 0) continue
+        const spent = spentBySub[sub.label.toLowerCase()] ?? 0
+        const overBy = spent - budget
+        const leftBy = budget - spent
+
+        if (overBy > 0) {
+          if (!topOver || overBy > topOver.amount) {
+            topOver = { name: sub.label, amount: overBy }
+          }
+        }
+        if (leftBy > 0) {
+          if (!topAvail || leftBy > topAvail.amount) {
+            topAvail = { name: sub.label, amount: leftBy }
+          }
+        }
+      }
+    }
+
+    return { mostOverspent: topOver, mostAvailable: topAvail }
+  }, [expenseCategories, subcategories, spentBySub, getBudget])
 
   // ── Month nav ────────────────────────────────────────────────────────────────
   const handlePrev = () => {
@@ -285,18 +417,19 @@ export function BudgetScreen() {
           background: 'linear-gradient(160deg,#0d0b06 0%,#0a0800 60%,#0e0c02 100%)',
           border: '1px solid rgba(251,191,36,0.28)',
           boxShadow: '0 0 0 1px rgba(251,191,36,0.06), 0 8px 40px rgba(0,0,0,0.7), 0 2px 0 rgba(251,191,36,0.12) inset',
-          minHeight: 100,
         }}>
           <WaveCanvas />
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, height: 1,
             background: 'linear-gradient(90deg,transparent,rgba(251,191,36,0.55),transparent)',
           }} />
+
+          {/* Row 1: Planned · Left · Spent */}
           <div style={{
             position: 'relative', zIndex: 2,
             display: 'grid', gridTemplateColumns: '1fr auto 1fr',
             alignItems: 'center',
-            padding: '20px 20px 22px',
+            padding: '20px 20px 16px',
           }}>
             <div>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.60)', marginBottom: 6 }}>Planned</p>
@@ -321,6 +454,40 @@ export function BudgetScreen() {
                 {txLoading ? '—' : formatINR(totalSpent)}
               </p>
             </div>
+          </div>
+
+          {/* Divider */}
+          <div style={{
+            position: 'relative', zIndex: 2,
+            margin: '0 16px',
+            height: 1,
+            background: 'linear-gradient(90deg,transparent,rgba(251,191,36,0.18),transparent)',
+          }} />
+
+          {/* Row 2: Most Overspent · Most Available */}
+          <div style={{
+            position: 'relative', zIndex: 2,
+            display: 'flex', gap: 10,
+            padding: '12px 16px 16px',
+          }}>
+            <InsightTile
+              icon="🔴"
+              label="Most Overspent"
+              name={mostOverspent?.name ?? null}
+              value={mostOverspent?.amount ?? null}
+              color="#F87171"
+              bg="rgba(248,113,113,0.07)"
+              border="rgba(248,113,113,0.18)"
+            />
+            <InsightTile
+              icon="🟢"
+              label="Most Available"
+              name={mostAvailable?.name ?? null}
+              value={mostAvailable?.amount ?? null}
+              color="#34D399"
+              bg="rgba(52,211,153,0.07)"
+              border="rgba(52,211,153,0.18)"
+            />
           </div>
         </div>
 
@@ -353,7 +520,7 @@ export function BudgetScreen() {
                   transition: 'background 0.2s, border 0.2s',
                 }}
               >
-                {/* ── Parent category row — expand/collapse only, no budget edit ── */}
+                {/* ── Parent category row ── */}
                 <motion.button whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setExpandedCat(prev => prev === cat.label ? null : cat.label)
@@ -373,7 +540,6 @@ export function BudgetScreen() {
 
                   <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                     <p style={{ fontSize: 14, fontWeight: 700, color: cat.accent, marginBottom: 4 }}>{cat.label}</p>
-                    {/* Progress bar always shown — empty when parentPlanned = 0 */}
                     <div style={{ height: 4, borderRadius: 100, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
                       <motion.div
                         initial={{ width: 0 }}
@@ -390,7 +556,6 @@ export function BudgetScreen() {
                     </p>
                   </div>
 
-                  {/* Right side: accumulated total (read-only) + chevron */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
                     <p style={{
                       fontSize: 13, fontWeight: 800,
@@ -428,17 +593,30 @@ export function BudgetScreen() {
                         )}
 
                         {(subs as Subcategory[]).map((sub) => {
-                          const subBudget = getBudget(sub.label)
-                          const subSpent  = spentBySub[sub.label.toLowerCase()] ?? 0
-                          const isEditing = editingKey === `${sub.label}|${cat.label}`
+                          const subBudget  = getBudget(sub.label)
+                          const subSpent   = spentBySub[sub.label.toLowerCase()] ?? 0
+                          const isEditing  = editingKey === `${sub.label}|${cat.label}`
+                          const isOver     = subBudget > 0 && subSpent > subBudget
+                          const overBy     = isOver ? subSpent - subBudget : 0
 
                           return (
                             <motion.div key={sub.label} layout
                               style={{
                                 borderRadius: 14,
-                                background: isEditing ? `${cat.accent}0A` : 'rgba(255,255,255,0.03)',
-                                border: `1px solid ${isEditing ? cat.accent + '30' : 'rgba(255,255,255,0.06)'}`,
+                                background: isEditing
+                                  ? `${cat.accent}0A`
+                                  : isOver
+                                    ? 'rgba(248,113,113,0.06)'
+                                    : 'rgba(255,255,255,0.03)',
+                                border: `1px solid ${
+                                  isEditing
+                                    ? cat.accent + '30'
+                                    : isOver
+                                      ? 'rgba(248,113,113,0.25)'
+                                      : 'rgba(255,255,255,0.06)'
+                                }`,
                                 overflow: 'hidden',
+                                transition: 'background 0.2s, border-color 0.2s',
                               }}
                             >
                               <motion.button whileTap={{ scale: 0.97 }}
@@ -450,19 +628,22 @@ export function BudgetScreen() {
                                   padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10,
                                 }}
                               >
-                                <div style={{
-                                  width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                                  background: cat.bg, border: `1px solid ${cat.accent}28`,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-                                  color: cat.accent, fontWeight: 700,
-                                }}>
-                                  {sub.label.charAt(0).toUpperCase()}
-                                </div>
-
+                                {/* ── No icon — clean text layout ── */}
                                 <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                                  <p style={{ fontSize: 12, fontWeight: 700, color: cat.accent, marginBottom: 3 }}>{sub.label}</p>
-                                  {/* Always show bar and amount — ₹0/₹0 when unset */}
+                                  <p style={{ fontSize: 12, fontWeight: 700, color: isOver ? '#F87171' : cat.accent, marginBottom: 0 }}>
+                                    {sub.label}
+                                  </p>
+
+                                  {/* Overspend badge — shown only when over budget */}
+                                  <AnimatePresence>
+                                    {isOver && (
+                                      <OverspendBadge overBy={overBy} />
+                                    )}
+                                  </AnimatePresence>
+
+                                  {/* Progress bar */}
                                   <BudgetBar spent={subSpent} planned={subBudget} accent={cat.accent} />
+
                                   <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
                                     {formatINR(subSpent)} / {formatINR(subBudget)}
                                   </p>
@@ -474,7 +655,7 @@ export function BudgetScreen() {
                                 </div>
 
                                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <p style={{ fontSize: 12, fontWeight: 800, color: subBudget > 0 ? cat.accent : 'rgba(255,255,255,0.20)', fontVariantNumeric: 'tabular-nums' }}>
+                                  <p style={{ fontSize: 12, fontWeight: 800, color: subBudget > 0 ? (isOver ? '#F87171' : cat.accent) : 'rgba(255,255,255,0.20)', fontVariantNumeric: 'tabular-nums' }}>
                                     {formatINR(subBudget)}
                                   </p>
                                   <div style={{
