@@ -3,7 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Variants } from 'framer-motion'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type ResetMode = 'erase_history' | 'start_fresh' | 'clear_one_year' | 'full_wipe'
+type ResetMode =
+  | 'erase_history'
+  | 'erase_categories'
+  | 'erase_wallet_credit'
+  | 'clear_budget'
+  | 'full_wipe'
 
 interface Props {
   open: boolean
@@ -11,599 +16,602 @@ interface Props {
 }
 
 // ─── Supabase service-role config ─────────────────────────────────────────────
-// We use the service-role key via direct REST fetch so RLS is bypassed.
-// VITE_SUPABASE_URL and VITE_SUPABASE_SERVICE_KEY must be set in .env.local
-// and in Vercel environment variables.
 const SB_URL  = import.meta.env.VITE_SUPABASE_URL as string
 const SB_SKEY = import.meta.env.VITE_SUPABASE_SERVICE_KEY as string
 
-// ─── Confirmed tables in this project ────────────────────────────────────────
-// Discovered by inspecting the live Supabase OpenAPI schema.
-const ALL_DATA_TABLES = [
-  'transactions',
-  'wallets',
-  'loans',
-  'recurring_payments',
-  'lent',
-  'borrowed',
-  'assets',
-] as const
-
-// ─── Core delete helper — uses service-role key, bypasses RLS ─────────────────
-async function sbDelete(
-  table: string,
-  filter: string,          // e.g. "id=neq.00000000-..." or "created_at=gte.2026-01-01"
-  filter2?: string         // optional second filter for range queries
-): Promise<void> {
+// ─── Core delete helper — service-role key, bypasses RLS ─────────────────────
+async function sbDelete(table: string, filter: string): Promise<void> {
   if (!SB_URL || !SB_SKEY) {
     throw new Error(
       'Service key not configured. Add VITE_SUPABASE_SERVICE_KEY to your .env.local and Vercel env vars.'
     )
   }
-
-  let url = `${SB_URL}/rest/v1/${table}?${filter}`
-  if (filter2) url += `&${filter2}`
-
-  const res = await fetch(url, {
+  const res = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
     method: 'DELETE',
     headers: {
-      'apikey':        SB_SKEY,
-      'Authorization': `Bearer ${SB_SKEY}`,
+      apikey:          SB_SKEY,
+      Authorization:   `Bearer ${SB_SKEY}`,
       'Content-Type':  'application/json',
-      'Prefer':        'return=minimal',
+      Prefer:          'return=minimal',
     },
   })
-
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`[${table}] HTTP ${res.status}: ${body}`)
   }
 }
 
-// ─── Delete operations ────────────────────────────────────────────────────────
+// Patch helper — used to null-out FK references before deleting parent rows
+async function sbPatch(
+  table: string,
+  filter: string,
+  body: Record<string, null>
+): Promise<void> {
+  if (!SB_URL || !SB_SKEY) {
+    throw new Error('Service key not configured.')
+  }
+  const res = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
+    method: 'PATCH',
+    headers: {
+      apikey:          SB_SKEY,
+      Authorization:   `Bearer ${SB_SKEY}`,
+      'Content-Type':  'application/json',
+      Prefer:          'return=minimal',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const body2 = await res.text()
+    throw new Error(`[${table} PATCH] HTTP ${res.status}: ${body2}`)
+  }
+}
 
-// Erase History — delete all rows from transactions
+// ─── Reusable "wipe all rows" shorthand ──────────────────────────────────────
+const ALL = 'id=neq.00000000-0000-0000-0000-000000000000'
+
+// ─── 1. Erase History ─────────────────────────────────────────────────────────
+// Removes every transaction record app-wide
 async function eraseHistory(): Promise<void> {
-  await sbDelete('transactions', 'id=neq.00000000-0000-0000-0000-000000000000')
+  await sbDelete('transactions', ALL)
 }
 
-// Start Fresh — delete transactions in a specific calendar month
-// Uses created_at (confirmed populated column) for date filtering
-async function startFresh(year: number, month: number): Promise<void> {
-  const pad      = (n: number) => String(n).padStart(2, '0')
-  const from     = `${year}-${pad(month)}-01T00:00:00.000Z`
-  const lastDay  = new Date(year, month, 0).getDate()
-  const to       = `${year}-${pad(month)}-${pad(lastDay)}T23:59:59.999Z`
-  await sbDelete(
-    'transactions',
-    `created_at=gte.${encodeURIComponent(from)}`,
-    `created_at=lte.${encodeURIComponent(to)}`
+// ─── 2. Erase Categories ──────────────────────────────────────────────────────
+// Deletes subcategories first (FK child), then categories (FK parent)
+// Also clears budgets since they reference category labels
+async function eraseCategories(): Promise<void> {
+  await sbDelete('subcategories', ALL)
+  await sbDelete('categories',    ALL)
+  await sbDelete('budgets',       ALL)
+}
+
+// ─── 3. Erase Wallet & Credit Card ───────────────────────────────────────────
+// Null-out FK references in user_preferences and transactions before deleting wallets
+async function eraseWalletCredit(): Promise<void> {
+  // First: clear the FK reference in user_preferences (default_wallet_id → wallets.id)
+  await sbPatch(
+    'user_preferences',
+    'user_name=neq.__none__',
+    { default_wallet_id: null }
   )
-}
-
-// Clear One Year — delete all transactions in a full calendar year
-async function clearOneYear(year: number): Promise<void> {
-  const from = `${year}-01-01T00:00:00.000Z`
-  const to   = `${year}-12-31T23:59:59.999Z`
-  await sbDelete(
+  // Second: clear wallet_id on transactions so FK doesn't block wallet delete
+  await sbPatch(
     'transactions',
-    `created_at=gte.${encodeURIComponent(from)}`,
-    `created_at=lte.${encodeURIComponent(to)}`
+    'wallet_id=neq.00000000-0000-0000-0000-000000000000',
+    { wallet_id: null }
   )
+  // Now safe to delete all wallets
+  await sbDelete('wallets', ALL)
 }
 
-// Full Wipe Out — delete all rows from every data table sequentially
-// Sequential (not parallel) so we get a clear error if one table fails
+// ─── 4. Clear Budget ──────────────────────────────────────────────────────────
+// Removes all monthly budget allocations
+async function clearBudget(): Promise<void> {
+  await sbDelete('budgets', ALL)
+}
+
+// ─── 5. Full Wipeout ──────────────────────────────────────────────────────────
+// FK-safe sequential deletion of ALL 11 tables
+// Order: children before parents, nullify FKs where needed
 async function fullWipeOut(): Promise<void> {
   const errors: string[] = []
-  for (const table of ALL_DATA_TABLES) {
-    try {
-      await sbDelete(table, 'id=neq.00000000-0000-0000-0000-000000000000')
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : String(e))
-    }
+
+  const step = async (fn: () => Promise<void>) => {
+    try { await fn() } catch (e) { errors.push(e instanceof Error ? e.message : String(e)) }
   }
+
+  // 1. Null-out FK references first so cascading deletes don't block
+  await step(() =>
+    sbPatch('user_preferences', 'user_name=neq.__none__', { default_wallet_id: null })
+  )
+  await step(() =>
+    sbPatch('transactions', 'wallet_id=neq.00000000-0000-0000-0000-000000000000', { wallet_id: null })
+  )
+
+  // 2. Delete all data tables in FK-safe order
+  const tables = [
+    'transactions',      // references wallets (nullified above)
+    'subcategories',     // references categories
+    'categories',
+    'budgets',
+    'user_preferences',  // references wallets (nullified above)
+    'wallets',
+    'loans',
+    'recurring_payments',
+    'lent',
+    'borrowed',
+    'assets',
+  ]
+
+  for (const table of tables) {
+    await step(() => sbDelete(table, ALL))
+  }
+
   if (errors.length > 0) {
     throw new Error(`Some tables failed to wipe:\n${errors.join('\n')}`)
   }
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const EASE = [0.16, 1, 0.3, 1] as const
-const CURRENT_YEAR = new Date().getFullYear()
-const YEARS: number[] = Array.from({ length: CURRENT_YEAR - 2021 }, (_, i) => 2022 + i)
-const MONTHS = [
-  'January','February','March','April',
-  'May','June','July','August',
-  'September','October','November','December',
-]
-
+// ─── Mode config ──────────────────────────────────────────────────────────────
 const MODES: {
-  key: ResetMode
-  icon: string
-  label: string
-  subtitle: string
-  danger: boolean
-  bubbleBg: string
-  bubbleBorder: string
-  activeBg: string
-  activeBorder: string
+  key:           ResetMode
+  icon:          string
+  label:         string
+  subtitle:      string
+  danger:        boolean
+  bubbleBg:      string
+  bubbleBorder:  string
+  activeBg:      string
+  activeBorder:  string
 }[] = [
   {
-    key: 'erase_history',
-    icon: '🧹',
-    label: 'Erase History',
-    subtitle: 'Removes all transaction records app-wide',
-    danger: false,
-    bubbleBg: 'rgba(99,102,241,0.18)',
+    key:          'erase_history',
+    icon:         '🧹',
+    label:        'Erase History',
+    subtitle:     'Removes all transaction records app-wide',
+    danger:       false,
+    bubbleBg:     'rgba(99,102,241,0.18)',
     bubbleBorder: 'rgba(99,102,241,0.35)',
-    activeBg: 'rgba(99,102,241,0.10)',
+    activeBg:     'rgba(99,102,241,0.10)',
     activeBorder: 'rgba(99,102,241,0.45)',
   },
   {
-    key: 'start_fresh',
-    icon: '🌱',
-    label: 'Start Fresh',
-    subtitle: 'Remove all transactions in a chosen month',
-    danger: false,
-    bubbleBg: 'rgba(20,184,166,0.18)',
+    key:          'erase_categories',
+    icon:         '🗂️',
+    label:        'Erase Categories',
+    subtitle:     'Clears all expense & income categories and their subcategories',
+    danger:       false,
+    bubbleBg:     'rgba(20,184,166,0.18)',
     bubbleBorder: 'rgba(20,184,166,0.35)',
-    activeBg: 'rgba(20,184,166,0.10)',
+    activeBg:     'rgba(20,184,166,0.10)',
     activeBorder: 'rgba(20,184,166,0.45)',
   },
   {
-    key: 'clear_one_year',
-    icon: '📅',
-    label: 'Clear One Year',
-    subtitle: 'Delete all transactions in a chosen year',
-    danger: false,
-    bubbleBg: 'rgba(251,191,36,0.18)',
+    key:          'erase_wallet_credit',
+    icon:         '👛',
+    label:        'Erase Wallet & Credit Card',
+    subtitle:     'Permanently deletes all wallets and credit cards',
+    danger:       false,
+    bubbleBg:     'rgba(251,191,36,0.18)',
     bubbleBorder: 'rgba(251,191,36,0.35)',
-    activeBg: 'rgba(251,191,36,0.10)',
+    activeBg:     'rgba(251,191,36,0.10)',
     activeBorder: 'rgba(251,191,36,0.45)',
   },
   {
-    key: 'full_wipe',
-    icon: '💥',
-    label: 'Full Wipe Out',
-    subtitle: 'Permanently destroys every record, wallet, loan, asset — everything',
-    danger: true,
-    bubbleBg: 'rgba(244,63,94,0.20)',
+    key:          'clear_budget',
+    icon:         '💰',
+    label:        'Clear Budget',
+    subtitle:     'Resets all monthly budget allocations across every category',
+    danger:       false,
+    bubbleBg:     'rgba(34,197,94,0.18)',
+    bubbleBorder: 'rgba(34,197,94,0.35)',
+    activeBg:     'rgba(34,197,94,0.10)',
+    activeBorder: 'rgba(34,197,94,0.45)',
+  },
+  {
+    key:          'full_wipe',
+    icon:         '💥',
+    label:        'Full Wipeout',
+    subtitle:     'Permanently destroys every record, category, wallet, budget, loan, asset — everything',
+    danger:       true,
+    bubbleBg:     'rgba(244,63,94,0.20)',
     bubbleBorder: 'rgba(244,63,94,0.40)',
-    activeBg: 'rgba(244,63,94,0.12)',
+    activeBg:     'rgba(244,63,94,0.12)',
     activeBorder: 'rgba(244,63,94,0.55)',
   },
 ]
 
 // ─── Animation variants ───────────────────────────────────────────────────────
+const EASE = [0.16, 1, 0.3, 1] as const
+
 const sheetVariants: Variants = {
   hidden:  { y: '100%', opacity: 0.6 },
-  visible: { y: 0, opacity: 1, transition: { duration: 0.42, ease: EASE } },
-  exit:    { y: '100%', opacity: 0, transition: { duration: 0.28, ease: [0.4, 0, 1, 1] } },
+  visible: { y: 0,      opacity: 1,   transition: { type: 'spring', stiffness: 260, damping: 30 } },
+  exit:    { y: '100%', opacity: 0,   transition: { duration: 0.22, ease: EASE } },
 }
-const backdropVariants: Variants = {
+
+const overlayVariants: Variants = {
   hidden:  { opacity: 0 },
   visible: { opacity: 1, transition: { duration: 0.22 } },
-  exit:    { opacity: 0, transition: { duration: 0.22 } },
+  exit:    { opacity: 0, transition: { duration: 0.2  } },
 }
-const contextVariants: Variants = {
-  hidden:  { opacity: 0, y: 10, height: 0 },
-  visible: { opacity: 1, y: 0, height: 'auto', transition: { duration: 0.3, ease: EASE } },
-  exit:    { opacity: 0, y: -6, height: 0, transition: { duration: 0.2 } },
+
+const rowVariants: Variants = {
+  hidden:  { opacity: 0, x: -12 },
+  visible: (i: number) => ({
+    opacity: 1, x: 0,
+    transition: { delay: i * 0.06, type: 'spring', stiffness: 300, damping: 28 },
+  }),
+}
+
+// ─── Confirm step labels ──────────────────────────────────────────────────────
+const CONFIRM_LABELS: Record<ResetMode, string> = {
+  erase_history:      'Type DELETE to erase all transactions',
+  erase_categories:   'Type DELETE to erase all categories',
+  erase_wallet_credit:'Type DELETE to erase all wallets & cards',
+  clear_budget:       'Type DELETE to clear all budgets',
+  full_wipe:          'Type WIPEOUT to destroy everything',
+}
+
+const CONFIRM_KEYWORDS: Record<ResetMode, string> = {
+  erase_history:       'DELETE',
+  erase_categories:    'DELETE',
+  erase_wallet_credit: 'DELETE',
+  clear_budget:        'DELETE',
+  full_wipe:           'WIPEOUT',
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export function ResetDataSheet({ open, onClose }: Props) {
+export default function ResetDataSheet({ open, onClose }: Props) {
   const [selected,  setSelected]  = useState<ResetMode | null>(null)
-  const [sfMonth,   setSfMonth]   = useState<number>(new Date().getMonth() + 1)
-  const [sfYear,    setSfYear]    = useState<number>(CURRENT_YEAR)
-  const [cyYear,    setCyYear]    = useState<number>(CURRENT_YEAR)
-  const [wipeInput, setWipeInput] = useState('')
-  const [loading,   setLoading]   = useState(false)
-  const [success,   setSuccess]   = useState(false)
-  const [errorMsg,  setErrorMsg]  = useState<string | null>(null)
-  const wipeRef = useRef<HTMLInputElement>(null)
+  const [step,      setStep]      = useState<'select' | 'confirm' | 'running' | 'done' | 'error'>('select')
+  const [confirmTx, setConfirmTx] = useState('')
+  const [errMsg,    setErrMsg]    = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
+  // ─── Reset internal state whenever sheet closes ───────────────────────────
   function handleClose() {
-    if (loading) return
     setSelected(null)
-    setSfMonth(new Date().getMonth() + 1)
-    setSfYear(CURRENT_YEAR)
-    setCyYear(CURRENT_YEAR)
-    setWipeInput('')
-    setLoading(false)
-    setSuccess(false)
-    setErrorMsg(null)
+    setStep('select')
+    setConfirmTx('')
+    setErrMsg('')
     onClose()
   }
 
-  function isConfirmEnabled(): boolean {
-    if (!selected) return false
-    if (selected === 'start_fresh')    return sfMonth >= 1 && sfMonth <= 12
-    if (selected === 'clear_one_year') return cyYear >= 2022 && cyYear <= CURRENT_YEAR
-    if (selected === 'full_wipe')      return wipeInput.trim().toUpperCase() === 'WIPE'
-    return true
+  // ─── Select a mode ────────────────────────────────────────────────────────
+  function handleSelect(key: ResetMode) {
+    setSelected(key)
+    setStep('confirm')
+    setConfirmTx('')
+    setTimeout(() => inputRef.current?.focus(), 120)
   }
 
-  async function handleConfirm() {
-    if (!selected || loading) return
-    setLoading(true)
-    setErrorMsg(null)
+  // ─── Execute the chosen operation ────────────────────────────────────────
+  async function handleExecute() {
+    if (!selected) return
+    const keyword = CONFIRM_KEYWORDS[selected]
+    if (confirmTx.trim().toUpperCase() !== keyword) return
+
+    setStep('running')
+    setErrMsg('')
+
     try {
-      if (selected === 'erase_history')  await eraseHistory()
-      if (selected === 'start_fresh')    await startFresh(sfYear, sfMonth)
-      if (selected === 'clear_one_year') await clearOneYear(cyYear)
-      if (selected === 'full_wipe')      await fullWipeOut()
-      setSuccess(true)
-      setTimeout(() => handleClose(), 1600)
-    } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : 'Something went wrong. Please try again.')
-    } finally {
-      setLoading(false)
+      switch (selected) {
+        case 'erase_history':       await eraseHistory();      break
+        case 'erase_categories':    await eraseCategories();   break
+        case 'erase_wallet_credit': await eraseWalletCredit(); break
+        case 'clear_budget':        await clearBudget();       break
+        case 'full_wipe':           await fullWipeOut();       break
+      }
+      setStep('done')
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : String(e))
+      setStep('error')
     }
   }
 
-  function confirmLabel(): string {
-    if (loading) return 'Working…'
-    if (success) return '✓ Done — Data Wiped'
-    if (selected === 'full_wipe')       return 'Wipe Everything'
-    if (selected === 'erase_history')   return 'Erase All History'
-    if (selected === 'start_fresh')     return `Clear ${MONTHS[sfMonth - 1]} ${sfYear}`
-    if (selected === 'clear_one_year')  return `Clear ${cyYear}`
-    return 'Confirm'
-  }
-
-  const isFullWipe     = selected === 'full_wipe'
-  const confirmEnabled = isConfirmEnabled() && !loading && !success
+  // ─── Derived helpers ──────────────────────────────────────────────────────
+  const mode        = MODES.find(m => m.key === selected)
+  const keyword     = selected ? CONFIRM_KEYWORDS[selected] : 'DELETE'
+  const isReady     = confirmTx.trim().toUpperCase() === keyword
+  const isFullWipe  = selected === 'full_wipe'
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          {/* ── Backdrop ── */}
+          {/* Overlay */}
           <motion.div
-            key="reset-backdrop"
-            variants={backdropVariants}
-            initial="hidden" animate="visible" exit="exit"
+            key="overlay"
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            variants={overlayVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             onClick={handleClose}
-            style={{
-              position: 'fixed', inset: 0,
-              background: 'rgba(0,0,0,0.72)',
-              zIndex: 100,
-              WebkitBackdropFilter: 'blur(6px)',
-              backdropFilter: 'blur(6px)',
-            }}
           />
 
-          {/* ── Sheet ── */}
+          {/* Sheet */}
           <motion.div
-            key="reset-sheet"
+            key="sheet"
+            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl overflow-hidden"
+            style={{ background: 'rgba(10,10,14,0.97)', border: '1px solid rgba(255,255,255,0.07)' }}
             variants={sheetVariants}
-            initial="hidden" animate="visible" exit="exit"
-            style={{
-              position: 'fixed', bottom: 0, left: 0, right: 0,
-              zIndex: 101,
-              background: 'linear-gradient(180deg, #1a1820 0%, #131118 100%)',
-              borderRadius: '24px 24px 0 0',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderBottom: 'none',
-              maxHeight: '88vh',
-              overflowY: 'auto',
-              WebkitOverflowScrolling: 'touch',
-              paddingBottom: 'env(safe-area-inset-bottom, 16px)',
-            }}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
           >
             {/* Drag handle */}
-            <div style={{ display:'flex', justifyContent:'center', paddingTop:12, paddingBottom:4 }}>
-              <div style={{ width:36, height:4, borderRadius:99, background:'rgba(255,255,255,0.15)' }} />
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
             </div>
 
-            <div style={{ padding:'8px 20px 32px' }}>
-
-              {/* ── Header ── */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-                <div>
-                  <p style={{ fontSize:18, fontWeight:700, color:'#f5f5f7', margin:0 }}>Reset Data</p>
-                  <p style={{ fontSize:12, color:'rgba(255,255,255,0.3)', margin:'3px 0 0' }}>
-                    Select an option and confirm to delete
-                  </p>
-                </div>
-                <motion.button
-                  whileTap={{ scale: 0.88 }}
-                  onClick={handleClose}
-                  style={{
-                    width:32, height:32, borderRadius:99,
-                    background:'rgba(255,255,255,0.07)',
-                    border:'1px solid rgba(255,255,255,0.10)',
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    cursor:'pointer',
-                  }}
+            {/* ── STEP: SELECT ─────────────────────────────────────────── */}
+            <AnimatePresence mode="wait">
+              {step === 'select' && (
+                <motion.div
+                  key="select"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0, transition: { duration: 0.2 } }}
+                  exit={{    opacity: 0, y: -8, transition: { duration: 0.15 } }}
+                  className="px-5 pb-8"
                 >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 2l10 10M12 2L2 12" stroke="rgba(255,255,255,0.55)" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                </motion.button>
-              </div>
-
-              {/* ── Mode tiles ── */}
-              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
-                {MODES.map(mode => {
-                  const isActive = selected === mode.key
-                  return (
-                    <motion.button
-                      key={mode.key}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => {
-                        setSelected(isActive ? null : mode.key)
-                        setErrorMsg(null)
-                        setWipeInput('')
-                        setSuccess(false)
-                      }}
-                      style={{
-                        width:'100%', display:'flex', alignItems:'center', gap:13,
-                        padding:'13px 14px', borderRadius:16,
-                        border: isActive ? `1px solid ${mode.activeBorder}` : '1px solid rgba(255,255,255,0.07)',
-                        background: isActive ? mode.activeBg : 'rgba(255,255,255,0.03)',
-                        cursor:'pointer', textAlign:'left', transition:'all 0.18s ease',
-                      }}
-                    >
-                      <div style={{
-                        width:40, height:40, borderRadius:12,
-                        background:mode.bubbleBg, border:`1px solid ${mode.bubbleBorder}`,
-                        display:'flex', alignItems:'center', justifyContent:'center',
-                        fontSize:18, flexShrink:0,
-                      }}>
-                        {mode.icon}
-                      </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <p style={{
-                          fontSize:14, fontWeight:600, margin:0, lineHeight:1.25,
-                          color: mode.danger
-                            ? (isActive ? 'rgba(252,100,120,0.95)' : 'rgba(252,100,120,0.65)')
-                            : (isActive ? '#f5f5f7' : 'rgba(255,255,255,0.6)'),
-                        }}>
-                          {mode.label}
-                        </p>
-                        <p style={{ fontSize:11, color:'rgba(255,255,255,0.28)', margin:'3px 0 0', lineHeight:1.35 }}>
-                          {mode.subtitle}
-                        </p>
-                      </div>
-                      <div style={{
-                        width:18, height:18, borderRadius:99, flexShrink:0,
-                        border: isActive
-                          ? (mode.danger ? '5px solid rgba(252,100,120,0.9)' : '5px solid rgba(99,200,180,0.9)')
-                          : '1.5px solid rgba(255,255,255,0.18)',
-                        transition:'all 0.18s ease',
-                      }} />
-                    </motion.button>
-                  )
-                })}
-              </div>
-
-              {/* ── Context UI ── */}
-              <AnimatePresence mode="wait">
-
-                {/* Start Fresh pickers */}
-                {selected === 'start_fresh' && (
-                  <motion.div
-                    key="ctx-start-fresh"
-                    variants={contextVariants}
-                    initial="hidden" animate="visible" exit="exit"
-                    style={{ overflow:'hidden', marginBottom:12 }}
+                  <h2
+                    className="text-lg font-semibold mb-1 mt-2"
+                    style={{ color: '#f1f5f9' }}
                   >
-                    <div style={{
-                      background:'rgba(20,184,166,0.07)',
-                      border:'1px solid rgba(20,184,166,0.20)',
-                      borderRadius:14, padding:'14px 16px',
-                    }}>
-                      <p style={{ fontSize:11, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(20,184,166,0.7)', margin:'0 0 10px' }}>
-                        Select Month &amp; Year
-                      </p>
-                      <div style={{ display:'flex', gap:8 }}>
-                        <select
-                          value={sfMonth}
-                          onChange={e => setSfMonth(Number(e.target.value))}
-                          style={{
-                            flex:2, background:'rgba(255,255,255,0.06)',
-                            border:'1px solid rgba(255,255,255,0.12)', borderRadius:10,
-                            color:'#f5f5f7', fontSize:14, fontWeight:500,
-                            padding:'10px 12px', outline:'none', cursor:'pointer',
-                            appearance:'none', WebkitAppearance:'none',
-                          }}
-                        >
-                          {MONTHS.map((m,i) => (
-                            <option key={m} value={i+1} style={{ background:'#1a1820', color:'#f5f5f7' }}>{m}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={sfYear}
-                          onChange={e => setSfYear(Number(e.target.value))}
-                          style={{
-                            flex:1, background:'rgba(255,255,255,0.06)',
-                            border:'1px solid rgba(255,255,255,0.12)', borderRadius:10,
-                            color:'#f5f5f7', fontSize:14, fontWeight:500,
-                            padding:'10px 12px', outline:'none', cursor:'pointer',
-                            appearance:'none', WebkitAppearance:'none',
-                          }}
-                        >
-                          {YEARS.map(y => (
-                            <option key={y} value={y} style={{ background:'#1a1820', color:'#f5f5f7' }}>{y}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <p style={{ fontSize:11, color:'rgba(255,255,255,0.25)', margin:'8px 0 0' }}>
-                        All transactions created in {MONTHS[sfMonth-1]} {sfYear} will be permanently deleted.
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
+                    Reset Data
+                  </h2>
+                  <p className="text-sm mb-5" style={{ color: 'rgba(148,163,184,0.8)' }}>
+                    Choose what to permanently erase. This cannot be undone.
+                  </p>
 
-                {/* Clear One Year picker */}
-                {selected === 'clear_one_year' && (
-                  <motion.div
-                    key="ctx-clear-year"
-                    variants={contextVariants}
-                    initial="hidden" animate="visible" exit="exit"
-                    style={{ overflow:'hidden', marginBottom:12 }}
-                  >
-                    <div style={{
-                      background:'rgba(251,191,36,0.07)',
-                      border:'1px solid rgba(251,191,36,0.20)',
-                      borderRadius:14, padding:'14px 16px',
-                    }}>
-                      <p style={{ fontSize:11, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(251,191,36,0.7)', margin:'0 0 10px' }}>
-                        Select Year
-                      </p>
-                      <select
-                        value={cyYear}
-                        onChange={e => setCyYear(Number(e.target.value))}
+                  <div className="flex flex-col gap-3">
+                    {MODES.map((m, i) => (
+                      <motion.button
+                        key={m.key}
+                        custom={i}
+                        variants={rowVariants}
+                        initial="hidden"
+                        animate="visible"
+                        onClick={() => handleSelect(m.key)}
+                        className="flex items-center gap-4 rounded-2xl px-4 py-3.5 text-left transition-all active:scale-[0.98]"
                         style={{
-                          width:'100%', background:'rgba(255,255,255,0.06)',
-                          border:'1px solid rgba(255,255,255,0.12)', borderRadius:10,
-                          color:'#f5f5f7', fontSize:15, fontWeight:500,
-                          padding:'11px 14px', outline:'none', cursor:'pointer',
-                          appearance:'none', WebkitAppearance:'none',
+                          background:   m.bubbleBg,
+                          border:       `1px solid ${m.bubbleBorder}`,
                         }}
                       >
-                        {YEARS.map(y => (
-                          <option key={y} value={y} style={{ background:'#1a1820', color:'#f5f5f7' }}>{y}</option>
-                        ))}
-                      </select>
-                      <p style={{ fontSize:11, color:'rgba(255,255,255,0.25)', margin:'8px 0 0' }}>
-                        All transactions from Jan 1 to Dec 31, {cyYear} will be deleted.
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
+                        <span className="text-2xl leading-none">{m.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="text-sm font-semibold leading-tight"
+                            style={{ color: m.danger ? '#fb7185' : '#f1f5f9' }}
+                          >
+                            {m.label}
+                          </p>
+                          <p
+                            className="text-xs mt-0.5 leading-snug"
+                            style={{ color: 'rgba(148,163,184,0.75)' }}
+                          >
+                            {m.subtitle}
+                          </p>
+                        </div>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                          stroke="rgba(148,163,184,0.5)" strokeWidth="2"
+                          strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 18l6-6-6-6"/>
+                        </svg>
+                      </motion.button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
 
-                {/* Full Wipe confirmation input */}
-                {selected === 'full_wipe' && (
-                  <motion.div
-                    key="ctx-full-wipe"
-                    variants={contextVariants}
-                    initial="hidden" animate="visible" exit="exit"
-                    style={{ overflow:'hidden', marginBottom:12 }}
+              {/* ── STEP: CONFIRM ──────────────────────────────────────── */}
+              {step === 'confirm' && mode && (
+                <motion.div
+                  key="confirm"
+                  initial={{ opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0,  transition: { type: 'spring', stiffness: 300, damping: 28 } }}
+                  exit={{    opacity: 0, x: -24, transition: { duration: 0.15 } }}
+                  className="px-5 pb-8"
+                >
+                  {/* Back button */}
+                  <button
+                    onClick={() => { setStep('select'); setConfirmTx('') }}
+                    className="flex items-center gap-1.5 mt-2 mb-4 text-xs"
+                    style={{ color: 'rgba(148,163,184,0.7)' }}
                   >
-                    <div style={{
-                      background:'rgba(244,63,94,0.07)',
-                      border:'1px solid rgba(244,63,94,0.25)',
-                      borderRadius:14, padding:'14px 16px',
-                    }}>
-                      <p style={{ fontSize:11, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase', color:'rgba(252,100,120,0.75)', margin:'0 0 6px' }}>
-                        ⚠️ Danger Zone
-                      </p>
-                      <p style={{ fontSize:12, color:'rgba(255,255,255,0.4)', margin:'0 0 12px', lineHeight:1.5 }}>
-                        This will permanently delete every transaction, wallet, loan, recurring payment, asset, lent and borrowed record. This cannot be undone.
-                      </p>
-                      <p style={{ fontSize:12, color:'rgba(252,100,120,0.7)', margin:'0 0 8px', fontWeight:600 }}>
-                        Type <span style={{ letterSpacing:'0.12em', color:'rgba(252,100,120,1)' }}>WIPE</span> to confirm
-                      </p>
-                      <input
-                        ref={wipeRef}
-                        type="text"
-                        value={wipeInput}
-                        onChange={e => setWipeInput(e.target.value)}
-                        placeholder="Type WIPE here…"
-                        autoComplete="off"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        style={{
-                          width:'100%',
-                          background:'rgba(255,255,255,0.05)',
-                          border: wipeInput.toUpperCase() === 'WIPE'
-                            ? '1px solid rgba(252,100,120,0.7)'
-                            : '1px solid rgba(255,255,255,0.10)',
-                          borderRadius:10, color:'#f5f5f7',
-                          fontSize:15, fontWeight:600, letterSpacing:'0.08em',
-                          padding:'11px 14px', outline:'none',
-                          boxSizing:'border-box', transition:'border-color 0.18s ease',
-                        }}
-                      />
-                    </div>
-                  </motion.div>
-                )}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15 18l-6-6 6-6"/>
+                    </svg>
+                    Back
+                  </button>
 
-              </AnimatePresence>
+                  {/* Mode pill */}
+                  <div
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 mb-4"
+                    style={{ background: mode.activeBg, border: `1px solid ${mode.activeBorder}` }}
+                  >
+                    <span className="text-base leading-none">{mode.icon}</span>
+                    <span
+                      className="text-xs font-semibold"
+                      style={{ color: mode.danger ? '#fb7185' : '#f1f5f9' }}
+                    >
+                      {mode.label}
+                    </span>
+                  </div>
 
-              {/* ── Error message ── */}
-              <AnimatePresence>
-                {errorMsg && (
-                  <motion.div
-                    key="err"
-                    initial={{ opacity:0, y:6 }}
-                    animate={{ opacity:1, y:0 }}
-                    exit={{ opacity:0 }}
+                  {/* Warning box */}
+                  <div
+                    className="rounded-2xl p-4 mb-5"
                     style={{
-                      fontSize:12,
-                      color:'rgba(252,100,120,0.9)',
-                      background:'rgba(244,63,94,0.10)',
-                      border:'1px solid rgba(244,63,94,0.22)',
-                      borderRadius:10, padding:'10px 14px',
-                      margin:'0 0 12px', lineHeight:1.5,
-                      whiteSpace:'pre-wrap', wordBreak:'break-word',
+                      background: isFullWipe
+                        ? 'rgba(244,63,94,0.10)'
+                        : 'rgba(251,191,36,0.08)',
+                      border: `1px solid ${isFullWipe ? 'rgba(244,63,94,0.3)' : 'rgba(251,191,36,0.25)'}`,
                     }}
                   >
-                    {errorMsg}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* ── Confirm button ── */}
-              <AnimatePresence>
-                {selected && (
-                  <motion.div
-                    key="confirm-btn-wrap"
-                    initial={{ opacity:0, y:10 }}
-                    animate={{ opacity:1, y:0, transition:{ duration:0.25, ease:EASE } }}
-                    exit={{ opacity:0, y:6 }}
-                  >
-                    <motion.button
-                      whileTap={confirmEnabled ? { scale:0.96 } : {}}
-                      onClick={handleConfirm}
-                      disabled={!confirmEnabled}
-                      style={{
-                        width:'100%', padding:'15px', borderRadius:16, border:'none',
-                        fontSize:15, fontWeight:700, letterSpacing:'0.02em',
-                        cursor: confirmEnabled ? 'pointer' : 'not-allowed',
-                        transition:'all 0.18s ease',
-                        background: success
-                          ? 'linear-gradient(135deg,rgba(20,184,120,0.85),rgba(20,184,100,0.65))'
-                          : isFullWipe
-                            ? (confirmEnabled
-                                ? 'linear-gradient(135deg,rgba(220,38,60,0.85),rgba(180,20,50,0.7))'
-                                : 'rgba(255,255,255,0.05)')
-                            : (confirmEnabled
-                                ? 'linear-gradient(135deg,rgba(99,102,241,0.85),rgba(139,92,246,0.70))'
-                                : 'rgba(255,255,255,0.05)'),
-                        color: confirmEnabled ? '#ffffff' : 'rgba(255,255,255,0.22)',
-                        boxShadow: confirmEnabled && !success
-                          ? (isFullWipe
-                              ? '0 4px 20px rgba(220,38,60,0.35)'
-                              : '0 4px 20px rgba(99,102,241,0.30)')
-                          : 'none',
-                      }}
+                    <p
+                      className="text-sm font-semibold mb-1"
+                      style={{ color: isFullWipe ? '#fb7185' : '#fbbf24' }}
                     >
-                      {loading ? (
-                        <span style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                          <svg
-                            width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            style={{ animation:'spin 0.8s linear infinite' }}
-                          >
-                            <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="3"/>
-                            <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round"/>
-                          </svg>
-                          Working…
-                        </span>
-                      ) : confirmLabel()}
-                    </motion.button>
+                      {isFullWipe ? '⚠️ This destroys everything' : '⚠️ This is irreversible'}
+                    </p>
+                    <p className="text-xs leading-relaxed" style={{ color: 'rgba(148,163,184,0.8)' }}>
+                      {isFullWipe
+                        ? 'All transactions, categories, subcategories, wallets, credit cards, budgets, loans, recurring payments, lent and borrowed records, and assets will be permanently deleted. There is no undo.'
+                        : `${mode.subtitle}. Once deleted, this data cannot be recovered.`
+                      }
+                    </p>
+                  </div>
+
+                  {/* Confirm input */}
+                  <label
+                    className="block text-xs mb-2 font-medium"
+                    style={{ color: 'rgba(148,163,184,0.9)' }}
+                  >
+                    {CONFIRM_LABELS[selected!]}
+                  </label>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={confirmTx}
+                    onChange={e => setConfirmTx(e.target.value)}
+                    placeholder={keyword}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    onKeyDown={e => { if (e.key === 'Enter' && isReady) handleExecute() }}
+                    className="w-full rounded-xl px-4 py-3 text-sm font-mono mb-4 outline-none transition-all"
+                    style={{
+                      background:  'rgba(255,255,255,0.06)',
+                      border:      `1px solid ${isReady
+                        ? (isFullWipe ? 'rgba(244,63,94,0.6)' : 'rgba(99,102,241,0.6)')
+                        : 'rgba(255,255,255,0.12)'}`,
+                      color:       '#f1f5f9',
+                      letterSpacing: '0.08em',
+                    }}
+                  />
+
+                  {/* Execute button */}
+                  <motion.button
+                    onClick={handleExecute}
+                    disabled={!isReady}
+                    whileTap={isReady ? { scale: 0.97 } : {}}
+                    className="w-full rounded-2xl py-3.5 text-sm font-bold transition-all"
+                    style={{
+                      background: isReady
+                        ? (isFullWipe
+                            ? 'linear-gradient(135deg, rgba(244,63,94,0.9), rgba(220,38,38,0.9))'
+                            : 'linear-gradient(135deg, rgba(99,102,241,0.9), rgba(139,92,246,0.9))')
+                        : 'rgba(255,255,255,0.06)',
+                      color:  isReady ? '#fff' : 'rgba(148,163,184,0.4)',
+                      border: `1px solid ${isReady ? 'transparent' : 'rgba(255,255,255,0.08)'}`,
+                      cursor: isReady ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {isFullWipe ? '💥 Destroy Everything' : `🗑️ Confirm ${mode.label}`}
+                  </motion.button>
+                </motion.div>
+              )}
+
+              {/* ── STEP: RUNNING ──────────────────────────────────────── */}
+              {step === 'running' && (
+                <motion.div
+                  key="running"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{    opacity: 0 }}
+                  className="flex flex-col items-center justify-center px-5 py-16 gap-4"
+                >
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                    className="w-10 h-10 rounded-full"
+                    style={{ border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#818cf8' }}
+                  />
+                  <p className="text-sm font-medium" style={{ color: 'rgba(148,163,184,0.9)' }}>
+                    Erasing data…
+                  </p>
+                </motion.div>
+              )}
+
+              {/* ── STEP: DONE ─────────────────────────────────────────── */}
+              {step === 'done' && (
+                <motion.div
+                  key="done"
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 280, damping: 24 } }}
+                  exit={{    opacity: 0 }}
+                  className="flex flex-col items-center justify-center px-5 py-16 gap-3"
+                >
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1, transition: { type: 'spring', stiffness: 320, damping: 20, delay: 0.1 } }}
+                    className="text-5xl"
+                  >
+                    ✅
                   </motion.div>
-                )}
-              </AnimatePresence>
+                  <p className="text-base font-semibold" style={{ color: '#f1f5f9' }}>
+                    Done. Data erased.
+                  </p>
+                  <p className="text-xs text-center" style={{ color: 'rgba(148,163,184,0.6)' }}>
+                    {mode?.label} completed successfully.
+                  </p>
+                  <motion.button
+                    onClick={handleClose}
+                    whileTap={{ scale: 0.97 }}
+                    className="mt-4 px-8 py-3 rounded-2xl text-sm font-semibold"
+                    style={{ background: 'rgba(99,102,241,0.25)', border: '1px solid rgba(99,102,241,0.4)', color: '#a5b4fc' }}
+                  >
+                    Close
+                  </motion.button>
+                </motion.div>
+              )}
 
-            </div>
+              {/* ── STEP: ERROR ────────────────────────────────────────── */}
+              {step === 'error' && (
+                <motion.div
+                  key="error"
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{    opacity: 0 }}
+                  className="flex flex-col items-center justify-center px-5 py-12 gap-3"
+                >
+                  <div className="text-4xl">⚠️</div>
+                  <p className="text-base font-semibold" style={{ color: '#fb7185' }}>
+                    Something went wrong
+                  </p>
+                  <p
+                    className="text-xs text-center font-mono px-4 py-3 rounded-xl w-full max-w-xs"
+                    style={{ background: 'rgba(244,63,94,0.10)', color: 'rgba(251,182,182,0.8)', border: '1px solid rgba(244,63,94,0.25)' }}
+                  >
+                    {errMsg || 'Unknown error. Check your service key and network.'}
+                  </p>
+                  <div className="flex gap-3 mt-2">
+                    <motion.button
+                      onClick={() => { setStep('confirm'); setConfirmTx('') }}
+                      whileTap={{ scale: 0.97 }}
+                      className="px-5 py-2.5 rounded-xl text-sm font-medium"
+                      style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#f1f5f9' }}
+                    >
+                      Retry
+                    </motion.button>
+                    <motion.button
+                      onClick={handleClose}
+                      whileTap={{ scale: 0.97 }}
+                      className="px-5 py-2.5 rounded-xl text-sm font-medium"
+                      style={{ background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', color: '#fb7185' }}
+                    >
+                      Close
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
-
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </>
       )}
     </AnimatePresence>
