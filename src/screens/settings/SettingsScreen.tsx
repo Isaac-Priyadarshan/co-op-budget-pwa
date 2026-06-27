@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Variants } from 'framer-motion'
 import { useUser } from '../../context/UserContext'
 import type { AppUser } from '../../lib/types'
-import { ResetDataSheet } from './ResetDataSheet'
+import ResetDataSheet from './ResetDataSheet'
 
 // ─── Pastel card data ────────────────────────────────────────────────────────
 const OPTIONS = [
