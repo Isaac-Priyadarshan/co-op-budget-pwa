@@ -6,7 +6,6 @@ import { useWallets } from '../../hooks/useWallets'
 import { useTransactions } from '../../hooks/useTransactions'
 import { useUser } from '../../context/UserContext'
 
-// ─── Key layout ──────────────────────────────────────────────────────────────
 const KEY_ROWS = [
   ['7', '8', '9'],
   ['4', '5', '6'],
@@ -16,22 +15,17 @@ const KEY_ROWS = [
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-// ───────────────────────────────────────────────────────────────────────────────
-const FINAL_LAYOUT_ORDER = `
-  AMOUNT ZONE  (flex:1)
-    └ big amount
-    └ wallet + sub status chips
-    └ error
-    └ expand panels (open here, never move bottom)
-  ─────────────── BOTTOM (fixed height, never moves) ───────────────
-  1. SUBCATEGORY CHIPS  (above toolbar)
-  2. ACTION TOOLBAR     (Note · Wallet · Calendar)
-  3. NUMPAD
-  4. CONFIRM BUTTON
-`
-void FINAL_LAYOUT_ORDER
+/*
+  FINAL LOCKED LAYOUT ORDER (bottom section, top → bottom):
+    1. TOOLBAR          (Note · Wallet · Calendar)
+    2. NOTE INPUT       (zero-gap, fused directly under toolbar, only when note panel active)
+    3. SUBCATEGORY CHIPS
+    4. NUMPAD
+    5. CONFIRM BUTTON
 
-// ─── Main EntryScreen ─────────────────────────────────────────────────────────
+  Wallet + Calendar panels open in the AMOUNT ZONE (flex:1) above — never disturb bottom.
+*/
+
 export function EntryScreen() {
   const navigate = useNavigate()
   const { type, categoryId } = useParams<{ type: string; categoryId: string }>()
@@ -52,8 +46,8 @@ export function EntryScreen() {
   const [txDate, setTxDate]           = useState(new Date())
   const [walletId, setWalletId]       = useState<string | null>(null)
   const [walletLabel, setWalletLabel] = useState('')
+  // activePanel: 'wallet' | 'calendar' open in amount zone. 'note' opens inline under toolbar.
   const [activePanel, setActivePanel] = useState<'note' | 'wallet' | 'calendar' | null>(null)
-  // for date picker internal state
   const [pickerY, setPickerY] = useState(new Date().getFullYear())
   const [pickerM, setPickerM] = useState(new Date().getMonth())
   const [pickerD, setPickerD] = useState(new Date().getDate())
@@ -61,12 +55,13 @@ export function EntryScreen() {
   const [success, setSuccess] = useState(false)
   const [errMsg, setErrMsg]   = useState<string | null>(null)
 
+  const noteInputRef = useRef<HTMLInputElement>(null)
+
   const togglePanel = (p: 'note' | 'wallet' | 'calendar') =>
     setActivePanel(prev => (prev === p ? null : p))
 
-  const noteRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
-    if (activePanel === 'note') setTimeout(() => noteRef.current?.focus(), 80)
+    if (activePanel === 'note') setTimeout(() => noteInputRef.current?.focus(), 60)
   }, [activePanel])
 
   const handleKey = useCallback((k: string) => {
@@ -122,9 +117,8 @@ export function EntryScreen() {
 
   const selectedSubLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
 
-  // date picker helpers
   const daysInMonth = new Date(pickerY, pickerM + 1, 0).getDate()
-  const pickerDays = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+  const pickerDays  = Array.from({ length: daysInMonth }, (_, i) => i + 1)
   const pickerYears = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
   const applyDate = useCallback((dy: number, dm: number, dd: number) => {
     const safe = Math.min(dd, new Date(dy, dm + 1, 0).getDate())
@@ -171,10 +165,10 @@ export function EntryScreen() {
 
       {/* ── HEADER ── */}
       <div style={{
-        position: 'relative', zIndex: 1,
+        position: 'relative', zIndex: 1, flexShrink: 0,
         display: 'flex', alignItems: 'center', gap: 12,
         paddingTop: 'env(safe-area-inset-top, 16px)',
-        paddingInline: 20, paddingBottom: 12, flexShrink: 0,
+        paddingInline: 20, paddingBottom: 12,
       }}>
         <motion.button
           whileTap={{ scale: 0.88 }}
@@ -215,13 +209,16 @@ export function EntryScreen() {
         }}>{dateLabel}</div>
       </div>
 
-      {/* ────────────────────────── AMOUNT ZONE (flex:1) ────────────────────────── */}
+      {/* ─────────────────────── AMOUNT ZONE (flex:1) ───────────────────────
+       Big amount + status chips + error + wallet/calendar panels
+       Note does NOT open here anymore — it's fused to the toolbar below.
+      ───────────────────────────────────────────────────────────── */}
       <div style={{
         position: 'relative', zIndex: 1,
-        flex: 1, display: 'flex', flexDirection: 'column',
+        flex: 1, minHeight: 0,
+        display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        paddingInline: 16, paddingBottom: 8,
-        minHeight: 0, overflow: 'hidden',
+        paddingInline: 16, paddingBottom: 8, overflow: 'hidden',
       }}>
 
         {/* Big amount */}
@@ -241,7 +238,7 @@ export function EntryScreen() {
           }}
         >{formattedDisplay}</motion.div>
 
-        {/* Inline status chips: wallet + selected sub — single line below amount */}
+        {/* Status chips: wallet + selected sub */}
         <AnimatePresence>
           {(walletLabel || selectedSubLabel) && (
             <motion.div
@@ -250,10 +247,7 @@ export function EntryScreen() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
               transition={{ duration: 0.18 }}
-              style={{
-                marginTop: 12, flexShrink: 0,
-                display: 'flex', alignItems: 'center', gap: 6,
-              }}
+              style={{ marginTop: 12, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}
             >
               {walletLabel && (
                 <div style={{
@@ -270,7 +264,6 @@ export function EntryScreen() {
                   initial={{ opacity: 0, scale: 0.85 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.85 }}
-                  transition={{ duration: 0.15 }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 11px', borderRadius: 20,
@@ -288,27 +281,21 @@ export function EntryScreen() {
         <AnimatePresence>
           {errMsg && (
             <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
               style={{
                 marginTop: 10, flexShrink: 0,
                 fontSize: 12, fontWeight: 600, color: '#F87171',
-                background: 'rgba(239,68,68,0.12)',
-                border: '1px solid rgba(239,68,68,0.25)',
+                background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)',
                 borderRadius: 10, padding: '5px 14px',
               }}
             >{errMsg}</motion.div>
           )}
         </AnimatePresence>
 
-        {/*
-          EXPAND PANELS — render here in the amount zone.
-          Compact, space-efficient. Never move the bottom section.
-        */}
+        {/* WALLET panel — opens here in amount zone */}
         <AnimatePresence mode="wait">
-          {activePanel !== null && (
+          {(activePanel === 'wallet' || activePanel === 'calendar') && (
             <motion.div
               key={activePanel}
               initial={{ opacity: 0, y: 12, scale: 0.98 }}
@@ -317,42 +304,7 @@ export function EntryScreen() {
               transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
               style={{ width: '100%', marginTop: 14, flexShrink: 0 }}
             >
-
-              {/* NOTE — compact single-line input */}
-              {activePanel === 'note' && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: `1px solid ${accent}44`,
-                  borderRadius: 14, padding: '0 14px', height: 44,
-                }}>
-                  <span style={{ fontSize: 14, flexShrink: 0 }}>✏️</span>
-                  <input
-                    ref={noteRef as React.RefObject<HTMLInputElement>}
-                    value={note}
-                    onChange={e => setNote(e.target.value)}
-                    placeholder="Add a note…"
-                    maxLength={120}
-                    style={{
-                      flex: 1, background: 'none', border: 'none', outline: 'none',
-                      fontSize: 13, fontWeight: 500, color: '#F5F5F5',
-                      caretColor: accent,
-                    }}
-                  />
-                  {note && (
-                    <motion.button
-                      whileTap={{ scale: 0.88 }}
-                      onClick={() => { setNote(''); setActivePanel(null) }}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        fontSize: 16, color: 'rgba(255,255,255,0.30)', flexShrink: 0,
-                      }}
-                    >×</motion.button>
-                  )}
-                </div>
-              )}
-
-              {/* WALLET — compact horizontal pill list */}
+              {/* WALLET */}
               {activePanel === 'wallet' && (
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
@@ -360,14 +312,14 @@ export function EntryScreen() {
                   borderRadius: 14, padding: '10px 12px',
                   display: 'flex', flexDirection: 'column', gap: 6,
                 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em', marginBottom: 2 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.1em' }}>
                     WALLET / CARD
                   </div>
                   {walletsLoading ? (
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)', padding: '4px 0' }}>Loading…</div>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)' }}>Loading…</div>
                   ) : wallets.length === 0 ? (
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.5 }}>
-                      No wallets yet — add them in <span style={{ color: accent, fontWeight: 700 }}>Wallet &amp; Credit</span>.
+                      No wallets yet — add in <span style={{ color: accent, fontWeight: 700 }}>Wallet &amp; Credit</span>.
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -382,12 +334,10 @@ export function EntryScreen() {
                             background: walletId === w.id ? `${accent}22` : 'rgba(255,255,255,0.05)',
                             color: walletId === w.id ? accent : 'rgba(255,255,255,0.65)',
                             fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', gap: 5,
-                            whiteSpace: 'nowrap',
+                            display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
                           }}
                         >
-                          <span style={{ fontSize: 13 }}>{w.type === 'credit' ? '💳' : '👛'}</span>
-                          {w.label}
+                          <span>{w.type === 'credit' ? '💳' : '👛'}</span>{w.label}
                         </motion.button>
                       ))}
                     </div>
@@ -395,7 +345,7 @@ export function EntryScreen() {
                 </div>
               )}
 
-              {/* CALENDAR — compact horizontal scroll rows */}
+              {/* CALENDAR */}
               {activePanel === 'calendar' && (
                 <div style={{
                   background: 'rgba(255,255,255,0.03)',
@@ -403,12 +353,9 @@ export function EntryScreen() {
                   borderRadius: 14, padding: '10px 12px',
                   display: 'flex', flexDirection: 'column', gap: 7,
                 }}>
-                  {/* Month row */}
                   <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 1 }}>
                     {MONTH_NAMES.map((mn, i) => (
-                      <motion.button
-                        key={mn}
-                        whileTap={{ scale: 0.88 }}
+                      <motion.button key={mn} whileTap={{ scale: 0.88 }}
                         onClick={() => applyDate(pickerY, i, pickerD)}
                         style={{
                           flexShrink: 0, height: 28, minWidth: 38, borderRadius: 8,
@@ -419,12 +366,9 @@ export function EntryScreen() {
                       >{mn}</motion.button>
                     ))}
                   </div>
-                  {/* Day row */}
                   <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 1 }}>
                     {pickerDays.map(dd => (
-                      <motion.button
-                        key={dd}
-                        whileTap={{ scale: 0.85 }}
+                      <motion.button key={dd} whileTap={{ scale: 0.85 }}
                         onClick={() => applyDate(pickerY, pickerM, dd)}
                         style={{
                           flexShrink: 0, width: 30, height: 30, borderRadius: 8,
@@ -436,12 +380,9 @@ export function EntryScreen() {
                       >{dd}</motion.button>
                     ))}
                   </div>
-                  {/* Year row */}
                   <div style={{ display: 'flex', gap: 5, justifyContent: 'center' }}>
                     {pickerYears.map(yr => (
-                      <motion.button
-                        key={yr}
-                        whileTap={{ scale: 0.88 }}
+                      <motion.button key={yr} whileTap={{ scale: 0.88 }}
                         onClick={() => applyDate(yr, pickerM, pickerD)}
                         style={{
                           height: 24, minWidth: 46, borderRadius: 7,
@@ -454,24 +395,121 @@ export function EntryScreen() {
                   </div>
                 </div>
               )}
-
             </motion.div>
           )}
         </AnimatePresence>
 
       </div>{/* end AMOUNT ZONE */}
 
-      {/* ────────────────── BOTTOM (fixed, never moves) ────────────────── */}
+      {/* ───────────────── BOTTOM — FIXED, NEVER MOVES ─────────────────
+        Order:
+          1. TOOLBAR
+          2. NOTE INPUT (zero-gap, fused directly below toolbar when active)
+          3. SUBCATEGORY CHIPS
+          4. NUMPAD
+          5. CONFIRM
+      ─────────────────────────────────────────────────── */}
       <div style={{
         position: 'relative', zIndex: 1, flexShrink: 0,
         display: 'flex', flexDirection: 'column',
         paddingBottom: 'env(safe-area-inset-bottom, 12px)',
       }}>
 
-        {/* 1. SUBCATEGORY CHIPS — above toolbar */}
+        {/* ── 1. TOOLBAR ── */}
+        <div style={{ display: 'flex', gap: 7, paddingInline: 16, paddingBottom: 0 }}>
+          {([
+            { id: 'note'     as const, icon: '✏️', label: note ? `“${note.slice(0,14)}${note.length > 14 ? '…' : ''}”` : 'Note' },
+            { id: 'wallet'   as const, icon: '💳', label: walletLabel || 'Wallet' },
+            { id: 'calendar' as const, icon: '📅', label: dateLabel },
+          ] as const).map(btn => {
+            const isActive = activePanel === btn.id
+            const isDone = (btn.id === 'note' && !!note) || (btn.id === 'wallet' && !!walletId)
+            return (
+              <motion.button
+                key={btn.id}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => togglePanel(btn.id)}
+                style={{
+                  flex: 1, height: 36, cursor: 'pointer',
+                  // Note button: square bottom corners when note panel is open (fused with input below)
+                  borderRadius: (isActive && btn.id === 'note')
+                    ? '11px 11px 0 0'
+                    : 11,
+                  border: `1px solid ${isActive ? accent : isDone ? `${accent}55` : 'rgba(255,255,255,0.10)'}`,
+                  // hide bottom border when note is active so it merges with input
+                  borderBottom: (isActive && btn.id === 'note') ? 'none' : undefined,
+                  background: isActive ? `${accent}22` : isDone ? `${accent}10` : 'rgba(255,255,255,0.04)',
+                  color: isActive ? accent : isDone ? `${accent}cc` : 'rgba(255,255,255,0.45)',
+                  fontSize: 11, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  letterSpacing: '0.02em', transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap', overflow: 'hidden', paddingInline: 6,
+                  marginBottom: 0,
+                }}
+              >
+                <span style={{ fontSize: 12, flexShrink: 0 }}>{btn.icon}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 68 }}>{btn.label}</span>
+              </motion.button>
+            )
+          })}
+        </div>
+
+        {/* ── 2. NOTE INPUT — zero-gap, fused directly under toolbar, no margin ── */}
+        <AnimatePresence>
+          {activePanel === 'note' && (
+            <motion.div
+              key="note-input"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 42 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                overflow: 'hidden',
+                marginInline: 16,
+                // top border already provided by the open Note button above
+                // left/right/bottom border match the button's accent border
+                border: `1px solid ${accent}`,
+                borderTop: 'none',
+                borderRadius: '0 0 11px 11px',
+                background: `${accent}0d`,
+              }}
+            >
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                height: '100%', paddingInline: 12,
+              }}>
+                <input
+                  ref={noteInputRef}
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                  placeholder="Add a note…"
+                  maxLength={120}
+                  style={{
+                    flex: 1, background: 'none', border: 'none', outline: 'none',
+                    fontSize: 13, fontWeight: 500, color: '#F5F5F5',
+                    caretColor: accent,
+                  }}
+                />
+                {note && (
+                  <button
+                    onClick={() => setNote('')}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: 15, color: 'rgba(255,255,255,0.35)', flexShrink: 0, lineHeight: 1,
+                    }}
+                  >×</button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── 3. SUBCATEGORY CHIPS ── */}
         {subs.length > 0 && (
           <div style={{
-            paddingInline: 16, paddingBottom: 6,
+            paddingInline: 16,
+            paddingTop: activePanel === 'note' ? 6 : 8,
+            paddingBottom: 6,
             display: 'flex', flexWrap: 'wrap', gap: 6,
           }}>
             {subs.map(sub => {
@@ -495,42 +533,12 @@ export function EntryScreen() {
           </div>
         )}
 
-        {/* 2. ACTION TOOLBAR — Note · Wallet · Calendar */}
-        <div style={{ display: 'flex', gap: 7, paddingInline: 16, paddingBottom: 8 }}>
-          {([
-            { id: 'note'     as const, icon: '✏️', label: note ? `“${note.slice(0,12)}${note.length > 12 ? '…' : ''}”` : 'Note' },
-            { id: 'wallet'   as const, icon: '💳', label: walletLabel || 'Wallet' },
-            { id: 'calendar' as const, icon: '📅', label: dateLabel },
-          ] as const).map(btn => {
-            const isActive = activePanel === btn.id
-            const isDone = (btn.id === 'note' && !!note) || (btn.id === 'wallet' && !!walletId)
-            return (
-              <motion.button
-                key={btn.id}
-                whileTap={{ scale: 0.93 }}
-                onClick={() => togglePanel(btn.id)}
-                style={{
-                  flex: 1, height: 36, borderRadius: 11,
-                  border: `1px solid ${isActive ? accent : isDone ? `${accent}55` : 'rgba(255,255,255,0.10)'}`,
-                  background: isActive ? `${accent}22` : isDone ? `${accent}10` : 'rgba(255,255,255,0.04)',
-                  color: isActive ? accent : isDone ? `${accent}cc` : 'rgba(255,255,255,0.45)',
-                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                  letterSpacing: '0.02em', transition: 'all 0.15s ease',
-                  whiteSpace: 'nowrap', overflow: 'hidden', paddingInline: 6,
-                }}
-              >
-                <span style={{ fontSize: 12, flexShrink: 0 }}>{btn.icon}</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 68 }}>{btn.label}</span>
-              </motion.button>
-            )
-          })}
-        </div>
-
-        {/* 3. NUMPAD */}
+        {/* ── 4. NUMPAD ── */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 7, paddingInline: 16, paddingBottom: 8,
+          gap: 7, paddingInline: 16,
+          paddingTop: subs.length > 0 ? 0 : 8,
+          paddingBottom: 8,
         }}>
           {KEY_ROWS.flat().map(k => (
             <motion.button
@@ -551,7 +559,7 @@ export function EntryScreen() {
           ))}
         </div>
 
-        {/* 4. CONFIRM BUTTON — always pinned at the very bottom */}
+        {/* ── 5. CONFIRM BUTTON ── */}
         <div style={{ paddingInline: 16, paddingBottom: 8 }}>
           <AnimatePresence>
             {success ? (
