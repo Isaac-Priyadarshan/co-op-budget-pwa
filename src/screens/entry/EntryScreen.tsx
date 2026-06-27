@@ -142,6 +142,10 @@ export function EntryScreen() {
     }
   }, [canConfirm, category, activeUser, selectedSub, note, subs, addTransaction, amountValue, type, navigate, txDate, walletId])
 
+  // ── derived values for summary line
+  const selectedSubLabel = subs.find(s => s.id === selectedSub)?.label ?? null
+  const showSummary      = selectedSubLabel !== null || walletLabel !== ''
+
   // ── TRAY CONTENT ─────────────────────────────────────────────────────────────
   const renderTrayContent = () => {
     if (activePanel === 'note') return (
@@ -278,7 +282,6 @@ export function EntryScreen() {
         flex: '0 0 auto',
         gap: 10,
       }}>
-        {/* Back button */}
         <motion.button whileTap={{ scale: 0.85 }} onClick={() => navigate(-1)}
           style={{
             width: 38, height: 38, borderRadius: 13,
@@ -292,7 +295,6 @@ export function EntryScreen() {
           </svg>
         </motion.button>
 
-        {/* Category icon + name — immediately right of back button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <div style={{
             width: 34, height: 34, borderRadius: 11,
@@ -312,6 +314,7 @@ export function EntryScreen() {
         padding: '8px 24px',
         minHeight: 0,
       }}>
+        {/* Amount number */}
         <motion.p
           key={formattedDisplay}
           initial={{ opacity: 0.6, scale: 0.96 }}
@@ -330,14 +333,62 @@ export function EntryScreen() {
         >
           {formattedDisplay}
         </motion.p>
+
+        {/* ── SUMMARY LINE — subcategory + wallet, shown below amount when either is chosen ── */}
+        <AnimatePresence>
+          {showSummary && (
+            <motion.div
+              key="summary"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                display: 'flex', flexDirection: 'row', alignItems: 'center',
+                gap: 6,
+                marginTop: 10,
+              }}
+            >
+              {selectedSubLabel && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700,
+                  color: accent,
+                  background: `${accent}18`,
+                  border: `1px solid ${accent}30`,
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  letterSpacing: '0.01em',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {selectedSubLabel}
+                </span>
+              )}
+              {walletLabel && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700,
+                  color: 'rgba(255,255,255,0.55)',
+                  background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  letterSpacing: '0.01em',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {walletLabel}
+                </span>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {/* ── SUBCATEGORY CHIPS — pinned directly above toolbar card ── */}
+      {/* ── SUBCATEGORY CHIPS — left-aligned, pinned directly above toolbar card ── */}
       {subs.length > 0 && (
         <div style={{
           position: 'relative', zIndex: 2,
           flex: '0 0 auto',
-          display: 'flex', flexWrap: 'wrap', justifyContent: 'center',
+          display: 'flex', flexWrap: 'wrap',
+          justifyContent: 'flex-start',
           gap: 6,
           paddingLeft: 16, paddingRight: 16,
           paddingBottom: 10,
@@ -428,7 +479,6 @@ export function EntryScreen() {
         padding: '8px 16px 0',
         paddingBottom: 'max(env(safe-area-inset-bottom), 12px)',
       }}>
-        {/* Keypad */}
         <div style={{
           display: 'grid',
           gridTemplateRows: 'repeat(4, 52px)',
@@ -466,7 +516,6 @@ export function EntryScreen() {
           ))}
         </div>
 
-        {/* Confirm — directly below keypad */}
         <motion.button
           whileTap={canConfirm ? { scale: 0.97 } : {}}
           onClick={handleConfirm}
