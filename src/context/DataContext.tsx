@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchTransactions, insertTransaction, deleteTransaction, type Transaction, type NewTransaction } from '../lib/db'
 import type { Category, Subcategory } from '../types/category'
@@ -50,6 +50,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [transactionsLoading, setTransactionsLoading] = useState(true)
   const [transactionsError, setTransactionsError] = useState<string | null>(null)
+
+  // Tracks IDs that are currently being deleted.
+  // The Realtime INSERT/UPDATE handlers check this set and skip any row
+  // whose ID is present — this is the core fix for the resurrection bug.
+  // When a delete fires, Supabase Realtime may emit a spurious INSERT/UPDATE
+  // event on other connected clients before the DELETE event arrives.
+  // By keeping the deleting ID in this set from the moment removeTransaction
+  // is called until the Realtime DELETE event confirms it, we prevent any
+  // optimistic INSERT/UPDATE from adding the row back.
+  const deletingIds = useRef<Set<string>>(new Set())
 
   const applyCategories = useCallback((cats: Category[]) => {
     const sorted = sortCategories(cats)
@@ -106,7 +116,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setTransactionsLoading(true)
       setTransactionsError(null)
       const data = await fetchTransactions()
-      setTransactions(data)
+      // Filter out any IDs that are mid-delete so a slow network fetch
+      // cannot resurrect a row that was already optimistically stripped.
+      setTransactions(data.filter(t => !deletingIds.current.has(t.id)))
     } catch (e) {
       setTransactionsError(e instanceof Error ? e.message : 'Failed to load transactions')
     } finally {
@@ -127,37 +139,59 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'subcategories' }, () => { void loadCategories() })
       .subscribe()
 
-    // Split INSERT/UPDATE (need full refetch for new rows) from DELETE (optimistic strip only).
-    // This prevents the race condition where a Realtime DELETE event fires after
-    // the optimistic local strip, causing a full refetch that may resurrect the
-    // deleted row if the DB hasn't fully propagated the delete yet.
     const transactionsChannel = supabase
       .channel('realtime-transactions')
+      // ── INSERT ───────────────────────────────────────────────────────────
+      // Optimistically prepend the new row from payload.new.
+      // Skip if the ID is in deletingIds (resurrection guard).
+      // No network round-trip needed.
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'transactions' },
-        async () => {
-          const data = await fetchTransactions()
-          setTransactions(data)
+        (payload) => {
+          const newRow = payload.new as Transaction
+          if (!newRow?.id) return
+          if (deletingIds.current.has(newRow.id)) return
+          setTransactions(prev => {
+            // Deduplicate: skip if row already exists (e.g. added by addTransaction)
+            if (prev.some(t => t.id === newRow.id)) return prev
+            // Insert in correct position: descending by transaction_date, then created_at
+            const next = [newRow, ...prev]
+            return next.sort((a, b) => {
+              const dateDiff = b.transaction_date.localeCompare(a.transaction_date)
+              if (dateDiff !== 0) return dateDiff
+              return b.created_at.localeCompare(a.created_at)
+            })
+          })
         },
       )
+      // ── UPDATE ───────────────────────────────────────────────────────────
+      // Optimistically patch the changed row from payload.new.
+      // Skip if the ID is in deletingIds (resurrection guard).
+      // No network round-trip needed.
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'transactions' },
-        async () => {
-          const data = await fetchTransactions()
-          setTransactions(data)
+        (payload) => {
+          const updated = payload.new as Transaction
+          if (!updated?.id) return
+          if (deletingIds.current.has(updated.id)) return
+          setTransactions(prev =>
+            prev.map(t => t.id === updated.id ? updated : t)
+          )
         },
       )
+      // ── DELETE ───────────────────────────────────────────────────────────
+      // Strip by ID from payload.old. Clear from deletingIds set.
+      // No network round-trip needed.
       .on(
         'postgres_changes',
-        // DELETE events carry the old row in payload.old — strip it locally,
-        // no network round-trip needed.
         { event: 'DELETE', schema: 'public', table: 'transactions' },
         (payload) => {
           const deletedId = (payload.old as { id?: string })?.id
           if (deletedId) {
             setTransactions(prev => prev.filter(t => t.id !== deletedId))
+            deletingIds.current.delete(deletedId)
           }
         },
       )
@@ -256,11 +290,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await insertTransaction(tx)
   }, [])
 
-  // Optimistic delete: remove from DB then immediately strip from local state.
-  // The Realtime DELETE handler also strips by ID, so both paths are consistent.
+  // Optimistic delete:
+  // 1. Register ID in deletingIds BEFORE the DB call — this is the guard.
+  // 2. Strip from local state immediately (instant UI feedback).
+  // 3. Fire the DB delete.
+  // 4. On DB error, remove ID from deletingIds and restore the row.
+  // The Realtime DELETE event will also strip by ID and clean deletingIds,
+  // so the set self-cleans even on success.
   const removeTransaction = useCallback(async (id: string) => {
-    await deleteTransaction(id)
-    setTransactions(prev => prev.filter(t => t.id !== id))
+    // Register as deleting FIRST — before any await
+    deletingIds.current.add(id)
+    // Capture the row in case we need to restore on error
+    let snapshot: Transaction | undefined
+    setTransactions(prev => {
+      snapshot = prev.find(t => t.id === id)
+      return prev.filter(t => t.id !== id)
+    })
+    try {
+      await deleteTransaction(id)
+    } catch (e) {
+      // DB delete failed — restore the row and unregister the guard
+      deletingIds.current.delete(id)
+      if (snapshot) {
+        setTransactions(prev => {
+          const next = [snapshot!, ...prev.filter(t => t.id !== snapshot!.id)]
+          return next.sort((a, b) => {
+            const dateDiff = b.transaction_date.localeCompare(a.transaction_date)
+            if (dateDiff !== 0) return dateDiff
+            return b.created_at.localeCompare(a.created_at)
+          })
+        })
+      }
+      throw e
+    }
   }, [])
 
   const value = useMemo<DataContextValue>(
