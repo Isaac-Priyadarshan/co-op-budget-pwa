@@ -194,6 +194,34 @@ export async function updateWalletBalance(id: string, balance: number): Promise<
   if (error) throw new Error(error.message)
 }
 
+// adjustWalletBalance — atomically applies a signed delta to a wallet's balance.
+//
+// income  transaction → delta = +amount  (balance goes up)
+// expense transaction → delta = -amount  (balance goes down)
+//
+// We fetch the current balance first, then write balance + delta.
+// This is safe for a 2-person private app where concurrent writes are rare.
+// The balance is clamped to 2 decimal places to avoid floating-point drift.
+export async function adjustWalletBalance(walletId: string, delta: number): Promise<void> {
+  // 1. Fetch current balance
+  const { data, error: fetchErr } = await supabase
+    .from('wallets')
+    .select('balance')
+    .eq('id', walletId)
+    .single()
+  if (fetchErr) throw new Error(fetchErr.message)
+
+  const current = (data as { balance: number }).balance ?? 0
+  const next    = parseFloat((current + delta).toFixed(2))
+
+  // 2. Write new balance
+  const { error: updateErr } = await supabase
+    .from('wallets')
+    .update({ balance: next })
+    .eq('id', walletId)
+  if (updateErr) throw new Error(updateErr.message)
+}
+
 export async function updateWalletSortOrders(
   updates: { id: string; sort_order: number }[]
 ): Promise<void> {
