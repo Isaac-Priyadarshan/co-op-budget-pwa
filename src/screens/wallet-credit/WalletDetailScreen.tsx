@@ -37,38 +37,56 @@ function StatPill({ label, value, accent }: { label: string; value: string; acce
   )
 }
 
-// ─── Day / Month Segmented Toggle ──────────────────────────────────────────────
+// ─── Smart Compact Toggle ─────────────────────────────────────────────────────
 function ViewToggle({ mode, onChange }: { mode: 'day' | 'month'; onChange: (m: 'day' | 'month') => void }) {
   return (
     <div style={{
+      position: 'relative',
       display: 'flex',
-      background: 'rgba(255,255,255,0.06)',
+      background: 'rgba(255,255,255,0.07)',
       border: '1px solid rgba(255,255,255,0.1)',
       borderRadius: 99,
       padding: 3,
-      gap: 0,
-      marginBottom: 16,
-      alignSelf: 'center',
     }}>
+      {/* Animated sliding pill */}
+      <motion.div
+        layoutId="toggle-pill"
+        layout
+        transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+        style={{
+          position: 'absolute',
+          top: 3,
+          left: mode === 'day' ? 3 : 'calc(50% + 0px)',
+          width: 'calc(50% - 3px)',
+          height: 'calc(100% - 6px)',
+          borderRadius: 99,
+          background: 'rgba(255,255,255,0.15)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
       {(['day', 'month'] as const).map(m => (
         <motion.button
           key={m}
           onClick={() => onChange(m)}
-          whileTap={{ scale: 0.94 }}
+          whileTap={{ scale: 0.92 }}
           style={{
+            position: 'relative',
+            zIndex: 1,
             flex: 1,
-            padding: '7px 22px',
+            padding: '5px 12px',
             borderRadius: 99,
             border: 'none',
             cursor: 'pointer',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 700,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-            transition: 'all 0.22s cubic-bezier(0.16,1,0.3,1)',
-            background: mode === m ? 'rgba(255,255,255,0.13)' : 'transparent',
-            color: mode === m ? '#f5f7ff' : 'rgba(255,255,255,0.38)',
-            boxShadow: mode === m ? '0 2px 10px rgba(0,0,0,0.35)' : 'none',
+            letterSpacing: '0.04em',
+            background: 'transparent',
+            color: mode === m ? '#f5f7ff' : 'rgba(255,255,255,0.35)',
+            transition: 'color 0.18s ease',
+            whiteSpace: 'nowrap',
           }}
         >
           {m === 'day' ? 'Day' : 'Month'}
@@ -83,20 +101,16 @@ function TxRow({ tx }: { tx: Transaction }) {
   const d = new Date(tx.created_at)
   const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
 
-  const isTransfer = tx.type === 'transfer'
-  const isExpense  = tx.type === 'expense'
+  const isTransfer    = tx.type === 'transfer'
+  const isExpense     = tx.type === 'expense'
   const isTransferOut = isTransfer && tx.description.startsWith('Transfer →')
 
-  const dotColor   = isTransfer ? '#818CF8' : isExpense ? '#F87171' : '#34D399'
-  const dotGlow    = isTransfer ? 'rgba(129,140,248,0.5)' : isExpense ? 'rgba(248,113,113,0.5)' : 'rgba(52,211,153,0.5)'
-  const rowBg      = isTransfer ? 'rgba(99,102,241,0.05)' : isExpense ? 'rgba(248,113,113,0.05)' : 'rgba(52,211,153,0.05)'
-  const rowBorder  = isTransfer ? 'rgba(99,102,241,0.14)' : isExpense ? 'rgba(248,113,113,0.12)' : 'rgba(52,211,153,0.12)'
-  const amountColor = isTransfer
-    ? (isTransferOut ? '#F87171' : '#34D399')
-    : isExpense ? '#F87171' : '#34D399'
-  const amountPrefix = isTransfer
-    ? (isTransferOut ? '−' : '+')
-    : isExpense ? '−' : '+'
+  const dotColor    = isTransfer ? '#818CF8' : isExpense ? '#F87171' : '#34D399'
+  const dotGlow     = isTransfer ? 'rgba(129,140,248,0.5)' : isExpense ? 'rgba(248,113,113,0.5)' : 'rgba(52,211,153,0.5)'
+  const rowBg       = isTransfer ? 'rgba(99,102,241,0.05)' : isExpense ? 'rgba(248,113,113,0.05)' : 'rgba(52,211,153,0.05)'
+  const rowBorder   = isTransfer ? 'rgba(99,102,241,0.14)' : isExpense ? 'rgba(248,113,113,0.12)' : 'rgba(52,211,153,0.12)'
+  const amountColor  = isTransfer ? (isTransferOut ? '#F87171' : '#34D399') : isExpense ? '#F87171' : '#34D399'
+  const amountPrefix = isTransfer ? (isTransferOut ? '−' : '+') : isExpense ? '−' : '+'
 
   return (
     <motion.div
@@ -105,36 +119,26 @@ function TxRow({ tx }: { tx: Transaction }) {
       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
       style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px',
-        borderRadius: 16,
-        background: rowBg,
-        border: `1px solid ${rowBorder}`,
+        borderRadius: 16, background: rowBg, border: `1px solid ${rowBorder}`,
       }}
     >
       <div style={{
         width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-        background: dotColor,
-        boxShadow: `0 0 6px ${dotGlow}`,
+        background: dotColor, boxShadow: `0 0 6px ${dotGlow}`,
       }} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
           {isTransfer && (
             <span style={{
-              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: '#818CF8',
-              background: 'rgba(99,102,241,0.16)',
-              border: '1px solid rgba(99,102,241,0.28)',
-              borderRadius: 99, padding: '1px 6px',
-              flexShrink: 0,
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: '#818CF8', background: 'rgba(99,102,241,0.16)',
+              border: '1px solid rgba(99,102,241,0.28)', borderRadius: 99, padding: '1px 6px', flexShrink: 0,
             }}>
               {isTransferOut ? 'OUT' : 'IN'}
             </span>
           )}
-          <p style={{
-            fontSize: 13, fontWeight: 600, color: '#f5f7ff',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {tx.description || tx.category}
           </p>
         </div>
@@ -144,11 +148,7 @@ function TxRow({ tx }: { tx: Transaction }) {
       </div>
 
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <p style={{
-          fontSize: 14, fontWeight: 800,
-          color: amountColor,
-          fontVariantNumeric: 'tabular-nums', lineHeight: 1,
-        }}>
+        <p style={{ fontSize: 14, fontWeight: 800, color: amountColor, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
           {amountPrefix}{formatINR(tx.amount)}
         </p>
         <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{dateStr}</p>
@@ -157,14 +157,13 @@ function TxRow({ tx }: { tx: Transaction }) {
   )
 }
 
-// ─── Day Group Section ─────────────────────────────────────────────────────────
+// ─── Day Group ──────────────────────────────────────────────────────────────────
 function DayGroup({ label, txs }: { label: string; txs: Transaction[] }) {
   return (
     <div style={{ marginBottom: 20 }}>
       <p style={{
         fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase',
-        color: 'rgba(255,255,255,0.32)', marginBottom: 10,
-        paddingLeft: 4,
+        color: 'rgba(255,255,255,0.32)', marginBottom: 10, paddingLeft: 4,
       }}>
         {label}
       </p>
@@ -177,15 +176,11 @@ function DayGroup({ label, txs }: { label: string; txs: Transaction[] }) {
   )
 }
 
-// ─── Month Accordion Section ────────────────────────────────────────────────────
+// ─── Month Accordion ───────────────────────────────────────────────────────────────
 function MonthGroup({
   label, txs, isOpen, onToggle, accentColor,
 }: {
-  label: string
-  txs: Transaction[]
-  isOpen: boolean
-  onToggle: () => void
-  accentColor: string
+  label: string; txs: Transaction[]; isOpen: boolean; onToggle: () => void; accentColor: string
 }) {
   const total = txs.reduce((sum, t) => {
     if (t.type === 'expense') return sum - t.amount
@@ -196,25 +191,19 @@ function MonthGroup({
 
   return (
     <div style={{
-      borderRadius: 18,
-      background: 'rgba(255,255,255,0.03)',
-      border: '1px solid rgba(255,255,255,0.07)',
-      marginBottom: 10,
-      overflow: 'hidden',
+      borderRadius: 18, background: 'rgba(255,255,255,0.03)',
+      border: '1px solid rgba(255,255,255,0.07)', marginBottom: 10, overflow: 'hidden',
     }}>
-      {/* Month header — tap to expand/collapse */}
       <motion.button
         whileTap={{ scale: 0.98 }}
         onClick={onToggle}
         style={{
           width: '100%', display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '14px 18px',
+          justifyContent: 'space-between', padding: '14px 18px',
           background: 'transparent', border: 'none', cursor: 'pointer',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {/* Chevron */}
           <motion.div
             animate={{ rotate: isOpen ? 90 : 0 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
@@ -228,8 +217,7 @@ function MonthGroup({
           <span style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff' }}>{label}</span>
           <span style={{
             fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-            color: 'rgba(255,255,255,0.38)',
-            background: 'rgba(255,255,255,0.07)',
+            color: 'rgba(255,255,255,0.38)', background: 'rgba(255,255,255,0.07)',
             borderRadius: 99, padding: '2px 8px',
           }}>
             {txs.length} txn{txs.length !== 1 ? 's' : ''}
@@ -240,7 +228,6 @@ function MonthGroup({
         </span>
       </motion.button>
 
-      {/* Collapsible transaction list */}
       <AnimatePresence initial={false}>
         {isOpen && (
           <motion.div
@@ -251,10 +238,7 @@ function MonthGroup({
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             style={{ overflow: 'hidden' }}
           >
-            <div style={{
-              display: 'flex', flexDirection: 'column', gap: 8,
-              padding: '0 14px 14px',
-            }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 14px 14px' }}>
               <AnimatePresence initial={false}>
                 {txs.map(tx => <TxRow key={tx.id} tx={tx} />)}
               </AnimatePresence>
@@ -271,50 +255,42 @@ const MONTHS = ['January','February','March','April','May','June',
                 'July','August','September','October','November','December']
 
 function groupByDay(txs: Transaction[]): { label: string; key: string; txs: Transaction[] }[] {
-  const map = new Map<string, Transaction[]>()
+  const map = new Map<string, { label: string; txs: Transaction[] }>()
   for (const tx of txs) {
-    const d = new Date(tx.created_at)
-    const key = d.toISOString().substring(0, 10) // YYYY-MM-DD
-    const label = d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-    if (!map.has(key)) map.set(key, [])
-    map.get(key)!.push(tx)
-    map.get(key)!.label = label
+    const d   = new Date(tx.created_at)
+    const key = d.toISOString().substring(0, 10)
+    const lbl = d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    if (!map.has(key)) map.set(key, { label: lbl, txs: [] })
+    map.get(key)!.txs.push(tx)
   }
-  // Sort keys descending
-  const sorted = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
-  return sorted.map(([key, list]) => ({ key, label: (list as any).label as string, txs: list }))
+  return [...map.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, val]) => ({ key, label: val.label, txs: val.txs }))
 }
 
 function groupByMonth(txs: Transaction[]): { label: string; key: string; txs: Transaction[] }[] {
-  const map = new Map<string, Transaction[]>()
+  const map = new Map<string, { label: string; txs: Transaction[] }>()
   for (const tx of txs) {
-    const d = new Date(tx.created_at)
+    const d   = new Date(tx.created_at)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const label = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
-    if (!map.has(key)) map.set(key, [])
-    map.get(key)!.push(tx)
-    map.get(key)!.label = label
+    const lbl = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
+    if (!map.has(key)) map.set(key, { label: lbl, txs: [] })
+    map.get(key)!.txs.push(tx)
   }
-  const sorted = [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
-  return sorted.map(([key, list]) => ({ key, label: (list as any).label as string, txs: list }))
-}
-
-// Attach label to array (TypeScript helper)
-declare global {
-  interface Array<T> {
-    label?: string
-  }
+  return [...map.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, val]) => ({ key, label: val.label, txs: val.txs }))
 }
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 export function WalletDetailScreen() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const location = useLocation()
+  const navigate  = useNavigate()
+  const location  = useLocation()
   const { wallets, update, remove } = useWallets()
   const { transactions, loading: txLoading } = useTransactions()
-  const [editOpen, setEditOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<'day' | 'month'>('day')
+  const [editOpen,   setEditOpen]   = useState(false)
+  const [viewMode,   setViewMode]   = useState<'day' | 'month'>('day')
   const [openMonths, setOpenMonths] = useState<Set<string>>(new Set())
 
   const fromScreen = new URLSearchParams(location.search).get('from') ?? 'home'
@@ -349,11 +325,9 @@ export function WalletDetailScreen() {
   const accentBorder = isCredit ? 'rgba(248,113,113,0.22)' : 'rgba(52,211,153,0.22)'
   const accentBg     = isCredit ? 'rgba(248,113,113,0.07)' : 'rgba(52,211,153,0.07)'
 
-  // Grouped data
   const dayGroups   = useMemo(() => groupByDay(walletTxs),   [walletTxs])
   const monthGroups = useMemo(() => groupByMonth(walletTxs), [walletTxs])
 
-  // Auto-open current month when switching to month view
   const handleModeChange = (m: 'day' | 'month') => {
     setViewMode(m)
     if (m === 'month' && monthGroups.length > 0) {
@@ -364,7 +338,7 @@ export function WalletDetailScreen() {
   const toggleMonth = (key: string) => {
     setOpenMonths(prev => {
       const next = new Set(prev)
-      if (next.has(key)) { next.delete(key) } else { next.add(key) }
+      next.has(key) ? next.delete(key) : next.add(key)
       return next
     })
   }
@@ -406,21 +380,39 @@ export function WalletDetailScreen() {
         paddingTop: 'max(20px, env(safe-area-inset-top))',
       }}>
 
-        {/* Back + Title + Edit row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        {/* ── Header row: Back · Title · Toggle · Edit ── */}
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          gap: 10, marginBottom: 16,
+        }}>
+          {/* Back */}
           <motion.button whileTap={{ scale: 0.88 }} onClick={handleBack}
-            style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+            style={{
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+              background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
           </motion.button>
 
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#f5f7ff', flex: 1, textAlign: 'center', padding: '0 12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {/* Title — shrinks to give toggle space */}
+          <span style={{
+            fontSize: 15, fontWeight: 700, color: '#f5f7ff',
+            flex: 1, minWidth: 0,
+            textAlign: 'center',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
             {wallet.label}
           </span>
 
+          {/* ── Compact Day / Month toggle — lives in header ── */}
+          <ViewToggle mode={viewMode} onChange={handleModeChange} />
+
+          {/* Edit */}
           <motion.button whileTap={{ scale: 0.88 }} onClick={() => setEditOpen(true)}
             style={{
-              width: 36, height: 36, borderRadius: '50%',
+              width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
               background: 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(217,119,6,0.12))',
               border: '1px solid rgba(251,191,36,0.32)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
@@ -498,12 +490,7 @@ export function WalletDetailScreen() {
       {/* ── Scrollable transaction list ── */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 20px calc(env(safe-area-inset-bottom) + 32px)' }}>
 
-        {/* Day / Month toggle */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
-          <ViewToggle mode={viewMode} onChange={handleModeChange} />
-        </div>
-
-        {/* ── Loading skeletons ── */}
+        {/* Loading skeletons */}
         {txLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[1,2,3,4].map(i => (
@@ -512,7 +499,7 @@ export function WalletDetailScreen() {
           </div>
         )}
 
-        {/* ── Empty state ── */}
+        {/* Empty state */}
         {!txLoading && walletTxs.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -529,7 +516,7 @@ export function WalletDetailScreen() {
           </motion.div>
         )}
 
-        {/* ── DAY MODE ── */}
+        {/* DAY MODE */}
         {!txLoading && walletTxs.length > 0 && viewMode === 'day' && (
           <AnimatePresence mode="wait">
             <motion.div
@@ -546,7 +533,7 @@ export function WalletDetailScreen() {
           </AnimatePresence>
         )}
 
-        {/* ── MONTH MODE ── */}
+        {/* MONTH MODE */}
         {!txLoading && walletTxs.length > 0 && viewMode === 'month' && (
           <AnimatePresence mode="wait">
             <motion.div
@@ -571,7 +558,7 @@ export function WalletDetailScreen() {
         )}
       </div>
 
-      {/* ── Edit Sheet ── */}
+      {/* Edit Sheet */}
       <WalletSheet
         open={editOpen}
         onClose={() => setEditOpen(false)}
