@@ -114,7 +114,7 @@ function WalletAddSheet({ open, onClose, onSave }: WalletAddProps) {
     if (!balance || isNaN(Number(balance))) { setErr('Enter a valid balance'); return }
     try {
       setSaving(true); setErr('')
-      await onSave({ owner: 'Isaac', type: 'cash', label: name.trim(), balance: parseFloat(Number(balance).toFixed(2)), credit_limit: null, billing_date: null, due_date: null })
+      await onSave({ type: 'cash', label: name.trim(), balance: parseFloat(Number(balance).toFixed(2)), credit_limit: null, billing_date: null, due_date: null })
       reset(); onClose()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to save') }
     finally { setSaving(false) }
@@ -165,7 +165,6 @@ function WalletEditSheet({ open, item, onClose, onUpdate, onDelete }: WalletEdit
   const [deleting, setDeleting] = useState(false)
   const [err, setErr] = useState('')
 
-  // Sync fields if item changes
   useEffect(() => { setName(item.label); setBalance(String(item.balance)); setErr('') }, [item.id])
 
   const handleClose = () => { setErr(''); onClose() }
@@ -175,7 +174,7 @@ function WalletEditSheet({ open, item, onClose, onUpdate, onDelete }: WalletEdit
     if (!balance || isNaN(Number(balance))) { setErr('Enter a valid balance'); return }
     try {
       setSaving(true); setErr('')
-      await onUpdate(item.id, { owner: item.owner, type: 'cash', label: name.trim(), balance: parseFloat(Number(balance).toFixed(2)), credit_limit: null, billing_date: null, due_date: null })
+      await onUpdate(item.id, { type: 'cash', label: name.trim(), balance: parseFloat(Number(balance).toFixed(2)), credit_limit: null, billing_date: null, due_date: null })
       onClose()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to update') }
     finally { setSaving(false) }
@@ -250,7 +249,7 @@ function CreditCardAddSheet({ open, onClose, onSave }: CreditAddProps) {
     if (!dueDate) { setErr('Select a due date'); return }
     try {
       setSaving(true); setErr('')
-      await onSave({ owner: 'Isaac', type: 'credit', label: name.trim(), balance: parseFloat(Number(outstanding).toFixed(2)), credit_limit: parseFloat(Number(limit).toFixed(2)), billing_date: billDate, due_date: dueDate })
+      await onSave({ type: 'credit', label: name.trim(), balance: parseFloat(Number(outstanding).toFixed(2)), credit_limit: parseFloat(Number(limit).toFixed(2)), billing_date: billDate, due_date: dueDate })
       reset(); onClose()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to save') }
     finally { setSaving(false) }
@@ -358,7 +357,7 @@ function CreditCardEditSheet({ open, item, onClose, onUpdate, onDelete }: Credit
     if (!dueDate) { setErr('Select a due date'); return }
     try {
       setSaving(true); setErr('')
-      await onUpdate(item.id, { owner: item.owner, type: 'credit', label: name.trim(), balance: parseFloat(Number(outstanding).toFixed(2)), credit_limit: parseFloat(Number(limit).toFixed(2)), billing_date: billDate, due_date: dueDate })
+      await onUpdate(item.id, { type: 'credit', label: name.trim(), balance: parseFloat(Number(outstanding).toFixed(2)), credit_limit: parseFloat(Number(limit).toFixed(2)), billing_date: billDate, due_date: dueDate })
       onClose()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to update') }
     finally { setSaving(false) }
@@ -449,7 +448,6 @@ export interface WalletSheetProps {
   onClose: () => void
   onSave: (w: NewWallet) => Promise<void>
   defaultType?: 'cash' | 'credit'
-  // Edit mode props
   mode?: 'add' | 'edit'
   editItem?: WalletEntry | null
   onUpdate?: (id: string, w: NewWallet) => Promise<void>

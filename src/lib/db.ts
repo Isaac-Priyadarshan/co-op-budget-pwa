@@ -56,6 +56,7 @@ export async function deleteTransaction(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // WALLET MODULE
+// owner field removed — wallets are shared between Isaac & Jenifa
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface WalletEntry {
@@ -63,7 +64,6 @@ export interface WalletEntry {
   label: string
   type: 'cash' | 'credit' | string
   balance: number
-  owner: AppUser
   updated_at: string
   credit_limit?: number | null
   billing_date?: number | null
@@ -75,7 +75,6 @@ export interface NewWallet {
   label: string
   type: 'cash' | 'credit' | string
   balance: number
-  owner: AppUser
   credit_limit?: number | null
   billing_date?: number | null
   due_date?: number | null
@@ -95,7 +94,6 @@ export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
     label: entry.label,
     type: entry.type,
     balance: entry.balance,
-    owner: entry.owner,
     credit_limit: entry.type === 'credit' ? (entry.credit_limit ?? null) : null,
     billing_date: entry.type === 'credit' ? (entry.billing_date ?? null) : null,
     due_date: entry.type === 'credit' ? (entry.due_date ?? null) : null,
@@ -121,6 +119,14 @@ export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
   return data as WalletEntry
 }
 
+export async function updateWalletBalance(id: string, balance: number): Promise<void> {
+  const { error } = await supabase
+    .from('wallets')
+    .update({ balance: parseFloat(balance.toFixed(2)) })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 export async function deleteWallet(id: string): Promise<void> {
   const { error } = await supabase.from('wallets').delete().eq('id', id)
   if (error) throw new Error(error.message)
@@ -128,8 +134,6 @@ export async function deleteWallet(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LOAN MODULE
-// LoanEntry.label, .lender, .owner, .principal, .outstanding,
-// .emi_amount, .interest_rate, .closed  — all required, no optional created_at
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface LoanEntry {
@@ -196,8 +200,6 @@ export async function deleteLoan(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // RECURRING MODULE
-// RecurringEntry.label, .category, .owner, .amount, .frequency,
-// .next_due, .active  — owner typed as string to match RecurringSheet usage
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface RecurringEntry {
@@ -263,8 +265,6 @@ export async function deleteRecurring(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LENT MODULE
-// LentEntry.person, .description, .lent_by, .amount, .settled
-// created_at is string (not optional) so formatShortDate() accepts it directly
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface LentEntry {
@@ -322,8 +322,6 @@ export async function deleteLent(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BORROWED MODULE
-// BorrowedEntry.borrowed_by matches BorrowedScreen usage
-// created_at is string (not optional) so formatShortDate() accepts it directly
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface BorrowedEntry {
@@ -381,7 +379,6 @@ export async function deleteBorrowed(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ASSET MODULE
-// AssetEntry.created_at is string (not optional) so formatShortDate() works
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface AssetEntry {
