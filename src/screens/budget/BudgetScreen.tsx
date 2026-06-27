@@ -19,7 +19,7 @@ function monthEnd(y: number, m: number): string {
   return new Date(y, m + 1, 0).toISOString().slice(0, 10)
 }
 
-// ─── Animated Wave Canvas (identical to LedgerScreen) ────────────────────────
+// ─── Animated Wave Canvas ────────────────────────────────────────────────────
 function WaveCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef<number>(0)
@@ -116,12 +116,9 @@ function BudgetNumpad({ initial, accent, label, onConfirm, onCancel }: NumpadPro
         boxShadow: `0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px ${accent}18`,
       }}
     >
-      {/* Label */}
       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: `${accent}99`, marginBottom: 8, textAlign: 'center' }}>
         Set budget for {label}
       </p>
-
-      {/* Display */}
       <div style={{
         background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '10px 14px',
         marginBottom: 10, textAlign: 'right',
@@ -131,8 +128,6 @@ function BudgetNumpad({ initial, accent, label, onConfirm, onCancel }: NumpadPro
           {val ? `₹${Number(val).toLocaleString('en-IN')}` : '₹0'}
         </span>
       </div>
-
-      {/* Keys grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
         {keys.map(k => (
           <motion.button key={k} whileTap={{ scale: 0.88 }} onClick={() => tap(k)}
@@ -144,8 +139,6 @@ function BudgetNumpad({ initial, accent, label, onConfirm, onCancel }: NumpadPro
           >{k === 'DEL' ? '⌫' : k}</motion.button>
         ))}
       </div>
-
-      {/* Actions */}
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
         <motion.button whileTap={{ scale: 0.95 }} onClick={onCancel}
           style={{ flex: 1, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)', color: 'rgba(255,255,255,0.55)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
@@ -182,9 +175,9 @@ export function BudgetScreen() {
   const [year,  setYear]  = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [expandedCat, setExpandedCat] = useState<string | null>(null)
-  const [editingKey,  setEditingKey]  = useState<string | null>(null) // "SubcatName|ParentName"
+  const [editingKey,  setEditingKey]  = useState<string | null>(null)
 
-  const mKey = monthKey(year, month)
+  const mKey   = monthKey(year, month)
   const mStart = monthStart(year, month)
   const mEnd   = monthEnd(year, month)
 
@@ -205,14 +198,15 @@ export function BudgetScreen() {
   const totalSpent = useMemo(() => monthTxs.reduce((s, t) => s + t.amount, 0), [monthTxs])
   const totalLeft  = totalPlanned - totalSpent
 
-  // Spent per category (main)
+  // ── Spent per parent category
+  // FIX Bug 1: use c.id (not c.label) to look up subcategories — they are keyed by category UUID
   const spentByParent = useMemo(() => {
     const map: Record<string, number> = {}
     for (const tx of monthTxs) {
       const cat = (tx.category ?? '').toLowerCase()
       const parent = expenseCategories.find(c =>
         c.label.toLowerCase() === cat ||
-        (subcategories[c.label] ?? []).some((s: Subcategory) => s.label.toLowerCase() === cat)
+        (subcategories[c.id] ?? []).some((s: Subcategory) => s.label.toLowerCase() === cat)
       )
       if (parent) {
         map[parent.label] = (map[parent.label] ?? 0) + tx.amount
@@ -221,7 +215,7 @@ export function BudgetScreen() {
     return map
   }, [monthTxs, expenseCategories, subcategories])
 
-  // Spent per subcategory
+  // ── Spent per subcategory
   const spentBySub = useMemo(() => {
     const map: Record<string, number> = {}
     for (const tx of monthTxs) {
@@ -250,16 +244,15 @@ export function BudgetScreen() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100%', padding: '20px 20px 32px' }}>
+    // BUG 3 FIX: removed minHeight:'100%' — let content flow naturally inside scroll-area
+    <div style={{ padding: '20px 20px 32px' }}>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
       >
 
-        {/* ══════════════════════════════════════════
-            MONTH NAVIGATOR
-        ══════════════════════════════════════════ */}
+        {/* ── MONTH NAVIGATOR ─────────────────────────────────────── */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <motion.button whileTap={{ scale: 0.85 }} onClick={handlePrev}
             style={{
@@ -288,9 +281,7 @@ export function BudgetScreen() {
           </motion.button>
         </div>
 
-        {/* ══════════════════════════════════════════
-            SUMMARY CARD — Planned · Spent · Left
-        ══════════════════════════════════════════ */}
+        {/* ── SUMMARY CARD ─────────────────────────────────────────── */}
         <div style={{
           position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 20,
           background: 'linear-gradient(160deg,#0d0b06 0%,#0a0800 60%,#0e0c02 100%)',
@@ -299,28 +290,22 @@ export function BudgetScreen() {
           minHeight: 100,
         }}>
           <WaveCanvas />
-
-          {/* Top shimmer line */}
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, height: 1,
             background: 'linear-gradient(90deg,transparent,rgba(251,191,36,0.55),transparent)',
           }} />
-
           <div style={{
             position: 'relative', zIndex: 2,
             display: 'grid', gridTemplateColumns: '1fr auto 1fr',
             alignItems: 'center',
             padding: '20px 20px 22px',
           }}>
-            {/* Planned */}
             <div>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.60)', marginBottom: 6 }}>Planned</p>
               <p style={{ fontSize: 17, fontWeight: 800, color: '#FBBF24', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
                 {(txLoading || budgetLoading) ? '—' : formatINR(totalPlanned)}
               </p>
             </div>
-
-            {/* Left (Balance) */}
             <div style={{ textAlign: 'center', padding: '0 18px' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.55)', marginBottom: 6 }}>Left</p>
               <p style={{
@@ -332,8 +317,6 @@ export function BudgetScreen() {
                 {(txLoading || budgetLoading) ? '—' : `${totalLeft < 0 ? '-' : ''}${formatINR(Math.abs(totalLeft))}`}
               </p>
             </div>
-
-            {/* Spent */}
             <div style={{ textAlign: 'right' }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.60)', marginBottom: 6 }}>Spent</p>
               <p style={{ fontSize: 17, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
@@ -343,9 +326,7 @@ export function BudgetScreen() {
           </div>
         </div>
 
-        {/* ══════════════════════════════════════════
-            CATEGORY LIST
-        ══════════════════════════════════════════ */}
+        {/* ── CATEGORY LIST ────────────────────────────────────────── */}
         {expenseCategories.length === 0 && (
           <div style={{ textAlign: 'center', padding: '52px 24px', borderRadius: 24, background: 'rgba(251,191,36,0.03)', border: '1px solid rgba(251,191,36,0.10)' }}>
             <p style={{ fontSize: 40, marginBottom: 14 }}>🗂️</p>
@@ -356,7 +337,8 @@ export function BudgetScreen() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {expenseCategories.map(cat => {
-            const subs        = subcategories[cat.label] ?? []
+            // FIX Bug 1: look up subcategories by cat.id (UUID), not cat.label
+            const subs        = subcategories[cat.id] ?? []
             const isExpanded  = expandedCat === cat.label
             const parentPlanned = getParentTotal(cat.label)
             const parentSpent   = spentByParent[cat.label] ?? 0
@@ -385,7 +367,6 @@ export function BudgetScreen() {
                     padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
                   }}
                 >
-                  {/* Icon */}
                   <div style={{
                     width: 44, height: 44, borderRadius: 14, flexShrink: 0,
                     background: cat.bg, border: `1px solid ${cat.accent}30`,
@@ -393,7 +374,6 @@ export function BudgetScreen() {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
                   }}>{cat.icon}</div>
 
-                  {/* Name + bar */}
                   <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                     <p style={{ fontSize: 14, fontWeight: 700, color: cat.accent, marginBottom: 4 }}>{cat.label}</p>
                     {parentPlanned > 0 ? (
@@ -415,7 +395,6 @@ export function BudgetScreen() {
                     )}
                   </div>
 
-                  {/* Right: total + chevron */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
                     {parentPlanned > 0 && (
                       <p style={{ fontSize: 13, fontWeight: 800, color: cat.accent, fontVariantNumeric: 'tabular-nums' }}>
@@ -464,7 +443,6 @@ export function BudgetScreen() {
                                 overflow: 'hidden',
                               }}
                             >
-                              {/* Sub row */}
                               <motion.button whileTap={{ scale: 0.97 }}
                                 onClick={() => setEditingKey(prev =>
                                   prev === `${sub.label}|${cat.label}` ? null : `${sub.label}|${cat.label}`
@@ -474,7 +452,6 @@ export function BudgetScreen() {
                                   padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10,
                                 }}
                               >
-                                {/* Subcategory uses parent cat accent/bg since Subcategory type has no visual fields */}
                                 <div style={{
                                   width: 34, height: 34, borderRadius: 10, flexShrink: 0,
                                   background: cat.bg, border: `1px solid ${cat.accent}28`,
@@ -522,7 +499,6 @@ export function BudgetScreen() {
                                 </div>
                               </motion.button>
 
-                              {/* Inline numpad */}
                               <AnimatePresence initial={false}>
                                 {isEditing && (
                                   <div style={{ padding: '0 12px 12px' }}>

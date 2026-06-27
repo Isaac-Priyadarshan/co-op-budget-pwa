@@ -49,12 +49,11 @@ export function AppShell() {
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        // Pitch black base with a single warm gold radial spotlight from the top
         background: '#000000',
         overflow: 'hidden',
       }}
     >
-      {/* Global gold top-glow — always present across all screens */}
+      {/* Global gold top-glow */}
       <div
         style={{
           position: 'absolute',
@@ -84,12 +83,24 @@ export function AppShell() {
         }}
       />
 
-      {/* Screen area */}
+      {/*
+        BUG 3 FIX — Single scroll region:
+        - height: 0 + flex: 1 forces this div to stay within its flex allocation
+          and never grow beyond what the parent allows.
+        - overflow-y: auto on this container means ONLY this div scrolls.
+        - The motion.div inside uses height: 'auto' (not minHeight: '100%')
+          so it never fights the scroll container.
+        - -webkit-overflow-scrolling: touch gives native momentum scroll on iOS.
+      */}
       <div
         className="scroll-area"
         style={{
           flex: 1,
+          height: 0,
           paddingTop: 'env(safe-area-inset-top)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
           position: 'relative',
           zIndex: 1,
         }}
@@ -101,7 +112,7 @@ export function AppShell() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            style={{ minHeight: '100%' }}
+            style={{ height: 'auto' }}
           >
             <ActiveComponent />
           </motion.div>
