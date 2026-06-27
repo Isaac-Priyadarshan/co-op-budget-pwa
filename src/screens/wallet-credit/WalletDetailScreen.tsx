@@ -5,7 +5,7 @@ import { useWallets } from '../../hooks/useWallets'
 import { useTransactions } from '../../hooks/useTransactions'
 import { WalletSheet } from '../../components/shared/WalletSheet'
 import { formatINR } from '../../utils/format'
-import type { WalletEntry, NewWallet } from '../../lib/db'
+import type { WalletEntry, NewWallet, Transaction } from '../../lib/db'
 
 // ─── Ordinal helper ────────────────────────────────────────────────────────────
 function ordinal(day?: number | null) {
@@ -38,16 +38,29 @@ function StatPill({ label, value, accent }: { label: string; value: string; acce
 }
 
 // ─── Transaction Row ───────────────────────────────────────────────────────────
-function TxRow({ description, category, amount, type, date }: {
-  description: string
-  category: string
-  amount: number
-  type: 'income' | 'expense'
-  date: string
-}) {
-  const d = new Date(date)
+// Handles all 3 types: income, expense, transfer
+function TxRow({ tx }: { tx: Transaction }) {
+  const d = new Date(tx.created_at)
   const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-  const isExpense = type === 'expense'
+
+  const isTransfer = tx.type === 'transfer'
+  const isExpense  = tx.type === 'expense'
+
+  // Determine visual direction of transfer from the description prefix
+  const isTransferOut = isTransfer && tx.description.startsWith('Transfer →')
+
+  // Color scheme per type
+  const dotColor   = isTransfer ? '#818CF8' : isExpense ? '#F87171' : '#34D399'
+  const dotGlow    = isTransfer ? 'rgba(129,140,248,0.5)' : isExpense ? 'rgba(248,113,113,0.5)' : 'rgba(52,211,153,0.5)'
+  const rowBg      = isTransfer ? 'rgba(99,102,241,0.05)' : isExpense ? 'rgba(248,113,113,0.05)' : 'rgba(52,211,153,0.05)'
+  const rowBorder  = isTransfer ? 'rgba(99,102,241,0.14)' : isExpense ? 'rgba(248,113,113,0.12)' : 'rgba(52,211,153,0.12)'
+  const amountColor = isTransfer
+    ? (isTransferOut ? '#F87171' : '#34D399')
+    : isExpense ? '#F87171' : '#34D399'
+  const amountPrefix = isTransfer
+    ? (isTransferOut ? '−' : '+')
+    : isExpense ? '−' : '+'
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -56,31 +69,52 @@ function TxRow({ description, category, amount, type, date }: {
       style={{
         display: 'flex', alignItems: 'center', gap: 12, padding: '13px 16px',
         borderRadius: 16,
-        background: isExpense ? 'rgba(248,113,113,0.05)' : 'rgba(52,211,153,0.05)',
-        border: isExpense ? '1px solid rgba(248,113,113,0.12)' : '1px solid rgba(52,211,153,0.12)',
+        background: rowBg,
+        border: `1px solid ${rowBorder}`,
       }}
     >
+      {/* Indicator dot */}
       <div style={{
         width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-        background: isExpense ? '#F87171' : '#34D399',
-        boxShadow: isExpense ? '0 0 6px rgba(248,113,113,0.5)' : '0 0 6px rgba(52,211,153,0.5)',
+        background: dotColor,
+        boxShadow: `0 0 6px ${dotGlow}`,
       }} />
+
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{
-          fontSize: 13, fontWeight: 600, color: '#f5f7ff',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {description || category}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          {/* Transfer badge */}
+          {isTransfer && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: '#818CF8',
+              background: 'rgba(99,102,241,0.16)',
+              border: '1px solid rgba(99,102,241,0.28)',
+              borderRadius: 99, padding: '1px 6px',
+              flexShrink: 0,
+            }}>
+              {isTransferOut ? 'OUT' : 'IN'}
+            </span>
+          )}
+          <p style={{
+            fontSize: 13, fontWeight: 600, color: '#f5f7ff',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {tx.description || tx.category}
+          </p>
+        </div>
+        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+          {isTransfer ? 'Transfer' : tx.category}
         </p>
-        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{category}</p>
       </div>
+
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <p style={{
           fontSize: 14, fontWeight: 800,
-          color: isExpense ? '#F87171' : '#34D399',
+          color: amountColor,
           fontVariantNumeric: 'tabular-nums', lineHeight: 1,
         }}>
-          {isExpense ? '−' : '+'}{formatINR(amount)}
+          {amountPrefix}{formatINR(tx.amount)}
         </p>
         <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 3 }}>{dateStr}</p>
       </div>
@@ -97,7 +131,6 @@ export function WalletDetailScreen() {
   const { transactions, loading: txLoading } = useTransactions()
   const [editOpen, setEditOpen] = useState(false)
 
-  // Read ?from= param so back button returns to the correct tab
   const fromScreen = new URLSearchParams(location.search).get('from') ?? 'home'
 
   const handleBack = () => {
@@ -106,10 +139,11 @@ export function WalletDetailScreen() {
 
   const wallet = wallets.find(w => w.id === id) as WalletEntry | undefined
 
+  // All transactions for this wallet (income + expense + transfer)
   const walletTxs = useMemo(
-    () => transactions.filter(t => t.wallet_id === id).sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    ),
+    () => transactions
+      .filter(t => t.wallet_id === id)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
     [transactions, id]
   )
 
@@ -122,6 +156,7 @@ export function WalletDetailScreen() {
     [walletTxs]
   )
 
+  // Stats exclude transfer rows from income/expense totals
   const monthSpent    = monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
   const monthReceived = monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const monthCount    = monthTxs.length
@@ -136,7 +171,6 @@ export function WalletDetailScreen() {
   const handleUpdate = async (wid: string, w: NewWallet) => { await update(wid, w); setEditOpen(false) }
   const handleDelete = async (wid: string) => { await remove(wid); handleBack() }
 
-  // Loading skeleton
   if (!wallet) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -212,14 +246,12 @@ export function WalletDetailScreen() {
             position: 'relative', overflow: 'hidden',
           }}
         >
-          {/* Glow orb */}
           <div style={{
             position: 'absolute', top: -30, right: -30,
             width: 130, height: 130, borderRadius: '50%',
             background: accentGlow, filter: 'blur(40px)', pointerEvents: 'none',
           }} />
 
-          {/* Type badge */}
           <div style={{ marginBottom: 10 }}>
             <span style={{
               fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase',
@@ -230,7 +262,6 @@ export function WalletDetailScreen() {
             </span>
           </div>
 
-          {/* Balance hero */}
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.42)', marginBottom: 6 }}>
             {isCredit ? 'Outstanding Balance' : 'Current Balance'}
           </p>
@@ -242,7 +273,6 @@ export function WalletDetailScreen() {
             {formatINR(wallet.balance)}
           </p>
 
-          {/* Stat pills */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {isCredit ? (
               <>
@@ -301,14 +331,7 @@ export function WalletDetailScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <AnimatePresence initial={false}>
               {walletTxs.map(tx => (
-                <TxRow
-                  key={tx.id}
-                  description={tx.description}
-                  category={tx.category}
-                  amount={tx.amount}
-                  type={tx.type}
-                  date={tx.created_at}
-                />
+                <TxRow key={tx.id} tx={tx} />
               ))}
             </AnimatePresence>
           </div>

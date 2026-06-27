@@ -13,7 +13,7 @@ export interface Transaction {
   created_by: AppUser
   created_at: string
   transaction_date: string
-  type: 'income' | 'expense'
+  type: 'income' | 'expense' | 'transfer'
   wallet_id?: string | null
 }
 
@@ -22,7 +22,7 @@ export interface NewTransaction {
   description: string
   category: string
   created_by: AppUser
-  type: 'income' | 'expense'
+  type: 'income' | 'expense' | 'transfer'
   wallet_id?: string | null
   transaction_date?: string
 }
@@ -56,9 +56,6 @@ export async function insertTransaction(tx: NewTransaction): Promise<Transaction
   }
   if (tx.wallet_id) payload.wallet_id = tx.wallet_id
 
-  // Use .select().single() so we get the inserted row back.
-  // This also confirms the INSERT actually landed — if RLS blocks it,
-  // Supabase returns an error here instead of silently swallowing it.
   const { data, error } = await supabase
     .from('transactions')
     .insert([payload])
@@ -68,16 +65,49 @@ export async function insertTransaction(tx: NewTransaction): Promise<Transaction
   return data as Transaction
 }
 
+// ── insertTransferPair ───────────────────────────────────────────────────────
+// Writes TWO transaction rows — one for the source wallet (Transfer Out)
+// and one for the destination wallet (Transfer In).
+// Both use type: 'transfer' so they are naturally excluded from the Ledger
+// (which only queries income | expense) but appear in each wallet's own log.
+export async function insertTransferPair(
+  fromId: string,
+  fromLabel: string,
+  toId: string,
+  toLabel: string,
+  amount: number,
+  note: string,
+  createdBy: AppUser,
+): Promise<void> {
+  const today = toDateOnly()
+  const shared = {
+    amount,
+    category: 'Transfer',
+    created_by: createdBy,
+    type: 'transfer' as const,
+    transaction_date: today,
+  }
+  const outRow = {
+    ...shared,
+    wallet_id: fromId,
+    description: note
+      ? `Transfer → ${toLabel}  ·  ${note}`
+      : `Transfer → ${toLabel}`,
+  }
+  const inRow = {
+    ...shared,
+    wallet_id: toId,
+    description: note
+      ? `Transfer ← ${fromLabel}  ·  ${note}`
+      : `Transfer ← ${fromLabel}`,
+  }
+  const { error } = await supabase
+    .from('transactions')
+    .insert([outRow, inRow])
+  if (error) throw new Error(error.message)
+}
+
 // deleteTransaction — hardened against silent RLS failures.
-//
-// Problem: supabase.delete().eq() returns { error: null } even when RLS
-// blocks the delete — the row is simply not removed. The caller sees
-// "success" but the row survives, causing it to reappear on next load.
-//
-// Fix: after the delete call, immediately SELECT the row. If it still
-// exists, the delete was silently blocked — throw an explicit error so
-// DataContext rolls back the optimistic UI removal and the user sees
-// a real failure message instead of a phantom disappearance.
 export async function deleteTransaction(id: string): Promise<void> {
   const { error } = await supabase
     .from('transactions')
@@ -86,7 +116,6 @@ export async function deleteTransaction(id: string): Promise<void> {
 
   if (error) throw new Error(error.message)
 
-  // Post-delete verification: confirm the row is truly gone.
   const { data: ghost, error: checkError } = await supabase
     .from('transactions')
     .select('id')
@@ -96,15 +125,12 @@ export async function deleteTransaction(id: string): Promise<void> {
   if (checkError) throw new Error(checkError.message)
 
   if (ghost) {
-    // Row still exists — delete was silently blocked (RLS or network race).
-    // Retry once with explicit error on second failure.
     const { error: retryError } = await supabase
       .from('transactions')
       .delete()
       .eq('id', id)
     if (retryError) throw new Error(retryError.message)
 
-    // Final check after retry
     const { data: stillGhost } = await supabase
       .from('transactions')
       .select('id')
@@ -194,16 +220,7 @@ export async function updateWalletBalance(id: string, balance: number): Promise<
   if (error) throw new Error(error.message)
 }
 
-// adjustWalletBalance — atomically applies a signed delta to a wallet's balance.
-//
-// income  transaction → delta = +amount  (balance goes up)
-// expense transaction → delta = -amount  (balance goes down)
-//
-// We fetch the current balance first, then write balance + delta.
-// This is safe for a 2-person private app where concurrent writes are rare.
-// The balance is clamped to 2 decimal places to avoid floating-point drift.
 export async function adjustWalletBalance(walletId: string, delta: number): Promise<void> {
-  // 1. Fetch current balance
   const { data, error: fetchErr } = await supabase
     .from('wallets')
     .select('balance')
@@ -214,7 +231,6 @@ export async function adjustWalletBalance(walletId: string, delta: number): Prom
   const current = (data as { balance: number }).balance ?? 0
   const next    = parseFloat((current + delta).toFixed(2))
 
-  // 2. Write new balance
   const { error: updateErr } = await supabase
     .from('wallets')
     .update({ balance: next })

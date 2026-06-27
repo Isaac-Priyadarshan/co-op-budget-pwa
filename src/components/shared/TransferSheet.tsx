@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
-import { updateWalletBalance } from '../../lib/db'
+import { useUser } from '../../context/UserContext'
+import { updateWalletBalance, insertTransferPair } from '../../lib/db'
 import { formatINR } from '../../utils/format'
 import type { WalletEntry } from '../../lib/db'
 
@@ -49,7 +50,6 @@ function AccountSelect({ label, accent, options, value, onChange, placeholder }:
             </option>
           ))}
         </select>
-        {/* Chevron icon */}
         <svg
           width="14" height="14" viewBox="0 0 24 24" fill="none"
           stroke="rgba(255,255,255,0.35)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -69,19 +69,19 @@ export interface TransferSheetProps {
 
 export function TransferSheet({ open, onClose }: TransferSheetProps) {
   const { wallets, refresh } = useWallets()
+  const { activeUser }       = useUser()
 
-  const walletOptions  = wallets.filter(w => w.type === 'cash')
-  const destOptions    = wallets  // wallets + credit cards
+  const walletOptions = wallets.filter(w => w.type === 'cash')
+  const destOptions   = wallets  // wallets + credit cards
 
-  const [fromId,   setFromId]   = useState('')
-  const [toId,     setToId]     = useState('')
-  const [amount,   setAmount]   = useState('')
-  const [note,     setNote]     = useState('')
-  const [saving,   setSaving]   = useState(false)
-  const [err,      setErr]      = useState('')
-  const [success,  setSuccess]  = useState(false)
+  const [fromId,  setFromId]  = useState('')
+  const [toId,    setToId]    = useState('')
+  const [amount,  setAmount]  = useState('')
+  const [note,    setNote]    = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [err,     setErr]     = useState('')
+  const [success, setSuccess] = useState(false)
 
-  // Reset state each time sheet opens
   useEffect(() => {
     if (open) {
       setFromId(''); setToId(''); setAmount(''); setNote('')
@@ -94,24 +94,41 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
 
   const handleTransfer = async () => {
     setErr('')
-    if (!fromId)                    { setErr('Select a source wallet'); return }
-    if (!toId)                      { setErr('Select a destination account'); return }
-    if (fromId === toId)            { setErr('Source and destination must be different'); return }
+    if (!fromId)                         { setErr('Select a source wallet'); return }
+    if (!toId)                           { setErr('Select a destination account'); return }
+    if (fromId === toId)                 { setErr('Source and destination must be different'); return }
     const amt = parseFloat(amount)
     if (!amount || isNaN(amt) || amt <= 0) { setErr('Enter a valid amount greater than 0'); return }
     if (fromWallet && amt > fromWallet.balance) { setErr(`Insufficient balance in "${fromWallet.label}"`); return }
 
     try {
       setSaving(true)
+
       const newFromBalance = parseFloat(((fromWallet?.balance ?? 0) - amt).toFixed(2))
       const newToBalance   = parseFloat(((toWallet?.balance   ?? 0) + amt).toFixed(2))
+
+      // 1. Update balances
       await Promise.all([
         updateWalletBalance(fromId, newFromBalance),
         updateWalletBalance(toId,   newToBalance),
       ])
+
+      // 2. Write transfer log rows — one for each wallet so they appear
+      //    in each wallet's own transaction log.
+      //    type: 'transfer' keeps them out of the main Ledger screen.
+      await insertTransferPair(
+        fromId,
+        fromWallet?.label ?? 'Unknown',
+        toId,
+        toWallet?.label ?? 'Unknown',
+        amt,
+        note.trim(),
+        activeUser,
+      )
+
       await refresh()
       setSuccess(true)
-      setTimeout(() => { onClose() }, 1200)
+      setTimeout(() => { onClose() }, 1400)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Transfer failed')
     } finally {
@@ -181,6 +198,9 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>
                     {formatINR(parseFloat(amount))} moved from {fromWallet?.label} → {toWallet?.label}
                   </p>
+                  <p style={{ fontSize: 11, color: 'rgba(99,102,241,0.7)', marginTop: 8 }}>
+                    ⇄ Transfer log saved to both wallets
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -197,7 +217,6 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
                   placeholder="Select source wallet…"
                 />
 
-                {/* Balance preview */}
                 {fromWallet && (
                   <div style={{ marginTop: -12, marginBottom: 16, padding: '8px 14px', borderRadius: 10, background: 'rgba(52,211,153,0.07)', border: '1px solid rgba(52,211,153,0.15)' }}>
                     <p style={{ fontSize: 12, color: 'rgba(52,211,153,0.7)' }}>Available: <span style={{ fontWeight: 800, color: '#34D399' }}>{formatINR(fromWallet.balance)}</span></p>
@@ -226,7 +245,6 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
                   placeholder="Select destination…"
                 />
 
-                {/* Balance preview for destination */}
                 {toWallet && (
                   <div style={{ marginTop: -12, marginBottom: 20, padding: '8px 14px', borderRadius: 10, background: 'rgba(248,113,113,0.07)', border: '1px solid rgba(248,113,113,0.15)' }}>
                     <p style={{ fontSize: 12, color: 'rgba(248,113,113,0.7)' }}>Current balance: <span style={{ fontWeight: 800, color: '#F87171' }}>{formatINR(toWallet.balance)}</span></p>
@@ -271,6 +289,7 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
                       <span style={{ color: '#A5B4FC', fontWeight: 800 }}>{formatINR(parseFloat(amount))}</span>
                       {note && <span style={{ color: 'rgba(255,255,255,0.3)' }}>  ·  {note}</span>}
                     </p>
+                    <p style={{ fontSize: 10, color: 'rgba(99,102,241,0.6)', marginTop: 6 }}>⇄ Transfer log will be saved to both wallets</p>
                   </div>
                 )}
 
