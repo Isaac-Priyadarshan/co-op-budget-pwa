@@ -14,21 +14,6 @@ const KEY_ROWS = [
 ]
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-/*
-  FINAL LOCKED LAYOUT ─ bottom section renders top→bottom:
-
-    [AMOUNT ZONE — flex:1]   big number + status chips + error
-    ─────────────── BOTTOM (never moves) ───────────────
-    1. SUBCATEGORY CHIPS      (always visible)
-    2. PANEL TRAY             (note/wallet/calendar — expands above toolbar)
-       └─ tray inner div has paddingBottom:12px + marginBottom:-12px
-          so its background physically slides BEHIND the toolbar row,
-          hiding any seam or cut-corner gap. Toolbar sits on top via zIndex.
-    3. TOOLBAR                (Note · Wallet · Calendar)
-    4. NUMPAD
-    5. CONFIRM
-*/
-
 export function EntryScreen() {
   const navigate = useNavigate()
   const { type, categoryId } = useParams<{ type: string; categoryId: string }>()
@@ -150,10 +135,14 @@ export function EntryScreen() {
     }
   }, [canConfirm, category, activeUser, selectedSub, note, subs, addTransaction, amountValue, type, navigate])
 
-  // ──────────────────────── PANEL TRAY CONTENT ────────────────────────
-  const renderTray = () => {
+  // ─── TRAY CONTENT (rendered inside the unified toolbar card) ───
+  const renderTrayContent = () => {
     if (activePanel === 'note') return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingInline: 4 }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '10px 14px',
+        borderBottom: `1px solid ${accent}25`,
+      }}>
         <span style={{ fontSize: 15, flexShrink: 0 }}>✏️</span>
         <input
           ref={noteInputRef}
@@ -167,9 +156,7 @@ export function EntryScreen() {
           }}
         />
         {note && (
-          <motion.button
-            whileTap={{ scale: 0.85 }}
-            onClick={() => setNote('')}
+          <motion.button whileTap={{ scale: 0.85 }} onClick={() => setNote('')}
             style={{
               background: 'rgba(255,255,255,0.10)', border: 'none', borderRadius: '50%',
               width: 22, height: 22, cursor: 'pointer', flexShrink: 0,
@@ -182,10 +169,10 @@ export function EntryScreen() {
     )
 
     if (activePanel === 'wallet') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '10px 14px', borderBottom: `1px solid ${accent}25` }}>
         <div style={{
           fontSize: 10, fontWeight: 800, letterSpacing: '0.12em',
-          color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase',
+          color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', marginBottom: 8,
         }}>Select Wallet / Card</div>
         {walletsLoading ? (
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)' }}>Loading…</div>
@@ -199,16 +186,12 @@ export function EntryScreen() {
             {wallets.map(w => {
               const sel = walletId === w.id
               return (
-                <motion.button
-                  key={w.id}
-                  whileTap={{ scale: 0.91 }}
+                <motion.button key={w.id} whileTap={{ scale: 0.91 }}
                   onClick={() => { setWalletId(w.id); setWalletLabel(w.label); setActivePanel(null) }}
                   style={{
                     height: 34, paddingInline: 13, borderRadius: 20,
                     border: `1px solid ${sel ? accent : 'rgba(255,255,255,0.14)'}`,
-                    background: sel
-                      ? `linear-gradient(135deg, ${accent}33, ${accent}18)`
-                      : 'rgba(255,255,255,0.06)',
+                    background: sel ? `linear-gradient(135deg, ${accent}33, ${accent}18)` : 'rgba(255,255,255,0.06)',
                     color: sel ? accent : 'rgba(255,255,255,0.65)',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
@@ -227,7 +210,8 @@ export function EntryScreen() {
     )
 
     if (activePanel === 'calendar') return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ padding: '10px 14px', borderBottom: `1px solid ${accent}25`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Year */}
         <div style={{ display: 'flex', gap: 5, justifyContent: 'center' }}>
           {pickerYears.map(yr => (
             <motion.button key={yr} whileTap={{ scale: 0.88 }}
@@ -237,11 +221,12 @@ export function EntryScreen() {
                 border: `1px solid ${pickerY === yr ? accent : 'rgba(255,255,255,0.10)'}`,
                 background: pickerY === yr ? `${accent}28` : 'rgba(255,255,255,0.05)',
                 color: pickerY === yr ? accent : 'rgba(255,255,255,0.42)',
-                fontSize: 11, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.02em',
+                fontSize: 11, fontWeight: 800, cursor: 'pointer',
               }}
             >{yr}</motion.button>
           ))}
         </div>
+        {/* Month */}
         <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
           {MONTH_NAMES.map((mn, i) => (
             <motion.button key={mn} whileTap={{ scale: 0.88 }}
@@ -256,6 +241,7 @@ export function EntryScreen() {
             >{mn}</motion.button>
           ))}
         </div>
+        {/* Day */}
         <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
           {pickerDays.map(dd => (
             <motion.button key={dd} whileTap={{ scale: 0.85 }}
@@ -293,20 +279,17 @@ export function EntryScreen() {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <div style={{
         position: 'relative', zIndex: 1, flexShrink: 0,
         display: 'flex', alignItems: 'center', gap: 12,
         paddingTop: 'env(safe-area-inset-top, 16px)',
         paddingInline: 20, paddingBottom: 12,
       }}>
-        <motion.button
-          whileTap={{ scale: 0.88 }}
-          onClick={() => navigate(-1)}
+        <motion.button whileTap={{ scale: 0.88 }} onClick={() => navigate(-1)}
           style={{
             width: 40, height: 40, borderRadius: 12,
-            background: 'rgba(255,255,255,0.07)',
-            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', flexShrink: 0, color: '#fff', fontSize: 18,
           }}
@@ -339,10 +322,9 @@ export function EntryScreen() {
         }}>{dateLabel}</div>
       </div>
 
-      {/* ──────────────────── AMOUNT ZONE (flex:1) ──────────────────── */}
+      {/* AMOUNT ZONE */}
       <div style={{
-        position: 'relative', zIndex: 1,
-        flex: 1, minHeight: 0,
+        position: 'relative', zIndex: 1, flex: 1, minHeight: 0,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         paddingInline: 16, overflow: 'hidden',
@@ -373,8 +355,7 @@ export function EntryScreen() {
             >
               {walletLabel && (
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '4px 11px', borderRadius: 20,
+                  display: 'flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 20,
                   background: `${accent}18`, border: `1px solid ${accent}33`, flexShrink: 0,
                 }}>
                   <span style={{ fontSize: 12 }}>💳</span>
@@ -385,8 +366,7 @@ export function EntryScreen() {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    padding: '4px 11px', borderRadius: 20,
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 20,
                     background: `${accent}22`, border: `1px solid ${accent}55`, flexShrink: 0,
                   }}
                 >
@@ -403,8 +383,7 @@ export function EntryScreen() {
               initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
               style={{
-                marginTop: 10, flexShrink: 0,
-                fontSize: 12, fontWeight: 600, color: '#F87171',
+                marginTop: 10, flexShrink: 0, fontSize: 12, fontWeight: 600, color: '#F87171',
                 background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)',
                 borderRadius: 10, padding: '5px 14px',
               }}
@@ -413,14 +392,14 @@ export function EntryScreen() {
         </AnimatePresence>
       </div>
 
-      {/* ───────────────── BOTTOM ───────────────── */}
+      {/* BOTTOM */}
       <div style={{
         position: 'relative', zIndex: 1, flexShrink: 0,
         display: 'flex', flexDirection: 'column',
         paddingBottom: 'env(safe-area-inset-bottom, 12px)',
       }}>
 
-        {/* ── 1. SUBCATEGORY CHIPS ── */}
+        {/* SUBCATEGORY CHIPS */}
         {subs.length > 0 && (
           <div style={{
             paddingInline: 16, paddingTop: 4, paddingBottom: 6,
@@ -429,16 +408,12 @@ export function EntryScreen() {
             {subs.map(sub => {
               const sel = selectedSub === sub.id
               return (
-                <motion.button
-                  key={sub.id}
-                  whileTap={{ scale: 0.92 }}
+                <motion.button key={sub.id} whileTap={{ scale: 0.92 }}
                   onClick={() => setSelectedSub(sel ? null : sub.id)}
                   style={{
                     height: 28, paddingInline: 12, borderRadius: 20,
                     border: `1px solid ${sel ? accent : 'rgba(255,255,255,0.13)'}`,
-                    background: sel
-                      ? `linear-gradient(135deg, ${accent}33, ${accent}18)`
-                      : 'rgba(255,255,255,0.05)',
+                    background: sel ? `linear-gradient(135deg, ${accent}33, ${accent}18)` : 'rgba(255,255,255,0.05)',
                     color: sel ? accent : 'rgba(255,255,255,0.58)',
                     fontSize: 11, fontWeight: 700, cursor: 'pointer',
                     whiteSpace: 'nowrap', transition: 'all 0.15s ease',
@@ -451,117 +426,102 @@ export function EntryScreen() {
         )}
 
         {/*
-          ── 2. PANEL TRAY ──
-          KEY TECHNIQUE:
-            The inner div uses  paddingBottom: 12  +  marginBottom: -12
-            This means the tray's background colour extends 12px BELOW its
-            visible content area, physically sliding behind the toolbar row.
-            The toolbar row sits on top via  position:relative / zIndex:2.
-            Result: the tray and toolbar share a seamless, curved-corner
-            junction with zero visible gap or cut edge.
-        */}
-        <AnimatePresence>
-          {activePanel !== null && (
-            <motion.div
-              key={activePanel}
-              initial={{ opacity: 0, scaleY: 0.7, originY: 1 }}
-              animate={{ opacity: 1, scaleY: 1 }}
-              exit={{ opacity: 0, scaleY: 0.7 }}
-              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-              style={{
-                transformOrigin: 'bottom',
-                // overflow visible so the -12px bleed can show
-                overflow: 'visible',
-                position: 'relative', zIndex: 1,
-              }}
-            >
-              <div style={{
-                marginInline: 16,
-                // Bleed: extends 12px below its content, underneath the toolbar
-                paddingBottom: 12,
-                marginBottom: -12,
-                padding: '10px 14px 12px',
-                borderRadius: '14px 14px 0 0',
-                border: `1px solid ${accent}40`,
-                borderBottom: 'none',
-                background: `linear-gradient(180deg, ${accent}12 0%, ${accent}06 100%)`,
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-              }}>
-                {renderTray()}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/*
-          ── 3. TOOLBAR ──
-          position:relative + zIndex:2 ensures toolbar renders ON TOP of
-          the tray's -12px bleed, so only the background bleeds through,
-          not the tray content.
+          ─────────────────────────────────────────────────────────────────
+          UNIFIED TOOLBAR CARD
+          ─────────────────────────────────────────────────────────────────
+          The toolbar (Note / Wallet / Calendar buttons) and the tray content
+          live inside ONE rounded card. When a panel is open, the tray content
+          appears at the TOP of the card above a thin divider line, then the
+          three toolbar buttons sit below — all inside the same border-radius.
+          This completely eliminates any seam, gap, or cut-corner issue because
+          there is only one shape, one border, one background.
         */}
         <div style={{
-          position: 'relative', zIndex: 2,
-          display: 'flex', gap: 7,
-          paddingInline: 16, paddingBottom: 6,
+          marginInline: 16,
+          marginBottom: 8,
+          borderRadius: 14,
+          border: `1px solid ${
+            activePanel ? `${accent}45` : 'rgba(255,255,255,0.09)'
+          }`,
+          background: activePanel
+            ? `linear-gradient(180deg, ${accent}10 0%, rgba(255,255,255,0.03) 100%)`
+            : 'rgba(255,255,255,0.04)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          overflow: 'hidden',
+          transition: 'border-color 0.2s ease, background 0.2s ease',
         }}>
-          {([
-            { id: 'note'     as const, icon: '✏️', label: note ? `“${note.slice(0, 13)}${note.length > 13 ? '…' : ''}”` : 'Note' },
-            { id: 'wallet'   as const, icon: '💳', label: walletLabel || 'Wallet' },
-            { id: 'calendar' as const, icon: '📅', label: dateLabel },
-          ] as const).map(btn => {
-            const isActive = activePanel === btn.id
-            const isDone   = (btn.id === 'note' && !!note) || (btn.id === 'wallet' && !!walletId)
-            return (
-              <motion.button
-                key={btn.id}
-                whileTap={{ scale: 0.93 }}
-                onClick={() => togglePanel(btn.id)}
-                style={{
-                  flex: 1, height: 36, cursor: 'pointer',
-                  borderRadius: isActive ? '0 0 11px 11px' : 11,
-                  border: `1px solid ${
-                    isActive ? accent
-                    : isDone  ? `${accent}55`
-                    : 'rgba(255,255,255,0.10)'
-                  }`,
-                  // Remove top border when tray is overlapping from above
-                  borderTop: isActive ? 'none' : undefined,
-                  background: isActive
-                    ? `linear-gradient(180deg, ${accent}22 0%, ${accent}12 100%)`
-                    : isDone ? `${accent}10` : 'rgba(255,255,255,0.04)',
-                  color: isActive ? accent : isDone ? `${accent}cc` : 'rgba(255,255,255,0.45)',
-                  fontSize: 11, fontWeight: 700,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                  letterSpacing: '0.02em',
-                  whiteSpace: 'nowrap', overflow: 'hidden', paddingInline: 6,
-                  transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
-                }}
-              >
-                <span style={{ fontSize: 13, flexShrink: 0 }}>{btn.icon}</span>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 70 }}>
-                  {btn.label}
-                </span>
-              </motion.button>
-            )
-          })}
-        </div>
 
-        {/* ── 4. NUMPAD ── */}
+          {/* Tray content — animates open/closed inside the card */}
+          <AnimatePresence initial={false}>
+            {activePanel !== null && (
+              <motion.div
+                key={activePanel}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                style={{ overflow: 'hidden' }}
+              >
+                {renderTrayContent()}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Toolbar buttons row — always visible at the bottom of the card */}
+          <div style={{ display: 'flex' }}>
+            {([
+              { id: 'note'     as const, icon: '✏️', label: note ? `“${note.slice(0, 13)}${note.length > 13 ? '…' : ''}”` : 'Note' },
+              { id: 'wallet'   as const, icon: '💳', label: walletLabel || 'Wallet' },
+              { id: 'calendar' as const, icon: '📅', label: dateLabel },
+            ] as const).map((btn, i) => {
+              const isActive = activePanel === btn.id
+              const isDone   = (btn.id === 'note' && !!note) || (btn.id === 'wallet' && !!walletId)
+              const isLast   = i === 2
+              return (
+                <motion.button
+                  key={btn.id}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => togglePanel(btn.id)}
+                  style={{
+                    flex: 1,
+                    height: 40,
+                    cursor: 'pointer',
+                    border: 'none',
+                    // Divider between buttons via right border, except last
+                    borderRight: !isLast ? '1px solid rgba(255,255,255,0.07)' : 'none',
+                    background: isActive
+                      ? `${accent}18`
+                      : 'transparent',
+                    color: isActive ? accent : isDone ? `${accent}cc` : 'rgba(255,255,255,0.45)',
+                    fontSize: 11, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                    letterSpacing: '0.02em',
+                    whiteSpace: 'nowrap', overflow: 'hidden', paddingInline: 6,
+                    transition: 'background 0.15s ease, color 0.15s ease',
+                  }}
+                >
+                  <span style={{ fontSize: 13, flexShrink: 0 }}>{btn.icon}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 72 }}>
+                    {btn.label}
+                  </span>
+                </motion.button>
+              )
+            })}
+          </div>
+        </div>
+        {/* END UNIFIED TOOLBAR CARD */}
+
+        {/* NUMPAD */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
           gap: 7, paddingInline: 16, paddingBottom: 8,
         }}>
           {KEY_ROWS.flat().map(k => (
-            <motion.button
-              key={k}
-              whileTap={{ scale: 0.88 }}
-              onClick={() => handleKey(k)}
+            <motion.button key={k} whileTap={{ scale: 0.88 }} onClick={() => handleKey(k)}
               style={{
                 height: 56, borderRadius: 15, border: 'none',
-                background: k === '⌫'
-                  ? `${accent}18`
-                  : k === '.' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.07)',
+                background: k === '⌫' ? `${accent}18` : k === '.' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.07)',
                 color: k === '⌫' ? accent : '#FFFFFF',
                 fontSize: k === '⌫' ? 20 : 22,
                 fontWeight: k === '⌫' ? 700 : 600,
@@ -573,15 +533,12 @@ export function EntryScreen() {
           ))}
         </div>
 
-        {/* ── 5. CONFIRM BUTTON ── */}
+        {/* CONFIRM BUTTON */}
         <div style={{ paddingInline: 16, paddingBottom: 8 }}>
           <AnimatePresence>
             {success ? (
-              <motion.div
-                key="success"
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
+              <motion.div key="success"
+                initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
                 style={{
                   height: 54, borderRadius: 17,
                   background: 'linear-gradient(135deg, #22c55e, #16a34a)',
@@ -591,8 +548,7 @@ export function EntryScreen() {
                 }}
               >✓ Saved</motion.div>
             ) : (
-              <motion.button
-                key="confirm"
+              <motion.button key="confirm"
                 whileTap={canConfirm ? { scale: 0.97 } : {}}
                 onClick={handleConfirm}
                 disabled={saving}
@@ -631,7 +587,7 @@ export function EntryScreen() {
           </AnimatePresence>
         </div>
 
-      </div>{/* end BOTTOM */}
+      </div>
     </div>
   )
 }
