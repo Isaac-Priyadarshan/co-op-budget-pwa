@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useUser } from '../../context/UserContext'
 import { BottomNav } from './BottomNav'
@@ -32,9 +33,34 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
   settings: SettingsScreen,
 }
 
+const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
+
 export function AppShell() {
   const { activeUser } = useUser()
-  const [activeScreen, setActiveScreen] = useState<ScreenId>('home')
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  // Read ?screen= param on mount to restore the correct tab after back-navigation
+  const initialScreen = (): ScreenId => {
+    const params = new URLSearchParams(location.search)
+    const s = params.get('screen') as ScreenId | null
+    if (s && VALID_SCREENS.includes(s)) return s
+    return 'home'
+  }
+
+  const [activeScreen, setActiveScreen] = useState<ScreenId>(initialScreen)
+
+  // If URL changes (e.g. user presses back from a detail route with ?screen=),
+  // sync the active screen from the query param and then clean the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const s = params.get('screen') as ScreenId | null
+    if (s && VALID_SCREENS.includes(s)) {
+      setActiveScreen(s)
+      // Clean the ?screen= param from the URL without adding a history entry
+      navigate('/', { replace: true })
+    }
+  }, [location.search])
 
   const ActiveComponent = SCREEN_MAP[activeScreen]
 
@@ -83,15 +109,6 @@ export function AppShell() {
         }}
       />
 
-      {/*
-        BUG 3 FIX — Single scroll region:
-        - height: 0 + flex: 1 forces this div to stay within its flex allocation
-          and never grow beyond what the parent allows.
-        - overflow-y: auto on this container means ONLY this div scrolls.
-        - The motion.div inside uses height: 'auto' (not minHeight: '100%')
-          so it never fights the scroll container.
-        - -webkit-overflow-scrolling: touch gives native momentum scroll on iOS.
-      */}
       <div
         className="scroll-area"
         style={{

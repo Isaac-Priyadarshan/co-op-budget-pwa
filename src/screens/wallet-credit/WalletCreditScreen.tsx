@@ -23,15 +23,6 @@ function WalletWaveCanvas() {
   )
 }
 
-// ─── Ordinal helper ────────────────────────────────────────────────────────────
-function formatDayOfMonth(day?: number | null) {
-  if (!day || day < 1 || day > 31) return '—'
-  const s = day % 100
-  const l = day % 10
-  const suffix = s >= 11 && s <= 13 ? 'th' : l === 1 ? 'st' : l === 2 ? 'nd' : l === 3 ? 'rd' : 'th'
-  return `${day}${suffix}`
-}
-
 type SheetMode = { type: 'add-cash' } | { type: 'add-credit' } | { type: 'edit'; item: WalletEntry } | null
 
 export function WalletCreditScreen() {
@@ -47,12 +38,7 @@ export function WalletCreditScreen() {
   const handleUpdate = async (id: string, w: NewWallet) => { await update(id, w) }
   const handleDelete = async (id: string) => { await remove(id) }
 
-  // ─── Section header: label + Home-style gold circular + button ─────────────
-  const SectionHeader = ({
-    label, accent, onAdd,
-  }: {
-    label: string; accent: string; onAdd: () => void
-  }) => (
+  const SectionHeader = ({ label, accent, onAdd }: { label: string; accent: string; onAdd: () => void }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
       <motion.button
         whileTap={{ scale: 0.82 }}
@@ -80,13 +66,10 @@ export function WalletCreditScreen() {
 
       {/* ── Sticky Summary Card ── */}
       <div style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
+        position: 'sticky', top: 0, zIndex: 10,
         padding: '20px 20px 0',
         background: 'linear-gradient(to bottom, #000000 80%, transparent 100%)',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
       }}>
         <div style={{
           position: 'relative', borderRadius: 22, overflow: 'hidden', marginBottom: 16,
@@ -134,7 +117,6 @@ export function WalletCreditScreen() {
                 accent="rgba(52,211,153,0.8)"
                 onAdd={() => setSheet({ type: 'add-cash' })}
               />
-
               {walletEntries.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '22px 16px', borderRadius: 16, background: 'rgba(52,211,153,0.04)', border: '1px dashed rgba(52,211,153,0.18)' }}>
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No wallets yet — tap + to add one</p>
@@ -150,7 +132,7 @@ export function WalletCreditScreen() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        onClick={() => navigate(`/wallet/${wallet.id}`)}
+                        onClick={() => navigate(`/wallet/${wallet.id}?from=wallet-credit`)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px',
                           borderRadius: 18,
@@ -184,7 +166,6 @@ export function WalletCreditScreen() {
                 accent="rgba(248,113,113,0.8)"
                 onAdd={() => setSheet({ type: 'add-credit' })}
               />
-
               {creditEntries.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '22px 16px', borderRadius: 16, background: 'rgba(248,113,113,0.04)', border: '1px dashed rgba(248,113,113,0.18)' }}>
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No credit cards yet — tap + to add one</p>
@@ -200,44 +181,23 @@ export function WalletCreditScreen() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        onClick={() => navigate(`/wallet/${card.id}`)}
+                        onClick={() => navigate(`/wallet/${card.id}?from=wallet-credit`)}
                         style={{
-                          borderRadius: 20, padding: '16px 18px',
+                          display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px',
+                          borderRadius: 18,
                           background: 'rgba(248,113,113,0.08)',
                           border: '1px solid rgba(248,113,113,0.18)',
                           cursor: 'pointer',
                         }}
                       >
-                        {/* Name + balance + chevron row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                          <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
-                            {card.label}
+                        <p style={{ flex: 1, fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+                          {card.label}
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums' }}>
+                            {formatINR(card.balance)}
                           </p>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                            <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums' }}>
-                              {formatINR(card.balance)}
-                            </p>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                          </div>
-                        </div>
-                        {/* 4-cell detail grid */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                          <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Total Limit</p>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: '#A5B4FC', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.credit_limit ?? 0)}</p>
-                          </div>
-                          <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Outstanding</p>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: '#FCA5A5', fontVariantNumeric: 'tabular-nums' }}>{formatINR(card.balance)}</p>
-                          </div>
-                          <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Billing Date</p>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatDayOfMonth(card.billing_date)}</p>
-                          </div>
-                          <div style={{ padding: '12px 12px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.32)', marginBottom: 6 }}>Due Date</p>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatDayOfMonth(card.due_date)}</p>
-                          </div>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                         </div>
                       </motion.div>
                     ))}
@@ -269,7 +229,7 @@ export function WalletCreditScreen() {
         onClose={() => setSheet(null)}
         onSave={handleSave}
         mode="edit"
-        editItem={sheet?.type === 'edit' ? sheet.item : null}
+        editItem={sheet?.type === 'edit' ? sheet.item : undefined}
         onUpdate={handleUpdate}
         onDelete={handleDelete}
       />

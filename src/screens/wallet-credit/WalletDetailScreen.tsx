@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
 import { useTransactions } from '../../hooks/useTransactions'
@@ -60,14 +60,11 @@ function TxRow({ description, category, amount, type, date }: {
         border: isExpense ? '1px solid rgba(248,113,113,0.12)' : '1px solid rgba(52,211,153,0.12)',
       }}
     >
-      {/* Left accent dot */}
       <div style={{
         width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
         background: isExpense ? '#F87171' : '#34D399',
         boxShadow: isExpense ? '0 0 6px rgba(248,113,113,0.5)' : '0 0 6px rgba(52,211,153,0.5)',
       }} />
-
-      {/* Description + category */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{
           fontSize: 13, fontWeight: 600, color: '#f5f7ff',
@@ -75,12 +72,8 @@ function TxRow({ description, category, amount, type, date }: {
         }}>
           {description || category}
         </p>
-        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
-          {category}
-        </p>
+        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>{category}</p>
       </div>
-
-      {/* Date + amount */}
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <p style={{
           fontSize: 14, fontWeight: 800,
@@ -99,13 +92,20 @@ function TxRow({ description, category, amount, type, date }: {
 export function WalletDetailScreen() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { wallets, update, remove } = useWallets()
   const { transactions, loading: txLoading } = useTransactions()
   const [editOpen, setEditOpen] = useState(false)
 
+  // Read ?from= param so back button returns to the correct tab
+  const fromScreen = new URLSearchParams(location.search).get('from') ?? 'home'
+
+  const handleBack = () => {
+    navigate(`/?screen=${fromScreen}`, { replace: true })
+  }
+
   const wallet = wallets.find(w => w.id === id) as WalletEntry | undefined
 
-  // All transactions for this wallet, newest first
   const walletTxs = useMemo(
     () => transactions.filter(t => t.wallet_id === id).sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -113,7 +113,6 @@ export function WalletDetailScreen() {
     [transactions, id]
   )
 
-  // This month's transactions
   const now = new Date()
   const monthTxs = useMemo(
     () => walletTxs.filter(t => {
@@ -127,30 +126,22 @@ export function WalletDetailScreen() {
   const monthReceived = monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0)
   const monthCount    = monthTxs.length
 
-  const isCredit = wallet?.type === 'credit'
-  const available = isCredit ? Math.max(0, (wallet?.credit_limit ?? 0) - (wallet?.balance ?? 0)) : 0
-
+  const isCredit     = wallet?.type === 'credit'
+  const available    = isCredit ? Math.max(0, (wallet?.credit_limit ?? 0) - (wallet?.balance ?? 0)) : 0
   const accentColor  = isCredit ? '#F87171' : '#34D399'
   const accentGlow   = isCredit ? 'rgba(248,113,113,0.28)' : 'rgba(52,211,153,0.28)'
   const accentBorder = isCredit ? 'rgba(248,113,113,0.22)' : 'rgba(52,211,153,0.22)'
   const accentBg     = isCredit ? 'rgba(248,113,113,0.07)' : 'rgba(52,211,153,0.07)'
 
-  const handleUpdate = async (id: string, w: NewWallet) => {
-    await update(id, w)
-    setEditOpen(false)
-  }
-  const handleDelete = async (wid: string) => {
-    await remove(wid)
-    navigate(-1)
-  }
+  const handleUpdate = async (wid: string, w: NewWallet) => { await update(wid, w); setEditOpen(false) }
+  const handleDelete = async (wid: string) => { await remove(wid); handleBack() }
 
-  // Wallet not found yet (loading)
+  // Loading skeleton
   if (!wallet) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        {/* Back bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 20px 12px' }}>
-          <motion.button whileTap={{ scale: 0.88 }} onClick={() => navigate(-1)}
+          <motion.button whileTap={{ scale: 0.88 }} onClick={handleBack}
             style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
@@ -165,7 +156,11 @@ export function WalletDetailScreen() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{
+      position: 'fixed', inset: 0,
+      display: 'flex', flexDirection: 'column',
+      background: '#000000', overflow: 'hidden',
+    }}>
 
       {/* ── Sticky top area ── */}
       <div style={{
@@ -173,11 +168,12 @@ export function WalletDetailScreen() {
         background: 'linear-gradient(to bottom, #000000 85%, transparent 100%)',
         backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
         padding: '20px 20px 0',
+        paddingTop: 'max(20px, env(safe-area-inset-top))',
       }}>
 
-        {/* Back + Edit bar */}
+        {/* Back + Title + Edit row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <motion.button whileTap={{ scale: 0.88 }} onClick={() => navigate(-1)}
+          <motion.button whileTap={{ scale: 0.88 }} onClick={handleBack}
             style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
@@ -246,16 +242,16 @@ export function WalletDetailScreen() {
             {formatINR(wallet.balance)}
           </p>
 
-          {/* Stat pills grid */}
+          {/* Stat pills */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {isCredit ? (
               <>
-                <StatPill label="Credit Limit"    value={formatINR(wallet.credit_limit ?? 0)} accent="#A5B4FC" />
-                <StatPill label="Available"       value={formatINR(available)}               accent="#34D399" />
-                <StatPill label="Spent This Month" value={formatINR(monthSpent)}             accent="#F87171" />
-                <StatPill label="Txns This Month"  value={String(monthCount)}                accent="rgba(255,255,255,0.65)" />
-                <StatPill label="Billing Date"     value={ordinal(wallet.billing_date)}      accent="#FBBF24" />
-                <StatPill label="Due Date"         value={ordinal(wallet.due_date)}          accent="#FB923C" />
+                <StatPill label="Credit Limit"     value={formatINR(wallet.credit_limit ?? 0)} accent="#A5B4FC" />
+                <StatPill label="Available"        value={formatINR(available)}                accent="#34D399" />
+                <StatPill label="Spent This Month" value={formatINR(monthSpent)}              accent="#F87171" />
+                <StatPill label="Txns This Month"  value={String(monthCount)}                 accent="rgba(255,255,255,0.65)" />
+                <StatPill label="Billing Date"     value={ordinal(wallet.billing_date)}       accent="#FBBF24" />
+                <StatPill label="Due Date"         value={ordinal(wallet.due_date)}           accent="#FB923C" />
               </>
             ) : (
               <>
@@ -269,9 +265,7 @@ export function WalletDetailScreen() {
       </div>
 
       {/* ── Scrollable transaction list ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 20px calc(env(safe-area-inset-bottom) + 96px)' }}>
-
-        {/* Section label */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 20px calc(env(safe-area-inset-bottom) + 32px)' }}>
         <p style={{
           fontSize: 10, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase',
           color: 'rgba(255,255,255,0.32)', marginBottom: 12,
@@ -279,7 +273,6 @@ export function WalletDetailScreen() {
           All Transactions
         </p>
 
-        {/* Loading skeleton */}
         {txLoading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[1,2,3,4].map(i => (
@@ -288,7 +281,6 @@ export function WalletDetailScreen() {
           </div>
         )}
 
-        {/* Empty state */}
         {!txLoading && walletTxs.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -300,16 +292,11 @@ export function WalletDetailScreen() {
             }}
           >
             <p style={{ fontSize: 28, marginBottom: 12 }}>{isCredit ? '💳' : '👛'}</p>
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.45)', marginBottom: 6 }}>
-              No transactions yet
-            </p>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>
-              Transactions using this {isCredit ? 'card' : 'wallet'} will appear here
-            </p>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.45)', marginBottom: 6 }}>No transactions yet</p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>Transactions using this {isCredit ? 'card' : 'wallet'} will appear here</p>
           </motion.div>
         )}
 
-        {/* Transaction rows */}
         {!txLoading && walletTxs.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <AnimatePresence initial={false}>
