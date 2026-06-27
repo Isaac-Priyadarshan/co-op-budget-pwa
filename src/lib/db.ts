@@ -37,11 +37,11 @@ export async function fetchTransactions(): Promise<Transaction[]> {
 
 export async function insertTransaction(tx: NewTransaction): Promise<void> {
   const payload: Record<string, unknown> = {
-    amount:      tx.amount,
+    amount: tx.amount,
     description: tx.description,
-    category:    tx.category,
-    created_by:  tx.created_by,
-    type:        tx.type,
+    category: tx.category,
+    created_by: tx.created_by,
+    type: tx.type,
   }
   if (tx.wallet_id) payload.wallet_id = tx.wallet_id
   if (tx.transaction_date) payload.created_at = tx.transaction_date
@@ -56,8 +56,6 @@ export async function deleteTransaction(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // WALLET MODULE
-// wallets table has: id, owner, type, label, balance, updated_at
-// credit-only extras: credit_limit, billing_date, due_date (nullable)
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface WalletEntry {
@@ -67,7 +65,6 @@ export interface WalletEntry {
   balance: number
   owner: AppUser
   updated_at: string
-  // credit-only fields (nullable for cash/wallet rows)
   credit_limit?: number | null
   billing_date?: number | null
   due_date?: number | null
@@ -78,8 +75,7 @@ export interface NewWallet {
   label: string
   type: 'cash' | 'credit' | string
   balance: number
-  owner?: AppUser
-  // credit-only
+  owner: AppUser
   credit_limit?: number | null
   billing_date?: number | null
   due_date?: number | null
@@ -95,15 +91,16 @@ export async function fetchWallets(): Promise<WalletEntry[]> {
 }
 
 export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
-  const payload: Record<string, unknown> = {
-    label:        entry.label,
-    type:         entry.type,
-    balance:      entry.balance,
-    owner:        entry.owner ?? 'Isaac',
-    credit_limit: entry.credit_limit ?? null,
-    billing_date: entry.billing_date ?? null,
-    due_date:     entry.due_date ?? null,
+  const payload = {
+    label: entry.label,
+    type: entry.type,
+    balance: entry.balance,
+    owner: entry.owner,
+    credit_limit: entry.type === 'credit' ? (entry.credit_limit ?? null) : null,
+    billing_date: entry.type === 'credit' ? (entry.billing_date ?? null) : null,
+    due_date: entry.type === 'credit' ? (entry.due_date ?? null) : null,
   }
+
   if (entry.id) {
     const { data, error } = await supabase
       .from('wallets')
@@ -114,6 +111,7 @@ export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
     if (error) throw new Error(error.message)
     return data as WalletEntry
   }
+
   const { data, error } = await supabase
     .from('wallets')
     .insert(payload)
@@ -130,6 +128,8 @@ export async function deleteWallet(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LOAN MODULE
+// LoanEntry.label, .lender, .owner, .principal, .outstanding,
+// .emi_amount, .interest_rate, .closed  — all required, no optional created_at
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface LoanEntry {
@@ -169,14 +169,14 @@ export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
   const { data, error } = await supabase
     .from('loans')
     .insert({
-      label:         entry.label,
-      lender:        entry.lender,
-      owner:         entry.owner,
-      principal:     entry.principal,
-      outstanding:   entry.outstanding,
-      emi_amount:    entry.emi_amount,
+      label: entry.label,
+      lender: entry.lender,
+      owner: entry.owner,
+      principal: entry.principal,
+      outstanding: entry.outstanding,
+      emi_amount: entry.emi_amount,
       interest_rate: entry.interest_rate ?? 0,
-      closed:        entry.closed ?? false,
+      closed: entry.closed ?? false,
     })
     .select()
     .single()
@@ -196,6 +196,8 @@ export async function deleteLoan(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // RECURRING MODULE
+// RecurringEntry.label, .category, .owner, .amount, .frequency,
+// .next_due, .active  — owner typed as string to match RecurringSheet usage
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface RecurringEntry {
@@ -234,14 +236,14 @@ export async function insertRecurring(entry: NewRecurring): Promise<RecurringEnt
   const { data, error } = await supabase
     .from('recurring')
     .insert({
-      label:     entry.label,
-      category:  entry.category,
-      owner:     entry.owner,
-      amount:    entry.amount,
+      label: entry.label,
+      category: entry.category,
+      owner: entry.owner,
+      amount: entry.amount,
       frequency: entry.frequency,
-      next_due:  entry.next_due,
-      active:    entry.active ?? true,
-      notes:     entry.notes ?? '',
+      next_due: entry.next_due,
+      active: entry.active ?? true,
+      notes: entry.notes ?? '',
     })
     .select()
     .single()
@@ -261,6 +263,8 @@ export async function deleteRecurring(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // LENT MODULE
+// LentEntry.person, .description, .lent_by, .amount, .settled
+// created_at is string (not optional) so formatShortDate() accepts it directly
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface LentEntry {
@@ -294,11 +298,11 @@ export async function insertLent(entry: NewLent): Promise<LentEntry> {
   const { data, error } = await supabase
     .from('lent')
     .insert({
-      person:      entry.person,
+      person: entry.person,
       description: entry.description ?? '',
-      lent_by:     entry.lent_by,
-      amount:      entry.amount,
-      settled:     entry.settled ?? false,
+      lent_by: entry.lent_by,
+      amount: entry.amount,
+      settled: entry.settled ?? false,
     })
     .select()
     .single()
@@ -318,6 +322,8 @@ export async function deleteLent(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BORROWED MODULE
+// BorrowedEntry.borrowed_by matches BorrowedScreen usage
+// created_at is string (not optional) so formatShortDate() accepts it directly
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface BorrowedEntry {
@@ -351,11 +357,11 @@ export async function insertBorrowed(entry: NewBorrowed): Promise<BorrowedEntry>
   const { data, error } = await supabase
     .from('borrowed')
     .insert({
-      person:      entry.person,
+      person: entry.person,
       description: entry.description ?? '',
       borrowed_by: entry.borrowed_by,
-      amount:      entry.amount,
-      settled:     entry.settled ?? false,
+      amount: entry.amount,
+      settled: entry.settled ?? false,
     })
     .select()
     .single()
@@ -375,6 +381,7 @@ export async function deleteBorrowed(id: string): Promise<void> {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ASSET MODULE
+// AssetEntry.created_at is string (not optional) so formatShortDate() works
 // ══════════════════════════════════════════════════════════════════════════════
 
 export interface AssetEntry {
@@ -408,11 +415,11 @@ export async function insertAsset(entry: NewAsset): Promise<AssetEntry> {
   const { data, error } = await supabase
     .from('assets')
     .insert({
-      label:    entry.label,
+      label: entry.label,
       category: entry.category,
-      value:    entry.value,
-      owner:    entry.owner,
-      notes:    entry.notes ?? '',
+      value: entry.value,
+      owner: entry.owner,
+      notes: entry.notes ?? '',
     })
     .select()
     .single()
