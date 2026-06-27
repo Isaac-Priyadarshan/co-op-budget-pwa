@@ -27,6 +27,14 @@ export interface NewTransaction {
   transaction_date?: string
 }
 
+// Normalise any date string or Date object to YYYY-MM-DD.
+// Supabase transactions.transaction_date is a DATE column — it rejects ISO timestamps.
+function toDateOnly(value?: string | Date): string {
+  if (!value) return new Date().toISOString().substring(0, 10)
+  if (typeof value === 'string') return value.substring(0, 10)
+  return value.toISOString().substring(0, 10)
+}
+
 export async function fetchTransactions(): Promise<Transaction[]> {
   const { data, error } = await supabase
     .from('transactions')
@@ -47,8 +55,8 @@ export async function insertTransaction(tx: NewTransaction): Promise<void> {
     category: tx.category,
     created_by: tx.created_by,
     type: tx.type,
-    // Write to dedicated transaction_date column — never touch created_at
-    transaction_date: tx.transaction_date ?? new Date().toISOString(),
+    // Always write a clean DATE string — never a full ISO timestamp
+    transaction_date: toDateOnly(tx.transaction_date),
   }
   if (tx.wallet_id) payload.wallet_id = tx.wallet_id
   const { error } = await supabase.from('transactions').insert([payload])
