@@ -32,7 +32,7 @@ export interface NewTransaction {
 }
 
 // Normalise any date string or Date object to YYYY-MM-DD.
-// Supabase transactions.transaction_date is a DATE column — it rejects ISO timestamps.
+// Supabase transactions.transaction_date is a DATE column — never send a full ISO timestamp.
 function toDateOnly(value?: string | Date): string {
   if (!value) return new Date().toISOString().substring(0, 10)
   if (typeof value === 'string') return value.substring(0, 10)
@@ -125,23 +125,72 @@ export async function insertTransferPair(
 }
 
 // ── deleteTransaction ────────────────────────────────────────────────────────
-// Deletes a single transaction row.
-// If the row has a transfer_pair_id, the paired leg is also deleted so that
-// a transfer is always removed atomically — both legs or neither.
+// Deletes a transaction row AND reverses its effect on wallet balance(s).
+//
+// Balance reversal rules:
+//   • expense  → add amount BACK to wallet   (+delta)
+//   • income   → subtract amount FROM wallet (-delta)
+//   • transfer → add amount BACK to source wallet (OUT leg)
+//               subtract amount FROM destination wallet (IN leg)
+//
+// For transfers, both legs are deleted atomically via transfer_pair_id.
 export async function deleteTransaction(id: string): Promise<void> {
-  // Step 1 — read the row so we know whether it belongs to a transfer pair
+  // ── Step 1: read the target row ──────────────────────────────────────────
   const { data: row, error: fetchErr } = await supabase
     .from('transactions')
-    .select('id, transfer_pair_id')
+    .select('id, type, amount, wallet_id, transfer_pair_id, description')
     .eq('id', id)
     .maybeSingle()
 
   if (fetchErr) throw new Error(fetchErr.message)
+  if (!row) return // already gone — nothing to do
 
-  const pairId = (row as { transfer_pair_id?: string | null } | null)?.transfer_pair_id ?? null
+  const typedRow = row as {
+    id: string
+    type: 'income' | 'expense' | 'transfer'
+    amount: number
+    wallet_id: string | null
+    transfer_pair_id: string | null
+    description: string
+  }
 
-  if (pairId) {
-    // Step 2a — transfer: delete both legs by transfer_pair_id in one query
+  const pairId = typedRow.transfer_pair_id ?? null
+
+  // ── TRANSFER: fetch both legs, reverse both wallets, delete by pair ──────
+  if (typedRow.type === 'transfer' && pairId) {
+    const { data: legs, error: legsErr } = await supabase
+      .from('transactions')
+      .select('id, wallet_id, amount, description')
+      .eq('transfer_pair_id', pairId)
+
+    if (legsErr) throw new Error(legsErr.message)
+
+    const rows = (legs ?? []) as {
+      id: string
+      wallet_id: string | null
+      amount: number
+      description: string
+    }[]
+
+    // OUT leg: description contains '→' — source wallet gets money back (+)
+    // IN  leg: description contains '←' — destination wallet loses money  (-)
+    const outLeg = rows.find(r => r.description?.includes('→'))
+    const inLeg  = rows.find(r => r.description?.includes('←'))
+
+    const balanceOps: Promise<void>[] = []
+
+    if (outLeg?.wallet_id) {
+      // Source wallet: add back the transferred amount
+      balanceOps.push(adjustWalletBalance(outLeg.wallet_id, outLeg.amount))
+    }
+    if (inLeg?.wallet_id) {
+      // Destination wallet: subtract the received amount
+      balanceOps.push(adjustWalletBalance(inLeg.wallet_id, -inLeg.amount))
+    }
+
+    // Run balance adjustments first, then delete both rows
+    await Promise.all(balanceOps)
+
     const { error: pairDeleteErr } = await supabase
       .from('transactions')
       .delete()
@@ -149,53 +198,60 @@ export async function deleteTransaction(id: string): Promise<void> {
 
     if (pairDeleteErr) throw new Error(pairDeleteErr.message)
 
-    // Verify both are gone
+    // Ghost check
     const { data: ghost } = await supabase
       .from('transactions')
       .select('id')
       .eq('transfer_pair_id', pairId)
 
     if (ghost && ghost.length > 0) {
-      throw new Error(
-        'Transfer delete was partially blocked. Please try again.'
-      )
+      throw new Error('Transfer delete was partially blocked. Please try again.')
     }
-  } else {
-    // Step 2b — normal (non-transfer) row: single delete with ghost check
-    const { error } = await supabase
+
+    return
+  }
+
+  // ── INCOME / EXPENSE: reverse wallet balance, then delete ────────────────
+  if (typedRow.wallet_id) {
+    // expense removed → money comes back  → positive delta
+    // income  removed → money goes away   → negative delta
+    const delta = typedRow.type === 'expense' ? typedRow.amount : -typedRow.amount
+    await adjustWalletBalance(typedRow.wallet_id, delta)
+  }
+
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error(error.message)
+
+  // Ghost check with one retry
+  const { data: ghost, error: checkError } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (checkError) throw new Error(checkError.message)
+
+  if (ghost) {
+    const { error: retryError } = await supabase
       .from('transactions')
       .delete()
       .eq('id', id)
+    if (retryError) throw new Error(retryError.message)
 
-    if (error) throw new Error(error.message)
-
-    const { data: ghost, error: checkError } = await supabase
+    const { data: stillGhost } = await supabase
       .from('transactions')
       .select('id')
       .eq('id', id)
       .maybeSingle()
 
-    if (checkError) throw new Error(checkError.message)
-
-    if (ghost) {
-      // Retry once
-      const { error: retryError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', id)
-      if (retryError) throw new Error(retryError.message)
-
-      const { data: stillGhost } = await supabase
-        .from('transactions')
-        .select('id')
-        .eq('id', id)
-        .maybeSingle()
-
-      if (stillGhost) {
-        throw new Error(
-          'Delete was blocked by database policy. This transaction could not be permanently removed.'
-        )
-      }
+    if (stillGhost) {
+      throw new Error(
+        'Delete was blocked by database policy. This transaction could not be permanently removed.'
+      )
     }
   }
 }
