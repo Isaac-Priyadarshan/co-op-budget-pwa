@@ -76,10 +76,10 @@ function daysAway(dateStr: string): number {
 
 function dueDateLabel(dateStr: string): { text: string; color: string } {
   const d = daysAway(dateStr)
-  if (d < 0)  return { text: `${Math.abs(d)}d overdue`, color: '#F87171' }
-  if (d === 0) return { text: 'Due today',              color: '#FBBF24' }
-  if (d <= 3) return { text: `In ${d}d`,                color: '#FB923C' }
-  return { text: `In ${d} days`,                        color: '#34D399' }
+  if (d < 0)   return { text: `${Math.abs(d)}d overdue`, color: '#F87171' }
+  if (d === 0) return { text: 'Due today',               color: '#FBBF24' }
+  if (d <= 3)  return { text: `In ${d}d`,                color: '#FB923C' }
+  return       { text: `In ${d} days`,                   color: '#34D399' }
 }
 
 // ─── Wallet picker sheet ──────────────────────────────────────────────────────
@@ -147,26 +147,25 @@ function AddBorrowedSheet({
   onClose: () => void
   onSave: (person: string, amount: number, walletId: string, dueDate: string, note: string) => Promise<void>
 }) {
-  const [person,           setPerson]         = useState('')
-  const [amount,           setAmount]         = useState('')
-  const [dueDate,          setDueDate]        = useState('')
-  const [note,             setNote]           = useState('')
-  const [selectedWallet,   setSelectedWallet] = useState<WalletEntry | null>(null)
+  const [person,           setPerson]           = useState('')
+  const [amount,           setAmount]           = useState('')
+  const [dueDate,          setDueDate]          = useState('')
+  const [note,             setNote]             = useState('')
+  const [selectedWallet,   setSelectedWallet]   = useState<WalletEntry | null>(null)
   const [walletPickerOpen, setWalletPickerOpen] = useState(false)
-  const [saving,           setSaving]         = useState(false)
-  const [err,              setErr]            = useState('')
+  const [saving,           setSaving]           = useState(false)
+  const [err,              setErr]              = useState('')
 
   const reset = () => {
     setPerson(''); setAmount(''); setDueDate(''); setNote('')
     setSelectedWallet(null); setErr('')
   }
-
   const handleClose = () => { reset(); onClose() }
 
   const handleSave = async () => {
-    if (!person.trim())                        { setErr('Enter a name'); return }
-    if (!amount || parseFloat(amount) <= 0)    { setErr('Enter a valid amount'); return }
-    if (!selectedWallet)                       { setErr('Select a source account'); return }
+    if (!person.trim())                     { setErr('Enter a name'); return }
+    if (!amount || parseFloat(amount) <= 0) { setErr('Enter a valid amount'); return }
+    if (!selectedWallet)                    { setErr('Select a source account'); return }
     setSaving(true); setErr('')
     try {
       await onSave(person.trim(), parseFloat(amount), selectedWallet.id, dueDate, note.trim())
@@ -216,14 +215,11 @@ function AddBorrowedSheet({
                 <input value={person} onChange={e => setPerson(e.target.value)}
                   placeholder="e.g. Mani, SBI, Friend" style={inputStyle} />
               </div>
-
               <div>
                 <label style={labelStyle}>Amount (₹)</label>
                 <input type="number" inputMode="decimal" value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  placeholder="0" style={inputStyle} />
+                  onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
               </div>
-
               <div>
                 <label style={labelStyle}>Received Into (Wallet)</label>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={() => setWalletPickerOpen(true)}
@@ -241,21 +237,17 @@ function AddBorrowedSheet({
                   )}
                 </motion.button>
               </div>
-
               <div>
                 <label style={labelStyle}>Due Date (optional)</label>
                 <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
                   style={{ ...inputStyle, colorScheme: 'dark' }} />
               </div>
-
               <div>
                 <label style={labelStyle}>Note (optional)</label>
                 <input value={note} onChange={e => setNote(e.target.value)}
                   placeholder="Any memo…" style={inputStyle} />
               </div>
-
               {err && <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center' }}>{err}</p>}
-
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
                 style={{
                   width: '100%', padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer',
@@ -269,11 +261,125 @@ function AddBorrowedSheet({
           </motion.div>
 
           <WalletPicker
-            open={walletPickerOpen}
-            wallets={wallets}
-            title="Received Into Which Wallet?"
+            open={walletPickerOpen} wallets={wallets} title="Received Into Which Wallet?"
             onSelect={w => { setSelectedWallet(w); setWalletPickerOpen(false) }}
             onClose={() => setWalletPickerOpen(false)}
+          />
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ─── Add More Amount Sheet ────────────────────────────────────────────────────
+function AddMoreSheet({
+  open, entry, wallets, saving, onClose, onSave,
+}: {
+  open: boolean
+  entry: BorrowedEntry | null
+  wallets: WalletEntry[]
+  saving: boolean
+  onClose: () => void
+  onSave: (id: string, amount: number, walletId: string) => Promise<void>
+}) {
+  const [amount,         setAmount]        = useState('')
+  const [selectedWallet, setSelectedWallet] = useState<WalletEntry | null>(null)
+  const [pickerOpen,     setPickerOpen]    = useState(false)
+  const [err,            setErr]           = useState('')
+
+  const reset = () => { setAmount(''); setSelectedWallet(null); setErr('') }
+  const handleClose = () => { reset(); onClose() }
+
+  const handleSave = async () => {
+    if (!amount || parseFloat(amount) <= 0) { setErr('Enter a valid amount'); return }
+    if (!selectedWallet)                    { setErr('Select a wallet to receive into'); return }
+    setErr('')
+    try {
+      await onSave(entry!.id, parseFloat(amount), selectedWallet.id)
+      handleClose()
+    } catch { setErr('Failed. Try again.') }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '13px 14px', borderRadius: 14,
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+    color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none',
+    WebkitAppearance: 'none',
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+    textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
+    marginBottom: 6, display: 'block',
+  }
+
+  return (
+    <AnimatePresence>
+      {open && entry && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={handleClose}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 200 }}
+          />
+          <motion.div
+            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+            transition={{ type: 'spring', stiffness: 340, damping: 34 }}
+            style={{
+              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 201,
+              background: '#111113', borderRadius: '24px 24px 0 0',
+              padding: '24px 20px calc(env(safe-area-inset-bottom) + 28px)',
+              border: '1px solid rgba(255,255,255,0.1)',
+            }}
+          >
+            <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)', margin: '0 auto 20px' }} />
+            <p style={{ fontSize: 17, fontWeight: 800, color: '#f5f7ff', marginBottom: 4 }}>Borrow More</p>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>
+              From <span style={{ color: '#FB923C', fontWeight: 700 }}>{entry.person}</span>
+              {entry.status === 'settled' && (
+                <span style={{ marginLeft: 8, fontSize: 11, color: '#FBBF24', fontWeight: 700 }}>· Will reopen as Pending</span>
+              )}
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={labelStyle}>Extra Amount (₹)</label>
+                <input type="number" inputMode="decimal" value={amount}
+                  onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Received Into (Wallet)</label>
+                <motion.button whileTap={{ scale: 0.97 }} onClick={() => setPickerOpen(true)}
+                  style={{
+                    ...inputStyle, textAlign: 'left', cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', justifyContent: 'space-between',
+                    color: selectedWallet ? '#f5f7ff' : 'rgba(255,255,255,0.3)',
+                  }}
+                >
+                  <span>{selectedWallet ? selectedWallet.label : 'Select wallet…'}</span>
+                  {selectedWallet && (
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>
+                      {formatINR(selectedWallet.balance)}
+                    </span>
+                  )}
+                </motion.button>
+              </div>
+              {err && <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center' }}>{err}</p>}
+              <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
+                style={{
+                  width: '100%', padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg, rgba(251,146,60,0.9), rgba(234,88,12,0.9))',
+                  color: '#fff', fontSize: 15, fontWeight: 800, opacity: saving ? 0.6 : 1,
+                }}
+              >
+                {saving ? 'Saving…' : 'Add Amount'}
+              </motion.button>
+            </div>
+          </motion.div>
+
+          <WalletPicker
+            open={pickerOpen} wallets={wallets} title="Received Into Which Wallet?"
+            onSelect={w => { setSelectedWallet(w); setPickerOpen(false) }}
+            onClose={() => setPickerOpen(false)}
           />
         </>
       )}
@@ -310,8 +416,8 @@ function PaymentSheet({
     if (!selectedWallet) { setErr('Select the account to pay from'); return }
     if (mode === 'partial') {
       const a = parseFloat(amount)
-      if (!a || a <= 0)   { setErr('Enter a valid amount'); return }
-      if (a > remaining)  { setErr(`Max payable: ${formatINR(remaining)}`); return }
+      if (!a || a <= 0)  { setErr('Enter a valid amount'); return }
+      if (a > remaining) { setErr(`Max payable: ${formatINR(remaining)}`); return }
       setErr('')
       try { await onPartial(entry!.id, a, selectedWallet.id); handleClose() }
       catch { setErr('Failed. Try again.') }
@@ -366,11 +472,9 @@ function PaymentSheet({
                 <div>
                   <label style={labelStyle}>Payment Amount (₹)</label>
                   <input type="number" inputMode="decimal" value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    placeholder="0" style={inputStyle} />
+                    onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
                 </div>
               )}
-
               {mode === 'settle' && (
                 <div style={{
                   padding: '14px 16px', borderRadius: 14,
@@ -381,7 +485,6 @@ function PaymentSheet({
                   </p>
                 </div>
               )}
-
               <div>
                 <label style={labelStyle}>Pay From (Wallet)</label>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={() => setPickerOpen(true)}
@@ -399,9 +502,7 @@ function PaymentSheet({
                   )}
                 </motion.button>
               </div>
-
               {err && <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center' }}>{err}</p>}
-
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleConfirm} disabled={saving}
                 style={{
                   width: '100%', padding: '15px', borderRadius: 16, border: 'none', cursor: 'pointer',
@@ -417,9 +518,7 @@ function PaymentSheet({
           </motion.div>
 
           <WalletPicker
-            open={pickerOpen}
-            wallets={wallets}
-            title="Pay From Which Wallet?"
+            open={pickerOpen} wallets={wallets} title="Pay From Which Wallet?"
             onSelect={w => { setSelectedWallet(w); setPickerOpen(false) }}
             onClose={() => setPickerOpen(false)}
           />
@@ -450,18 +549,29 @@ function StatusBadge({ status }: { status: BorrowedStatus }) {
 
 // ─── Entry Card ───────────────────────────────────────────────────────────────
 function BorrowedCard({
-  entry, expanded, onToggle, onPartial, onSettle,
+  entry, expanded, onToggle, onAddMore, onPartial, onSettle,
 }: {
   entry: BorrowedEntry
   expanded: boolean
   onToggle: () => void
+  onAddMore: () => void
   onPartial: () => void
   onSettle: () => void
 }) {
-  const remaining = entry.amount - entry.paid_amount
-  const paidPct   = entry.amount > 0 ? Math.min(100, (entry.paid_amount / entry.amount) * 100) : 0
-  const isSettled = entry.status === 'settled'
-  const due       = entry.due_date ? dueDateLabel(entry.due_date) : null
+  const remaining  = parseFloat((entry.amount - entry.paid_amount).toFixed(2))
+  const paidPct    = entry.amount > 0 ? Math.min(100, (entry.paid_amount / entry.amount) * 100) : 0
+  const isSettled  = entry.status === 'settled'
+  const due        = entry.due_date ? dueDateLabel(entry.due_date) : null
+  // Partial payment and settle are disabled only when remaining is 0 (i.e. fully settled with no new debt)
+  const actionsDisabled = isSettled && remaining <= 0
+
+  const disabledBtnStyle: React.CSSProperties = {
+    flex: 1, padding: '11px 0', borderRadius: 14,
+    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'rgba(255,255,255,0.04)',
+    color: 'rgba(255,255,255,0.2)',
+    fontSize: 13, fontWeight: 700, cursor: 'not-allowed', opacity: 0.5,
+  }
 
   return (
     <motion.div
@@ -476,6 +586,7 @@ function BorrowedCard({
         overflow: 'hidden',
       }}
     >
+      {/* ── Card header row (always visible, tappable to expand) ── */}
       <div onClick={onToggle} style={{ padding: '15px 16px', cursor: 'pointer' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <div style={{
@@ -519,6 +630,7 @@ function BorrowedCard({
           </motion.div>
         </div>
 
+        {/* Progress bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
             <motion.div
@@ -533,8 +645,9 @@ function BorrowedCard({
         </div>
       </div>
 
+      {/* ── Expanded actions — shown for ALL cards (settled and active) ── */}
       <AnimatePresence initial={false}>
-        {expanded && !isSettled && (
+        {expanded && (
           <motion.div
             key="actions"
             initial={{ height: 0, opacity: 0 }}
@@ -543,27 +656,58 @@ function BorrowedCard({
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             style={{ overflow: 'hidden' }}
           >
-            <div style={{ padding: '0 16px 16px', display: 'flex', gap: 10 }}>
-              <motion.button whileTap={{ scale: 0.95 }} onClick={onPartial}
+            <div style={{ padding: '0 16px 16px', display: 'flex', gap: 8, alignItems: 'stretch' }}>
+
+              {/* ── [ + ] Add More button — always enabled ── */}
+              <motion.button
+                whileTap={{ scale: 0.93 }}
+                onClick={e => { e.stopPropagation(); onAddMore() }}
                 style={{
-                  flex: 1, padding: '11px 0', borderRadius: 14,
-                  border: '1px solid rgba(251,191,36,0.32)',
-                  background: 'rgba(251,191,36,0.1)', color: '#FBBF24',
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  width: 40, flexShrink: 0, borderRadius: 14,
+                  border: '1px solid rgba(251,146,60,0.38)',
+                  background: 'rgba(251,146,60,0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer',
                 }}
               >
-                Partial Payment
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FB923C" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
               </motion.button>
-              <motion.button whileTap={{ scale: 0.95 }} onClick={onSettle}
-                style={{
-                  flex: 1, padding: '11px 0', borderRadius: 14,
-                  border: '1px solid rgba(52,211,153,0.32)',
-                  background: 'rgba(52,211,153,0.1)', color: '#34D399',
-                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                }}
-              >
-                Mark Settled
-              </motion.button>
+
+              {/* ── Partial Payment ── disabled if no remaining amount ── */}
+              {actionsDisabled ? (
+                <button disabled style={disabledBtnStyle}>Partial Payment</button>
+              ) : (
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={e => { e.stopPropagation(); onPartial() }}
+                  style={{
+                    flex: 1, padding: '11px 0', borderRadius: 14,
+                    border: '1px solid rgba(251,191,36,0.32)',
+                    background: 'rgba(251,191,36,0.1)', color: '#FBBF24',
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}
+                >
+                  Partial Payment
+                </motion.button>
+              )}
+
+              {/* ── Mark Settled ── disabled if already settled and no remaining ── */}
+              {actionsDisabled ? (
+                <button disabled style={disabledBtnStyle}>Mark Settled</button>
+              ) : (
+                <motion.button whileTap={{ scale: 0.95 }}
+                  onClick={e => { e.stopPropagation(); onSettle() }}
+                  style={{
+                    flex: 1, padding: '11px 0', borderRadius: 14,
+                    border: '1px solid rgba(52,211,153,0.32)',
+                    background: 'rgba(52,211,153,0.1)', color: '#34D399',
+                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}
+                >
+                  Mark Settled
+                </motion.button>
+              )}
             </div>
           </motion.div>
         )}
@@ -595,14 +739,19 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export function BorrowedScreen() {
   const { activeUser } = useUser()
-  const { entries, loading, error, saving, addBorrowed, makePayment, markSettled, totalOwed, nearestDue } = useBorrowed()
+  const {
+    entries, loading, error, saving,
+    addBorrowed, addMoreAmount, makePayment, markSettled,
+    totalOwed, nearestDue,
+  } = useBorrowed()
   const { wallets } = useWallets()
 
-  const [addOpen,      setAddOpen]      = useState(false)
-  const [filter,       setFilter]       = useState<FilterMode>('all')
-  const [expandedId,   setExpandedId]   = useState<string | null>(null)
-  const [paymentEntry, setPaymentEntry] = useState<BorrowedEntry | null>(null)
-  const [paymentMode,  setPaymentMode]  = useState<'partial' | 'settle'>('partial')
+  const [addOpen,       setAddOpen]       = useState(false)
+  const [filter,        setFilter]        = useState<FilterMode>('all')
+  const [expandedId,    setExpandedId]    = useState<string | null>(null)
+  const [paymentEntry,  setPaymentEntry]  = useState<BorrowedEntry | null>(null)
+  const [paymentMode,   setPaymentMode]   = useState<'partial' | 'settle'>('partial')
+  const [addMoreEntry,  setAddMoreEntry]  = useState<BorrowedEntry | null>(null)
 
   const handleAdd = async (person: string, amount: number, walletId: string, dueDate: string, note: string) => {
     await addBorrowed({
@@ -657,7 +806,6 @@ export function BorrowedScreen() {
                 {formatINR(totalOwed)}
               </p>
             </div>
-
             {nearestDue && dueLabel && (
               <div style={{ textAlign: 'right' }}>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>Next Due</p>
@@ -672,20 +820,24 @@ export function BorrowedScreen() {
           </div>
         </motion.div>
 
-        {/* Filter + Add bar */}
+        {/* Filter + icon-only Add button bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => setAddOpen(true)}
+
+          {/* ── Icon-only + button (no text) ── */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setAddOpen(true)}
+            aria-label="Add borrowed entry"
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              height: 32, paddingInline: 14, borderRadius: 99,
+              width: 32, height: 32, borderRadius: 99, flexShrink: 0,
               background: 'linear-gradient(135deg, rgba(251,146,60,0.22), rgba(234,88,12,0.16))',
               border: '1px solid rgba(251,146,60,0.38)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FB923C" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FB923C" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#FB923C', letterSpacing: '0.04em' }}>Add</span>
           </motion.button>
 
           <FilterPill label="All"     active={filter === 'all'}     onClick={() => setFilter('all')} />
@@ -713,7 +865,7 @@ export function BorrowedScreen() {
           >
             <p style={{ fontSize: 28, marginBottom: 12 }}>🤝</p>
             <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.45)', marginBottom: 6 }}>No borrowed entries</p>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>Tap + Add to record money you borrowed</p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }}>Tap + to record money you borrowed</p>
           </motion.div>
         )}
 
@@ -725,15 +877,16 @@ export function BorrowedScreen() {
                 entry={entry}
                 expanded={expandedId === entry.id}
                 onToggle={() => setExpandedId(prev => prev === entry.id ? null : entry.id)}
+                onAddMore={() => setAddMoreEntry(entry)}
                 onPartial={() => { setPaymentEntry(entry); setPaymentMode('partial') }}
-                onSettle={()  => { setPaymentEntry(entry); setPaymentMode('settle') }}
+                onSettle={()  => { setPaymentEntry(entry); setPaymentMode('settle')  }}
               />
             ))}
           </AnimatePresence>
         </div>
       </div>
 
-      {/* ── Add Sheet ── */}
+      {/* ── Add new entry sheet ── */}
       <AddBorrowedSheet
         open={addOpen}
         wallets={wallets}
@@ -741,7 +894,17 @@ export function BorrowedScreen() {
         onSave={handleAdd}
       />
 
-      {/* ── Payment / Settle Sheet ── */}
+      {/* ── Add more amount sheet ── */}
+      <AddMoreSheet
+        open={addMoreEntry !== null}
+        entry={addMoreEntry}
+        wallets={wallets}
+        saving={saving}
+        onClose={() => setAddMoreEntry(null)}
+        onSave={addMoreAmount}
+      />
+
+      {/* ── Payment / Settle sheet ── */}
       <PaymentSheet
         open={paymentEntry !== null}
         mode={paymentMode}
