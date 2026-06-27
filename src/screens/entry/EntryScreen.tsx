@@ -5,6 +5,7 @@ import { useCategories } from '../../hooks/useCategories'
 import { useWallets } from '../../hooks/useWallets'
 import { useTransactions } from '../../hooks/useTransactions'
 import { useUser } from '../../context/UserContext'
+import { supabase } from '../../lib/supabase'
 
 const KEY_ROWS = [
   ['7', '8', '9'],
@@ -52,6 +53,35 @@ export function EntryScreen() {
   const [errMsg, setErrMsg]           = useState<string | null>(null)
 
   const noteInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Auto-select active user's default wallet on mount ──────────────────────────
+  // Reads user_preferences for the active user, finds default_wallet_id,
+  // then matches it against the loaded wallets list to set label + id.
+  // Runs once after wallets finish loading and activeUser is known.
+  useEffect(() => {
+    if (!activeUser || walletsLoading || wallets.length === 0) return
+    // Only set if no wallet has been manually chosen yet
+    if (walletId !== null) return
+
+    let cancelled = false
+    supabase
+      .from('user_preferences')
+      .select('default_wallet_id')
+      .eq('user_name', activeUser)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        const defaultId = data?.default_wallet_id as string | null | undefined
+        if (!defaultId) return
+        const match = wallets.find(w => w.id === defaultId)
+        if (match) {
+          setWalletId(match.id)
+          setWalletLabel(match.label)
+        }
+      })
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeUser, walletsLoading, wallets])
 
   const togglePanel = (p: 'note' | 'wallet' | 'calendar') =>
     setActivePanel(prev => (prev === p ? null : p))
@@ -150,7 +180,7 @@ export function EntryScreen() {
   const selectedSubLabel = subs.find(s => s.id === selectedSub)?.label ?? null
   const showSummary      = selectedSubLabel !== null || walletLabel !== ''
 
-  // ── TRAY CONTENT ─────────────────────────────────────────────────────────────
+  // ── TRAY CONTENT ───────────────────────────────────────────────────────────────────────────────
   const renderTrayContent = () => {
     if (activePanel === 'note') return (
       <div style={{
@@ -246,7 +276,7 @@ export function EntryScreen() {
     return null
   }
 
-  // ── NOT FOUND ─────────────────────────────────────────────────────────────────
+  // ── NOT FOUND ─────────────────────────────────────────────────────────────────────────────────
   if (!category) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100dvh', gap: 12 }}>
@@ -259,7 +289,7 @@ export function EntryScreen() {
     )
   }
 
-  // ── MAIN RENDER ───────────────────────────────────────────────────────────────
+  // ── MAIN RENDER ────────────────────────────────────────────────────────────────────────────────────
   return (
     <div style={{
       position: 'fixed', inset: 0,
@@ -565,7 +595,7 @@ export function EntryScreen() {
   )
 }
 
-// ── Toolbar button component ──────────────────────────────────────────────────
+// ── Toolbar button component ──────────────────────────────────────────────────────────────────────────────
 interface ToolbarBtnProps {
   active: boolean
   accent: string
