@@ -285,12 +285,10 @@ export function LedgerScreen() {
               </p>
             </div>
 
-            {/* Center — Balance (with vertical gold dividers) */}
+            {/* Center — Balance (no divider lines) */}
             <div style={{
               textAlign: 'center',
               padding: '0 18px',
-              borderLeft:  '1px solid rgba(251,191,36,0.15)',
-              borderRight: '1px solid rgba(251,191,36,0.15)',
             }}>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,191,36,0.55)', marginBottom: 6 }}>Balance</p>
               <p style={{
