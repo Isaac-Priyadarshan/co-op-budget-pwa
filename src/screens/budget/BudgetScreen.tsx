@@ -4,6 +4,7 @@ import { useTransactions } from '../../hooks/useTransactions'
 import { useCategories } from '../../hooks/useCategories'
 import { useBudgets } from '../../hooks/useBudgets'
 import { formatINR } from '../../utils/format'
+import type { Subcategory } from '../../types/category'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -209,10 +210,9 @@ export function BudgetScreen() {
     const map: Record<string, number> = {}
     for (const tx of monthTxs) {
       const cat = (tx.category ?? '').toLowerCase()
-      // match parent category by label
       const parent = expenseCategories.find(c =>
         c.label.toLowerCase() === cat ||
-        (subcategories[c.label] ?? []).some((s: { label: string }) => s.label.toLowerCase() === cat)
+        (subcategories[c.label] ?? []).some((s: Subcategory) => s.label.toLowerCase() === cat)
       )
       if (parent) {
         map[parent.label] = (map[parent.label] ?? 0) + tx.amount
@@ -450,7 +450,7 @@ export function BudgetScreen() {
                           </p>
                         )}
 
-                        {subs.map((sub: { label: string; icon: string; accent: string; bg: string; glow: string }) => {
+                        {(subs as Subcategory[]).map((sub) => {
                           const subBudget  = getBudget(sub.label)
                           const subSpent   = spentBySub[sub.label.toLowerCase()] ?? 0
                           const isEditing  = editingKey === `${sub.label}|${cat.label}`
@@ -474,17 +474,21 @@ export function BudgetScreen() {
                                   padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10,
                                 }}
                               >
+                                {/* Subcategory uses parent cat accent/bg since Subcategory type has no visual fields */}
                                 <div style={{
                                   width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                                  background: sub.bg, border: `1px solid ${sub.accent}28`,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                                }}>{sub.icon}</div>
+                                  background: cat.bg, border: `1px solid ${cat.accent}28`,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
+                                  color: cat.accent, fontWeight: 700,
+                                }}>
+                                  {sub.label.charAt(0).toUpperCase()}
+                                </div>
 
                                 <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                                  <p style={{ fontSize: 12, fontWeight: 700, color: sub.accent, marginBottom: subBudget > 0 ? 3 : 0 }}>{sub.label}</p>
+                                  <p style={{ fontSize: 12, fontWeight: 700, color: cat.accent, marginBottom: subBudget > 0 ? 3 : 0 }}>{sub.label}</p>
                                   {subBudget > 0 && (
                                     <>
-                                      <BudgetBar spent={subSpent} planned={subBudget} accent={sub.accent} />
+                                      <BudgetBar spent={subSpent} planned={subBudget} accent={cat.accent} />
                                       <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
                                         {formatINR(subSpent)} / {formatINR(subBudget)}
                                       </p>
@@ -497,7 +501,7 @@ export function BudgetScreen() {
 
                                 <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                                   {subBudget > 0 && (
-                                    <p style={{ fontSize: 12, fontWeight: 800, color: sub.accent, fontVariantNumeric: 'tabular-nums' }}>
+                                    <p style={{ fontSize: 12, fontWeight: 800, color: cat.accent, fontVariantNumeric: 'tabular-nums' }}>
                                       {formatINR(subBudget)}
                                     </p>
                                   )}
