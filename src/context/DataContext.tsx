@@ -1,21 +1,21 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchTransactions, insertTransaction, deleteTransaction, type Transaction, type NewTransaction } from '../lib/db'
 import type { Category, Subcategory } from '../types/category'
 
-const DEFAULT_EXPENSE: Omit<Category, 'id' | 'created_at'>[] = [
-  { type: 'expense', label: 'Food', icon: '🛒', accent: '#F87171', glow: 'rgba(239,68,68,0.20)', bg: 'rgba(239,68,68,0.12)', sort_order: 0 },
-  { type: 'expense', label: 'Transport', icon: '🚗', accent: '#FB923C', glow: 'rgba(251,146,60,0.20)', bg: 'rgba(251,146,60,0.12)', sort_order: 1 },
-  { type: 'expense', label: 'Rent', icon: '🏠', accent: '#FCA5A5', glow: 'rgba(248,113,113,0.18)', bg: 'rgba(248,113,113,0.10)', sort_order: 2 },
-]
-const DEFAULT_INCOME: Omit<Category, 'id' | 'created_at'>[] = [
-  { type: 'income', label: 'Salary', icon: '💼', accent: '#FBBF24', glow: 'rgba(251,191,36,0.22)', bg: 'rgba(251,191,36,0.12)', sort_order: 0 },
-  { type: 'income', label: 'Investment', icon: '📈', accent: '#34D399', glow: 'rgba(52,211,153,0.20)', bg: 'rgba(52,211,153,0.12)', sort_order: 1 },
-  { type: 'income', label: 'Gift', icon: '🎁', accent: '#A78BFA', glow: 'rgba(167,139,250,0.20)', bg: 'rgba(167,139,250,0.12)', sort_order: 2 },
-]
+const sortCategories = (items: Category[]) =>
+  [...items].sort(
+    (a, b) =>
+      (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) ||
+      (a.created_at ?? '').localeCompare(b.created_at ?? ''),
+  )
 
-const sortCategories = (items: Category[]) => [...items].sort((a, b) => (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))
-const sortSubcategories = (items: Subcategory[]) => [...items].sort((a, b) => (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) || (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+const sortSubcategories = (items: Subcategory[]) =>
+  [...items].sort(
+    (a, b) =>
+      (a.sort_order ?? Number.MAX_SAFE_INTEGER) - (b.sort_order ?? Number.MAX_SAFE_INTEGER) ||
+      (a.created_at ?? '').localeCompare(b.created_at ?? ''),
+  )
 
 interface DataContextValue {
   expenseCategories: Category[]
@@ -50,7 +50,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [transactionsLoading, setTransactionsLoading] = useState(true)
   const [transactionsError, setTransactionsError] = useState<string | null>(null)
-  const seededRef = useRef(false)
 
   const applyCategories = useCallback((cats: Category[]) => {
     const sorted = sortCategories(cats)
@@ -62,27 +61,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       setCategoriesLoading(true)
       setCategoriesError(null)
-      const { data: cats, error: catErr } = await supabase.from('categories').select('*').order('sort_order', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true })
+
+      const { data: cats, error: catErr } = await supabase
+        .from('categories')
+        .select('*')
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
       if (catErr) throw catErr
 
-      if ((!cats || cats.length === 0) && !seededRef.current) {
-        seededRef.current = true
-        const { data: seeded, error: seedErr } = await supabase.from('categories').insert([...DEFAULT_EXPENSE, ...DEFAULT_INCOME]).select()
-        if (seedErr) throw seedErr
-        applyCategories((seeded ?? []) as Category[])
-        setSubcategories({})
-        return
-      }
-
+      // If table is empty — respect that. Do NOT auto-seed.
       applyCategories((cats ?? []) as Category[])
+
       const ids = (cats ?? []).map(c => c.id)
       if (ids.length === 0) {
         setSubcategories({})
         return
       }
 
-      const { data: subs, error: subErr } = await supabase.from('subcategories').select('*').in('category_id', ids).order('sort_order', { ascending: true, nullsFirst: false }).order('created_at', { ascending: true })
+      const { data: subs, error: subErr } = await supabase
+        .from('subcategories')
+        .select('*')
+        .in('category_id', ids)
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true })
       if (subErr) throw subErr
+
       const mapped: Record<string, Subcategory[]> = {}
       ;((subs ?? []) as Subcategory[]).forEach(sub => {
         if (!mapped[sub.category_id]) mapped[sub.category_id] = []
@@ -175,14 +178,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const reorderCategories = useCallback(async (type: 'expense' | 'income', orderedIds: string[]) => {
-    const relevant = (type === 'expense' ? expenseCategories : incomeCategories).filter(category => orderedIds.includes(category.id))
+    const relevant = (type === 'expense' ? expenseCategories : incomeCategories).filter(category =>
+      orderedIds.includes(category.id),
+    )
     const lookup = new Map(relevant.map(category => [category.id, category]))
     const ordered = orderedIds.map(id => lookup.get(id)).filter(Boolean) as Category[]
 
     const updater = type === 'expense' ? setExpenseCategories : setIncomeCategories
     updater(ordered.map((category, index) => ({ ...category, sort_order: index })))
 
-    const updates = ordered.map((category, index) => supabase.from('categories').update({ sort_order: index }).eq('id', category.id))
+    const updates = ordered.map((category, index) =>
+      supabase.from('categories').update({ sort_order: index }).eq('id', category.id),
+    )
     const results = await Promise.all(updates)
     const failed = results.find(result => result.error)
 
@@ -204,7 +211,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       [categoryId]: ordered.map((subcategory, index) => ({ ...subcategory, sort_order: index })),
     }))
 
-    const updates = ordered.map((subcategory, index) => supabase.from('subcategories').update({ sort_order: index }).eq('id', subcategory.id))
+    const updates = ordered.map((subcategory, index) =>
+      supabase.from('subcategories').update({ sort_order: index }).eq('id', subcategory.id),
+    )
     const results = await Promise.all(updates)
     const failed = results.find(result => result.error)
 
@@ -224,27 +233,50 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await deleteTransaction(id)
   }, [])
 
-  const value = useMemo<DataContextValue>(() => ({
-    expenseCategories,
-    incomeCategories,
-    subcategories,
-    categoriesLoading,
-    categoriesError,
-    addCategory,
-    deleteCategory,
-    updateCategory,
-    addSubcategory,
-    deleteSubcategory,
-    updateSubcategory,
-    reorderCategories,
-    reorderSubcategories,
-    transactions,
-    transactionsLoading,
-    transactionsError,
-    addTransaction,
-    removeTransaction,
-    refreshAll,
-  }), [expenseCategories, incomeCategories, subcategories, categoriesLoading, categoriesError, addCategory, deleteCategory, updateCategory, addSubcategory, deleteSubcategory, updateSubcategory, reorderCategories, reorderSubcategories, transactions, transactionsLoading, transactionsError, addTransaction, removeTransaction, refreshAll])
+  const value = useMemo<DataContextValue>(
+    () => ({
+      expenseCategories,
+      incomeCategories,
+      subcategories,
+      categoriesLoading,
+      categoriesError,
+      addCategory,
+      deleteCategory,
+      updateCategory,
+      addSubcategory,
+      deleteSubcategory,
+      updateSubcategory,
+      reorderCategories,
+      reorderSubcategories,
+      transactions,
+      transactionsLoading,
+      transactionsError,
+      addTransaction,
+      removeTransaction,
+      refreshAll,
+    }),
+    [
+      expenseCategories,
+      incomeCategories,
+      subcategories,
+      categoriesLoading,
+      categoriesError,
+      addCategory,
+      deleteCategory,
+      updateCategory,
+      addSubcategory,
+      deleteSubcategory,
+      updateSubcategory,
+      reorderCategories,
+      reorderSubcategories,
+      transactions,
+      transactionsLoading,
+      transactionsError,
+      addTransaction,
+      removeTransaction,
+      refreshAll,
+    ],
+  )
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>
 }
