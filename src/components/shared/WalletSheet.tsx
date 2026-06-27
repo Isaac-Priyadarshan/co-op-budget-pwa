@@ -102,16 +102,18 @@ interface WalletAddProps { open: boolean; onClose: () => void; onSave: (w: NewWa
 
 function WalletAddSheet({ open, onClose, onSave }: WalletAddProps) {
   const [name, setName] = useState('')
-  const [balance, setBalance] = useState('')
+  // Default to '0' so user can save a zero-balance wallet without typing
+  const [balance, setBalance] = useState('0')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
-  const reset = () => { setName(''); setBalance(''); setErr(''); setSaving(false) }
+  const reset = () => { setName(''); setBalance('0'); setErr(''); setSaving(false) }
   const handleClose = () => { reset(); onClose() }
 
   const handleSave = async () => {
     if (!name.trim()) { setErr('Enter a wallet name'); return }
-    if (!balance || isNaN(Number(balance))) { setErr('Enter a valid balance'); return }
+    // FIX: use trim check instead of falsy — allows '0' to pass
+    if (balance.trim() === '' || isNaN(Number(balance))) { setErr('Enter a valid balance'); return }
     try {
       setSaving(true); setErr('')
       await onSave({ type: 'cash', label: name.trim(), balance: parseFloat(Number(balance).toFixed(2)), credit_limit: null, billing_date: null, due_date: null })
@@ -171,7 +173,8 @@ function WalletEditSheet({ open, item, onClose, onUpdate, onDelete }: WalletEdit
 
   const handleUpdate = async () => {
     if (!name.trim()) { setErr('Enter a wallet name'); return }
-    if (!balance || isNaN(Number(balance))) { setErr('Enter a valid balance'); return }
+    // FIX: use trim check instead of falsy — allows '0' to pass
+    if (balance.trim() === '' || isNaN(Number(balance))) { setErr('Enter a valid balance'); return }
     try {
       setSaving(true); setErr('')
       await onUpdate(item.id, { type: 'cash', label: name.trim(), balance: parseFloat(Number(balance).toFixed(2)), credit_limit: null, billing_date: null, due_date: null })
@@ -231,20 +234,23 @@ interface CreditAddProps { open: boolean; onClose: () => void; onSave: (w: NewWa
 function CreditCardAddSheet({ open, onClose, onSave }: CreditAddProps) {
   const [name, setName] = useState('')
   const [limit, setLimit] = useState('')
-  const [outstanding, setOutstanding] = useState('')
+  // Default to '0' — a brand new card with no existing dues
+  const [outstanding, setOutstanding] = useState('0')
   const [billDate, setBillDate] = useState<number | null>(null)
   const [dueDate, setDueDate] = useState<number | null>(null)
   const [dayPicker, setDayPicker] = useState<'bill' | 'due' | null>(null)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
-  const reset = () => { setName(''); setLimit(''); setOutstanding(''); setBillDate(null); setDueDate(null); setErr(''); setSaving(false) }
+  const reset = () => { setName(''); setLimit(''); setOutstanding('0'); setBillDate(null); setDueDate(null); setErr(''); setSaving(false) }
   const handleClose = () => { reset(); onClose() }
 
   const handleSave = async () => {
     if (!name.trim()) { setErr('Enter a card name'); return }
-    if (!limit || isNaN(Number(limit))) { setErr('Enter a valid total limit'); return }
-    if (!outstanding || isNaN(Number(outstanding))) { setErr('Enter a valid outstanding balance'); return }
+    // Limit must be > 0 — a card with ₹0 limit is not valid
+    if (limit.trim() === '' || isNaN(Number(limit)) || Number(limit) <= 0) { setErr('Enter a valid credit limit (must be greater than ₹0)'); return }
+    // FIX: outstanding CAN be 0 — new card with no dues
+    if (outstanding.trim() === '' || isNaN(Number(outstanding))) { setErr('Enter a valid outstanding balance (0 is allowed)'); return }
     if (!billDate) { setErr('Select a billing date'); return }
     if (!dueDate) { setErr('Select a due date'); return }
     try {
@@ -289,7 +295,7 @@ function CreditCardAddSheet({ open, onClose, onSave }: CreditAddProps) {
               </label>
               <label style={{ display: 'block', marginBottom: 16 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.7)', marginBottom: 8 }}>Total Limit (₹)</p>
-                <input type="number" inputMode="decimal" placeholder="0" value={limit} onChange={e => setLimit(e.target.value)} style={amt} />
+                <input type="number" inputMode="decimal" placeholder="e.g. 100000" value={limit} onChange={e => setLimit(e.target.value)} style={amt} />
               </label>
               <label style={{ display: 'block', marginBottom: 20 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.7)', marginBottom: 8 }}>Outstanding Balance (₹)</p>
@@ -351,8 +357,10 @@ function CreditCardEditSheet({ open, item, onClose, onUpdate, onDelete }: Credit
 
   const handleUpdate = async () => {
     if (!name.trim()) { setErr('Enter a card name'); return }
-    if (!limit || isNaN(Number(limit))) { setErr('Enter a valid total limit'); return }
-    if (!outstanding || isNaN(Number(outstanding))) { setErr('Enter valid outstanding balance'); return }
+    // Limit must be > 0
+    if (limit.trim() === '' || isNaN(Number(limit)) || Number(limit) <= 0) { setErr('Enter a valid credit limit (must be greater than ₹0)'); return }
+    // FIX: outstanding CAN be 0 — card fully paid off
+    if (outstanding.trim() === '' || isNaN(Number(outstanding))) { setErr('Enter valid outstanding balance (0 is allowed)'); return }
     if (!billDate) { setErr('Select a billing date'); return }
     if (!dueDate) { setErr('Select a due date'); return }
     try {
