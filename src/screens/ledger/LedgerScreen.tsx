@@ -5,7 +5,7 @@ import { useCategories } from '../../hooks/useCategories'
 import { useWallets } from '../../hooks/useWallets'
 import { formatINR } from '../../utils/format'
 
-// ─── Constants ────────────────────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 const MONTH_NAMES = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December',
@@ -44,7 +44,7 @@ function groupByDate(txs: TxList) {
   return Object.entries(groups).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
 }
 
-// ─── Animated Wave Canvas ──────────────────────────────────────────────────────────────
+// ─── Animated Wave Canvas ─────────────────────────────────────────────────────
 function WaveCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef<number>(0)
@@ -124,7 +124,7 @@ function WaveCanvas() {
   )
 }
 
-// ─── Wallet Pill ────────────────────────────────────────────────────────────────────────
+// ─── Wallet Pill ──────────────────────────────────────────────────────────────
 function WalletPill({ label, type }: { label: string; type: string }) {
   const isCash = type === 'cash'
   const icon   = isCash ? '💵' : '💳'
@@ -145,9 +145,7 @@ function WalletPill({ label, type }: { label: string; type: string }) {
   )
 }
 
-// ─── Delete Error Toast ──────────────────────────────────────────────────────────────────
-// Displayed when removeTransaction throws — row was not deleted in Supabase.
-// Automatically dismissed after 4 seconds. User-dismissable via tap.
+// ─── Delete Error Toast ───────────────────────────────────────────────────────
 function DeleteErrorToast({
   message,
   onDismiss,
@@ -191,7 +189,41 @@ function DeleteErrorToast({
   )
 }
 
-// ─── Main Screen ─────────────────────────────────────────────────────────────────────────────
+// ─── Compact filter pill ──────────────────────────────────────────────────────
+function FilterPill({
+  label,
+  active,
+  activeColor,
+  activeBorder,
+  activeBg,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  activeColor: string
+  activeBorder: string
+  activeBg: string
+  onClick: () => void
+}) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.93 }}
+      onClick={onClick}
+      style={{
+        height: 28, padding: '0 10px', borderRadius: 100, flexShrink: 0,
+        border: active ? `1px solid ${activeBorder}` : '1px solid rgba(255,255,255,0.09)',
+        background: active ? activeBg : 'rgba(255,255,255,0.04)',
+        color: active ? activeColor : 'rgba(255,255,255,0.38)',
+        fontSize: 11, fontWeight: active ? 700 : 400,
+        cursor: 'pointer', whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </motion.button>
+  )
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 export function LedgerScreen() {
   const today   = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
@@ -267,10 +299,6 @@ export function LedgerScreen() {
 
   const grouped = useMemo(() => groupByDate(filtered), [filtered])
 
-  // handleDelete — attempts permanent DB delete.
-  // On failure: removeTransaction re-throws, we catch it here,
-  // show the DeleteErrorToast with the real error message,
-  // and the row is automatically restored into the list by DataContext.
   const handleDelete = async (id: string) => {
     setDeletingId(id)
     setDeleteError(null)
@@ -285,13 +313,14 @@ export function LedgerScreen() {
     }
   }
 
+  // Compact date input — fixed width so it fits inline with pills
   const dateInputStyle: React.CSSProperties = {
-    flex: 1, height: 34, borderRadius: 10,
+    width: 108, height: 28, borderRadius: 10, flexShrink: 0,
     background: 'rgba(255,255,255,0.06)',
     border: '1px solid rgba(251,191,36,0.22)',
     color: '#F5F5F5', fontSize: 11, fontWeight: 600,
-    padding: '0 8px', cursor: 'pointer', outline: 'none',
-    WebkitAppearance: 'none', colorScheme: 'dark', minWidth: 0,
+    padding: '0 6px', cursor: 'pointer', outline: 'none',
+    WebkitAppearance: 'none', colorScheme: 'dark',
   }
 
   return (
@@ -383,50 +412,64 @@ export function LedgerScreen() {
           </div>
         </div>
 
-        {/* Filter bar */}
-        <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            {(['all', 'income', 'expense'] as const).map(f => (
-              <motion.button key={f} whileTap={{ scale: 0.93 }} onClick={() => setTypeFilter(f)}
-                style={{
-                  height: 30, padding: '0 12px', borderRadius: 100,
-                  border: typeFilter === f ? '1px solid rgba(251,191,36,0.55)' : '1px solid rgba(255,255,255,0.09)',
-                  background: typeFilter === f ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)',
-                  color: typeFilter === f ? '#FBBF24' : 'rgba(255,255,255,0.40)',
-                  fontSize: 11, fontWeight: typeFilter === f ? 700 : 400,
-                  cursor: 'pointer', textTransform: 'capitalize', whiteSpace: 'nowrap',
-                }}
-              >{f}</motion.button>
-            ))}
-            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }} />
-            {(['all', 'Isaac', 'Jenifa'] as const).map(u => (
-              <motion.button key={u} whileTap={{ scale: 0.93 }} onClick={() => setUserFilter(u)}
-                style={{
-                  height: 30, padding: '0 12px', borderRadius: 100,
-                  border: userFilter === u ? '1px solid rgba(94,234,212,0.50)' : '1px solid rgba(255,255,255,0.09)',
-                  background: userFilter === u ? 'rgba(94,234,212,0.12)' : 'rgba(255,255,255,0.04)',
-                  color: userFilter === u ? '#5EEAD4' : 'rgba(255,255,255,0.40)',
-                  fontSize: 11, fontWeight: userFilter === u ? 700 : 400,
-                  cursor: 'pointer', whiteSpace: 'nowrap',
-                }}
-              >{u === 'all' ? 'Both' : u}</motion.button>
-            ))}
-          </div>
+        {/* ── Single-line filter bar ─────────────────────────────────────────
+            Layout (left → right, no wrap, horizontal scroll if needed):
+            [All] [Income] [Expense]  |  [Both] [Isaac] [Jenifa]  |  [date]→[date]
+        ──────────────────────────────────────────────────────────────────── */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          flexWrap: 'nowrap', overflowX: 'auto',
+          marginBottom: 16,
+          // hide scrollbar cosmetically on webkit
+          WebkitOverflowScrolling: 'touch',
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        } as React.CSSProperties}>
 
-          {/* Date range pickers */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <input
-              type="date" value={startDate} max={endDate}
-              onChange={e => setStartDate(e.target.value)}
-              style={dateInputStyle}
+          {/* Type pills */}
+          {(['all', 'income', 'expense'] as const).map(f => (
+            <FilterPill
+              key={f}
+              label={f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+              active={typeFilter === f}
+              activeColor="#FBBF24"
+              activeBorder="rgba(251,191,36,0.55)"
+              activeBg="rgba(251,191,36,0.15)"
+              onClick={() => setTypeFilter(f)}
             />
-            <span style={{ color: 'rgba(255,255,255,0.30)', fontSize: 11, flexShrink: 0 }}>→</span>
-            <input
-              type="date" value={endDate} min={startDate}
-              onChange={e => setEndDate(e.target.value)}
-              style={dateInputStyle}
+          ))}
+
+          {/* Vertical divider */}
+          <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.13)', flexShrink: 0 }} />
+
+          {/* User pills */}
+          {(['all', 'Isaac', 'Jenifa'] as const).map(u => (
+            <FilterPill
+              key={u}
+              label={u === 'all' ? 'Both' : u}
+              active={userFilter === u}
+              activeColor="#5EEAD4"
+              activeBorder="rgba(94,234,212,0.50)"
+              activeBg="rgba(94,234,212,0.12)"
+              onClick={() => setUserFilter(u)}
             />
-          </div>
+          ))}
+
+          {/* Vertical divider */}
+          <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.13)', flexShrink: 0 }} />
+
+          {/* Date range — compact, fixed width, inline */}
+          <input
+            type="date" value={startDate} max={endDate}
+            onChange={e => setStartDate(e.target.value)}
+            style={dateInputStyle}
+          />
+          <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11, flexShrink: 0 }}>→</span>
+          <input
+            type="date" value={endDate} min={startDate}
+            onChange={e => setEndDate(e.target.value)}
+            style={dateInputStyle}
+          />
         </div>
 
         {/* Transaction list */}
@@ -449,9 +492,7 @@ export function LedgerScreen() {
             {grouped.map(([dateStr, txs]) => (
               <div key={dateStr}>
                 {/* Date header */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
-                }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.40)', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
                     {formatTxDate(txs[0].transaction_date ?? txs[0].created_at)}
                   </span>
@@ -465,10 +506,10 @@ export function LedgerScreen() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <AnimatePresence>
                     {txs.map(tx => {
-                      const meta    = getCatMeta(tx.category)
-                      const wallet  = tx.wallet_id ? walletLookup[tx.wallet_id] : null
-                      const isConf  = confirmId  === tx.id
-                      const isDel   = deletingId === tx.id
+                      const meta   = getCatMeta(tx.category)
+                      const wallet = tx.wallet_id ? walletLookup[tx.wallet_id] : null
+                      const isConf = confirmId  === tx.id
+                      const isDel  = deletingId === tx.id
 
                       return (
                         <motion.div
@@ -503,7 +544,7 @@ export function LedgerScreen() {
                               {meta.icon}
                             </div>
 
-                            {/* Details */}
+                            {/* Details — fills available space */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5', lineHeight: 1.2 }}>
@@ -521,8 +562,16 @@ export function LedgerScreen() {
                               </div>
                             </div>
 
-                            {/* Amount */}
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            {/* ── Right column: amount (top) + delete button (bottom)
+                                Both are right-aligned and pinned to the far right edge.
+                                flexDirection column + alignItems flex-end keeps the
+                                delete icon uniformly at the bottom-right of every row. */}
+                            <div style={{
+                              display: 'flex', flexDirection: 'column',
+                              alignItems: 'flex-end', justifyContent: 'space-between',
+                              flexShrink: 0, gap: 6,
+                            }}>
+                              {/* Amount */}
                               <p style={{
                                 fontSize: 15, fontWeight: 800,
                                 color: tx.type === 'income' ? '#34D399' : '#F87171',
@@ -530,12 +579,14 @@ export function LedgerScreen() {
                               }}>
                                 {tx.type === 'income' ? '+' : '-'}{formatINR(tx.amount)}
                               </p>
+
+                              {/* Delete trigger — only shown when not in confirm state */}
                               {!isConf && (
                                 <motion.button
                                   whileTap={{ scale: 0.82 }}
                                   onClick={() => setConfirmId(tx.id)}
                                   style={{
-                                    marginTop: 6, width: 26, height: 26, borderRadius: 8,
+                                    width: 26, height: 26, borderRadius: 8, flexShrink: 0,
                                     background: 'rgba(239,68,68,0.10)',
                                     border: '1px solid rgba(239,68,68,0.22)',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
