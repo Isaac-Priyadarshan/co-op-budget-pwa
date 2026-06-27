@@ -351,8 +351,6 @@ function BorrowTransactionLogSheet({ open, entry, onClose }: {
 }
 
 // ─── Wallet picker ────────────────────────────────────────────────────────────
-// FIX: z-index bumped to 600/601 so it always floats above every parent sheet
-// (PaymentSheet, AddMoreSheet, AddBorrowedSheet) regardless of stacking context
 function WalletPicker({ open, wallets, title, onSelect, onClose }: {
   open: boolean; wallets: WalletEntry[]; title: string
   onSelect: (w: WalletEntry) => void; onClose: () => void
@@ -628,7 +626,6 @@ function EditBorrowedSheet({ open, entry, saving, onClose, onSave }: {
 }
 
 // ─── Add More Sheet ───────────────────────────────────────────────────────────
-// FIX: maxHeight + overflowY added so wallet selector button is never clipped
 function AddMoreSheet({ open, entry, wallets, saving, onClose, onSave }: {
   open: boolean; entry: BorrowedEntry | null; wallets: WalletEntry[]; saving: boolean
   onClose: () => void
@@ -714,7 +711,6 @@ function AddMoreSheet({ open, entry, wallets, saving, onClose, onSave }: {
 }
 
 // ─── Payment / Settle Sheet ───────────────────────────────────────────────────
-// FIX: maxHeight + overflowY added so wallet selector is never hidden off-screen
 type PaymentMode = 'partial' | 'settle'
 
 function PaymentSheet({ open, mode, entry, wallets, saving, onClose, onPartial, onSettle }: {
@@ -920,14 +916,7 @@ function BorrowedCard({
             )}
           </AnimatePresence>
 
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-            background: isSettled ? 'rgba(52,211,153,0.15)' : 'rgba(251,146,60,0.15)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 13, fontWeight: 800, color: isSettled ? '#34D399' : '#FB923C',
-          }}>
-            {entry.person.charAt(0).toUpperCase()}
-          </div>
+          {/* ── Avatar circle removed ── */}
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
@@ -1280,7 +1269,7 @@ export function BorrowedScreen() {
         {/* ── Toolbar ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
 
-          {/* ── Create Borrowed button — text only, no icon ── */}
+          {/* ── Create Borrowed button ── */}
           <motion.button whileTap={{ scale: 0.95 }} onClick={() => setAddOpen(true)}
             aria-label="Add borrowed entry"
             style={{
