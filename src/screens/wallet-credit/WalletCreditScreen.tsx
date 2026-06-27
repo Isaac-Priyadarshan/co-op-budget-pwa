@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
+import { useDefaultWallets } from '../../hooks/useDefaultWallets'
 import { WalletSheet } from '../../components/shared/WalletSheet'
 import { TransferSheet } from '../../components/shared/TransferSheet'
+import { DefaultWalletSheet } from '../../components/shared/DefaultWalletSheet'
 import { formatINR } from '../../utils/format'
 import type { WalletEntry, NewWallet } from '../../lib/db'
 
@@ -34,7 +36,6 @@ function WalletWaveCanvas() {
 function DragHandleIcon({ color }: { color: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      {/* 6-dot grip: 2 columns × 3 rows */}
       {[0, 4, 8].map(y =>
         [1, 5].map(x => (
           <circle key={`${x}-${y}`} cx={x} cy={y + 2} r="1.2" fill={color} />
@@ -83,7 +84,7 @@ function WalletRow({
           WebkitUserSelect: 'none',
         }}
       >
-        {/* Drag handle — only this initiates drag */}
+        {/* Drag handle */}
         <div
           onPointerDown={e => { e.stopPropagation(); controls.start(e) }}
           style={{
@@ -104,7 +105,7 @@ function WalletRow({
           <DragHandleIcon color={accentColor} />
         </div>
 
-        {/* Tappable content area — navigates on tap */}
+        {/* Tappable content */}
         <div
           onClick={onTap}
           style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 8, minWidth: 0 }}
@@ -146,8 +147,14 @@ export function WalletCreditScreen() {
     totalCash, totalCredit, totalCreditLimit,
   } = useWallets()
 
+  const {
+    defaults, cashWallets, saving: defaultSaving,
+    error: defaultError, save: saveDefaults,
+  } = useDefaultWallets(wallets)
+
   const [sheet, setSheet]               = useState<SheetMode>(null)
   const [transferOpen, setTransferOpen] = useState(false)
+  const [defaultOpen, setDefaultOpen]   = useState(false)
 
   const walletEntries = wallets.filter(w => w.type === 'cash')
   const creditEntries = wallets.filter(w => w.type === 'credit')
@@ -156,9 +163,15 @@ export function WalletCreditScreen() {
   const handleUpdate = async (id: string, w: NewWallet) => { await update(id, w) }
   const handleDelete = async (id: string) => { await remove(id) }
 
+  const handleSaveDefaults = async (next: { Isaac: string | null; Jenifa: string | null }) => {
+    const ok = await saveDefaults(next)
+    if (ok) setDefaultOpen(false)
+  }
+
   // ── Wallets section header ──
   const WalletsSectionHeader = () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      {/* + Add wallet */}
       <motion.button
         whileTap={{ scale: 0.82 }}
         onClick={() => setSheet({ type: 'add-cash' })}
@@ -175,7 +188,11 @@ export function WalletCreditScreen() {
           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </motion.button>
+
+      {/* Section label */}
       <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.8)' }}>Wallets</p>
+
+      {/* Transfer button */}
       <motion.button
         whileTap={{ scale: 0.82 }}
         onClick={() => setTransferOpen(true)}
@@ -193,6 +210,25 @@ export function WalletCreditScreen() {
           <polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
         </svg>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#818CF8' }}>Transfer</span>
+      </motion.button>
+
+      {/* Default button — NEW */}
+      <motion.button
+        whileTap={{ scale: 0.82 }}
+        onClick={() => setDefaultOpen(true)}
+        aria-label="Set default wallet"
+        style={{
+          height: 24, paddingInline: 10, borderRadius: 99,
+          background: 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(217,119,6,0.12))',
+          border: '1px solid rgba(251,191,36,0.32)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+          cursor: 'pointer', flexShrink: 0,
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#FBBF24' }}>Default</span>
       </motion.button>
     </div>
   )
@@ -363,6 +399,17 @@ export function WalletCreditScreen() {
       <TransferSheet
         open={transferOpen}
         onClose={() => setTransferOpen(false)}
+      />
+
+      {/* ── Default Wallet Sheet ── */}
+      <DefaultWalletSheet
+        open={defaultOpen}
+        onClose={() => setDefaultOpen(false)}
+        defaults={defaults}
+        cashWallets={cashWallets}
+        saving={defaultSaving}
+        error={defaultError}
+        onSave={handleSaveDefaults}
       />
     </div>
   )
