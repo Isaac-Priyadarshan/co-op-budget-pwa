@@ -1,9 +1,9 @@
 import { supabase } from './supabase'
 import type { AppUser } from './types'
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // TRANSACTION MODULE
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 
 export interface Transaction {
   id: string
@@ -54,19 +54,21 @@ export async function deleteTransaction(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // WALLET MODULE
 // Wallets are shared between Isaac & Jenifa — no owner field needed.
-// The DB owner column must be nullable (run the migration before deploying):
+// DB migration required before deploying:
 //   ALTER TABLE wallets ALTER COLUMN owner DROP NOT NULL;
 //   ALTER TABLE wallets DROP CONSTRAINT IF EXISTS wallets_owner_check;
-// ══════════════════════════════════════════════════════════════════════════════
+//   ALTER TABLE wallets ADD COLUMN IF NOT EXISTS sort_order integer DEFAULT 0;
+// ════════════════════════════════════════════════════════════════════════════
 
 export interface WalletEntry {
   id: string
   label: string
   type: 'cash' | 'credit' | string
   balance: number
+  sort_order: number
   updated_at: string
   credit_limit?: number | null
   billing_date?: number | null
@@ -78,6 +80,7 @@ export interface NewWallet {
   label: string
   type: 'cash' | 'credit' | string
   balance: number
+  sort_order?: number
   credit_limit?: number | null
   billing_date?: number | null
   due_date?: number | null
@@ -87,14 +90,13 @@ export async function fetchWallets(): Promise<WalletEntry[]> {
   const { data, error } = await supabase
     .from('wallets')
     .select('*')
-    .order('updated_at', { ascending: false })
+    .order('sort_order', { ascending: true })
   if (error) throw new Error(error.message)
   return (data ?? []) as WalletEntry[]
 }
 
 export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
-  // owner is intentionally omitted — wallets are shared, column must be nullable in DB
-  const payload = {
+  const payload: Record<string, unknown> = {
     label: entry.label,
     type: entry.type,
     balance: entry.balance,
@@ -102,6 +104,7 @@ export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
     billing_date: entry.type === 'credit' ? (entry.billing_date ?? null) : null,
     due_date:     entry.type === 'credit' ? (entry.due_date     ?? null) : null,
   }
+  if (typeof entry.sort_order === 'number') payload.sort_order = entry.sort_order
 
   if (entry.id) {
     const { data, error } = await supabase
@@ -131,14 +134,25 @@ export async function updateWalletBalance(id: string, balance: number): Promise<
   if (error) throw new Error(error.message)
 }
 
+// Batch-update sort_order for a list of wallets after drag-to-reorder.
+export async function updateWalletSortOrders(
+  updates: { id: string; sort_order: number }[]
+): Promise<void> {
+  await Promise.all(
+    updates.map(({ id, sort_order }) =>
+      supabase.from('wallets').update({ sort_order }).eq('id', id)
+    )
+  )
+}
+
 export async function deleteWallet(id: string): Promise<void> {
   const { error } = await supabase.from('wallets').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // LOAN MODULE
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 
 export interface LoanEntry {
   id: string
@@ -202,9 +216,9 @@ export async function deleteLoan(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // RECURRING MODULE
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 
 export interface RecurringEntry {
   id: string
@@ -267,9 +281,9 @@ export async function deleteRecurring(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // LENT MODULE
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 
 export interface LentEntry {
   id: string
@@ -324,9 +338,9 @@ export async function deleteLent(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // BORROWED MODULE
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 
 export interface BorrowedEntry {
   id: string
@@ -381,9 +395,9 @@ export async function deleteBorrowed(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // ASSET MODULE
-// ══════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 
 export interface AssetEntry {
   id: string

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
 import { WalletSheet } from '../../components/shared/WalletSheet'
 import { TransferSheet } from '../../components/shared/TransferSheet'
@@ -14,8 +14,14 @@ function WalletWaveCanvas() {
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
     >
       <defs>
-        <linearGradient id="ww1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgba(248,113,113,0.22)" /><stop offset="100%" stopColor="rgba(248,113,113,0.04)" /></linearGradient>
-        <linearGradient id="ww2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="rgba(52,211,153,0.16)" /><stop offset="100%" stopColor="rgba(52,211,153,0.03)" /></linearGradient>
+        <linearGradient id="ww1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(248,113,113,0.22)" />
+          <stop offset="100%" stopColor="rgba(248,113,113,0.04)" />
+        </linearGradient>
+        <linearGradient id="ww2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgba(52,211,153,0.16)" />
+          <stop offset="100%" stopColor="rgba(52,211,153,0.03)" />
+        </linearGradient>
       </defs>
       <path d="M0,88 C80,68 150,112 230,92 C320,68 410,42 600,84 L600,140 L0,140 Z" fill="url(#ww1)" />
       <path d="M0,104 C100,74 180,134 300,108 C410,84 500,58 600,98 L600,140 L0,140 Z" fill="url(#ww2)" />
@@ -24,13 +30,123 @@ function WalletWaveCanvas() {
   )
 }
 
+// ─── Drag handle icon ─────────────────────────────────────────────────────────
+function DragHandleIcon({ color }: { color: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      {/* 6-dot grip: 2 columns × 3 rows */}
+      {[0, 4, 8].map(y =>
+        [1, 5].map(x => (
+          <circle key={`${x}-${y}`} cx={x} cy={y + 2} r="1.2" fill={color} />
+        ))
+      )}
+    </svg>
+  )
+}
+
+// ─── Single reorderable wallet row ───────────────────────────────────────────
+function WalletRow({
+  item,
+  accentColor,
+  onTap,
+}: {
+  item: WalletEntry
+  accentColor: string
+  onTap: () => void
+}) {
+  const controls = useDragControls()
+
+  return (
+    <Reorder.Item
+      value={item}
+      dragListener={false}
+      dragControls={controls}
+      style={{ listStyle: 'none' }}
+      whileDrag={{
+        scale: 1.03,
+        boxShadow: `0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px ${accentColor}55`,
+        zIndex: 50,
+      }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          padding: '15px 16px 15px 12px',
+          borderRadius: 18,
+          background: `${accentColor}14`,
+          border: `1px solid ${accentColor}2e`,
+          cursor: 'pointer',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+        }}
+      >
+        {/* Drag handle — only this initiates drag */}
+        <div
+          onPointerDown={e => { e.stopPropagation(); controls.start(e) }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            background: `${accentColor}12`,
+            border: `1px solid ${accentColor}22`,
+            cursor: 'grab',
+            flexShrink: 0,
+            touchAction: 'none',
+          }}
+          aria-label="Drag to reorder"
+        >
+          <DragHandleIcon color={accentColor} />
+        </div>
+
+        {/* Tappable content area — navigates on tap */}
+        <div
+          onClick={onTap}
+          style={{ display: 'flex', alignItems: 'center', flex: 1, gap: 8, minWidth: 0 }}
+        >
+          <p style={{
+            flex: 1,
+            fontSize: 14,
+            fontWeight: 700,
+            color: '#f5f7ff',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            minWidth: 0,
+          }}>
+            {item.label}
+          </p>
+          <p style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: accentColor,
+            fontVariantNumeric: 'tabular-nums',
+            flexShrink: 0,
+          }}>
+            {formatINR(item.balance)}
+          </p>
+        </div>
+      </div>
+    </Reorder.Item>
+  )
+}
+
 type SheetMode = { type: 'add-cash' } | { type: 'add-credit' } | { type: 'edit'; item: WalletEntry } | null
 
 export function WalletCreditScreen() {
   const navigate = useNavigate()
-  const { wallets, loading, error, save, update, remove, totalCash, totalCredit, totalCreditLimit } = useWallets()
+  const {
+    wallets, loading, error,
+    save, update, remove, reorder,
+    totalCash, totalCredit, totalCreditLimit,
+  } = useWallets()
 
-  const [sheet, setSheet]             = useState<SheetMode>(null)
+  const [sheet, setSheet]               = useState<SheetMode>(null)
   const [transferOpen, setTransferOpen] = useState(false)
 
   const walletEntries = wallets.filter(w => w.type === 'cash')
@@ -40,10 +156,9 @@ export function WalletCreditScreen() {
   const handleUpdate = async (id: string, w: NewWallet) => { await update(id, w) }
   const handleDelete = async (id: string) => { await remove(id) }
 
-  // ── Wallets section header with + Add and ⇄ Transfer buttons ──
+  // ── Wallets section header ──
   const WalletsSectionHeader = () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-      {/* + Add */}
       <motion.button
         whileTap={{ scale: 0.82 }}
         onClick={() => setSheet({ type: 'add-cash' })}
@@ -57,21 +172,16 @@ export function WalletCreditScreen() {
         }}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
+          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </motion.button>
-
       <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.8)' }}>Wallets</p>
-
-      {/* ⇄ Transfer */}
       <motion.button
         whileTap={{ scale: 0.82 }}
         onClick={() => setTransferOpen(true)}
         aria-label="Transfer funds"
         style={{
-          height: 24, paddingInline: 10,
-          borderRadius: 99,
+          height: 24, paddingInline: 10, borderRadius: 99,
           background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.12))',
           border: '1px solid rgba(99,102,241,0.32)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
@@ -79,17 +189,15 @@ export function WalletCreditScreen() {
         }}
       >
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#818CF8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="17 1 21 5 17 9" />
-          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-          <polyline points="7 23 3 19 7 15" />
-          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+          <polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
         </svg>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', color: '#818CF8' }}>Transfer</span>
       </motion.button>
     </div>
   )
 
-  // ── Credit cards section header (+ Add only) ──
+  // ── Credit cards section header ──
   const CreditSectionHeader = () => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
       <motion.button
@@ -105,8 +213,7 @@ export function WalletCreditScreen() {
         }}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
+          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </motion.button>
       <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(248,113,113,0.8)' }}>Credit Cards</p>
@@ -159,7 +266,11 @@ export function WalletCreditScreen() {
             </div>
           )}
 
-          {error && <div style={{ padding: 16, borderRadius: 16, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 14, marginBottom: 16, marginTop: 8 }}>{error}</div>}
+          {error && (
+            <div style={{ padding: 16, borderRadius: 16, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 14, marginBottom: 16, marginTop: 8 }}>
+              {error}
+            </div>
+          )}
 
           {/* ── Wallets Section ── */}
           {!loading && (
@@ -170,35 +281,23 @@ export function WalletCreditScreen() {
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No wallets yet — tap + to add one</p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Reorder.Group
+                  axis="y"
+                  values={walletEntries}
+                  onReorder={(newOrder: WalletEntry[]) => reorder(newOrder)}
+                  style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}
+                >
                   <AnimatePresence initial={false}>
                     {walletEntries.map(wallet => (
-                      <motion.div
+                      <WalletRow
                         key={wallet.id}
-                        layout
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        onClick={() => navigate(`/wallet/${wallet.id}?from=wallet-credit`)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px',
-                          borderRadius: 18,
-                          background: 'rgba(52,211,153,0.08)',
-                          border: '1px solid rgba(52,211,153,0.18)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <p style={{ flex: 1, fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
-                          {wallet.label}
-                        </p>
-                        <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                          {formatINR(wallet.balance)}
-                        </p>
-                      </motion.div>
+                        item={wallet}
+                        accentColor="#34D399"
+                        onTap={() => navigate(`/wallet/${wallet.id}?from=wallet-credit`)}
+                      />
                     ))}
                   </AnimatePresence>
-                </div>
+                </Reorder.Group>
               )}
             </section>
           )}
@@ -212,35 +311,23 @@ export function WalletCreditScreen() {
                   <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>No credit cards yet — tap + to add one</p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Reorder.Group
+                  axis="y"
+                  values={creditEntries}
+                  onReorder={(newOrder: WalletEntry[]) => reorder(newOrder)}
+                  style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}
+                >
                   <AnimatePresence initial={false}>
                     {creditEntries.map(card => (
-                      <motion.div
+                      <WalletRow
                         key={card.id}
-                        layout
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        onClick={() => navigate(`/wallet/${card.id}?from=wallet-credit`)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px',
-                          borderRadius: 18,
-                          background: 'rgba(248,113,113,0.08)',
-                          border: '1px solid rgba(248,113,113,0.18)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <p style={{ flex: 1, fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
-                          {card.label}
-                        </p>
-                        <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                          {formatINR(card.balance)}
-                        </p>
-                      </motion.div>
+                        item={card}
+                        accentColor="#F87171"
+                        onTap={() => navigate(`/wallet/${card.id}?from=wallet-credit`)}
+                      />
                     ))}
                   </AnimatePresence>
-                </div>
+                </Reorder.Group>
               )}
             </section>
           )}
