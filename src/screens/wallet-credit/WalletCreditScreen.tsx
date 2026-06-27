@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
 import { WalletSheet } from '../../components/shared/WalletSheet'
@@ -34,6 +35,7 @@ function formatDayOfMonth(day?: number | null) {
 type SheetMode = { type: 'add-cash' } | { type: 'add-credit' } | { type: 'edit'; item: WalletEntry } | null
 
 export function WalletCreditScreen() {
+  const navigate = useNavigate()
   const { wallets, loading, error, save, update, remove, totalCash, totalCredit, totalCreditLimit } = useWallets()
 
   const [sheet, setSheet] = useState<SheetMode>(null)
@@ -41,7 +43,7 @@ export function WalletCreditScreen() {
   const walletEntries = wallets.filter(w => w.type === 'cash')
   const creditEntries = wallets.filter(w => w.type === 'credit')
 
-  const handleSave = async (w: NewWallet) => { await save(w) }
+  const handleSave   = async (w: NewWallet) => { await save(w) }
   const handleUpdate = async (id: string, w: NewWallet) => { await update(id, w) }
   const handleDelete = async (id: string) => { await remove(id) }
 
@@ -148,7 +150,7 @@ export function WalletCreditScreen() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        onClick={() => setSheet({ type: 'edit', item: wallet })}
+                        onClick={() => navigate(`/wallet/${wallet.id}`)}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px',
                           borderRadius: 18,
@@ -160,9 +162,12 @@ export function WalletCreditScreen() {
                         <p style={{ flex: 1, fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                           {wallet.label}
                         </p>
-                        <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                          {formatINR(wallet.balance)}
-                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums' }}>
+                            {formatINR(wallet.balance)}
+                          </p>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                        </div>
                       </motion.div>
                     ))}
                   </AnimatePresence>
@@ -195,7 +200,7 @@ export function WalletCreditScreen() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        onClick={() => setSheet({ type: 'edit', item: card })}
+                        onClick={() => navigate(`/wallet/${card.id}`)}
                         style={{
                           borderRadius: 20, padding: '16px 18px',
                           background: 'rgba(248,113,113,0.08)',
@@ -203,14 +208,17 @@ export function WalletCreditScreen() {
                           cursor: 'pointer',
                         }}
                       >
-                        {/* Name + balance row */}
+                        {/* Name + balance + chevron row */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                           <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
                             {card.label}
                           </p>
-                          <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
-                            {formatINR(card.balance)}
-                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                            <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums' }}>
+                              {formatINR(card.balance)}
+                            </p>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                          </div>
                         </div>
                         {/* 4-cell detail grid */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
