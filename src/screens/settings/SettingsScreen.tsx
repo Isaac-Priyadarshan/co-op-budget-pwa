@@ -1,66 +1,325 @@
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useUser } from '../../context/UserContext'
 import type { AppUser } from '../../lib/types'
+
+// ─── Pastel card data ────────────────────────────────────────────────────────
+const OPTIONS = [
+  {
+    key: 'theme',
+    icon: '🎨',
+    label: 'Theme',
+    subtitle: 'Dark · System default',
+    // soft lavender
+    bubbleBg: 'rgba(139,92,246,0.18)',
+    bubbleBorder: 'rgba(139,92,246,0.32)',
+    cardBg: 'rgba(139,92,246,0.06)',
+    cardBorder: 'rgba(139,92,246,0.14)',
+  },
+  {
+    key: 'reminders',
+    icon: '🔔',
+    label: 'Reminders',
+    subtitle: 'Daily nudges & alerts',
+    // soft amber
+    bubbleBg: 'rgba(251,191,36,0.18)',
+    bubbleBorder: 'rgba(251,191,36,0.32)',
+    cardBg: 'rgba(251,191,36,0.05)',
+    cardBorder: 'rgba(251,191,36,0.13)',
+  },
+  {
+    key: 'export',
+    icon: '📤',
+    label: 'Export Data',
+    subtitle: 'Download your records',
+    // soft teal
+    bubbleBg: 'rgba(20,184,166,0.18)',
+    bubbleBorder: 'rgba(20,184,166,0.32)',
+    cardBg: 'rgba(20,184,166,0.05)',
+    cardBorder: 'rgba(20,184,166,0.13)',
+  },
+  {
+    key: 'reset',
+    icon: '🗑️',
+    label: 'Reset Data',
+    subtitle: 'Clear all transactions',
+    // soft rose — signals destructive
+    bubbleBg: 'rgba(244,63,94,0.18)',
+    bubbleBorder: 'rgba(244,63,94,0.32)',
+    cardBg: 'rgba(244,63,94,0.06)',
+    cardBorder: 'rgba(244,63,94,0.16)',
+  },
+] as const
+
+const USERS: { id: AppUser; emoji: string; accent: string; accentBorder: string; activeBg: string }[] = [
+  {
+    id: 'Isaac',
+    emoji: '👨🏽',
+    accent: '#a5b4fc',
+    accentBorder: 'rgba(165,180,252,0.45)',
+    activeBg: 'linear-gradient(135deg,rgba(99,102,241,0.28),rgba(139,92,246,0.18))',
+  },
+  {
+    id: 'Jenifa',
+    emoji: '👩🏽',
+    accent: '#f9a8d4',
+    accentBorder: 'rgba(249,168,212,0.45)',
+    activeBg: 'linear-gradient(135deg,rgba(236,72,153,0.22),rgba(244,114,182,0.14))',
+  },
+]
+
+// ─── Container animation ─────────────────────────────────────────────────────
+const containerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.07 } },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.38, ease: [0.16, 1, 0.3, 1] } },
+}
 
 export function SettingsScreen() {
   const { activeUser, setActiveUser } = useUser()
 
-  const users: AppUser[] = ['Isaac', 'Jenifa']
-
-  const rows = [
-    { label: 'App Version', value: '1.0.0' },
-    { label: 'Database', value: 'Supabase (Live)' },
-    { label: 'Hosting', value: 'Vercel' },
-    { label: 'Built with', value: 'React + TypeScript' },
-  ]
-
   return (
-    <div style={{ padding: '24px 20px 48px', minHeight: '100%' }}>
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
+    <div style={{ padding: '28px 18px 64px', minHeight: '100%' }}>
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+      >
 
-        <div style={{ marginBottom: 28 }}>
-          <p style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(165,180,252,0.7)', marginBottom: 4 }}>Preferences</p>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f5f7ff', letterSpacing: '-0.02em' }}>Settings</h1>
-        </div>
+        {/* ── Page title ─────────────────────────────────────────────────── */}
+        <motion.div variants={itemVariants} style={{ marginBottom: 24 }}>
+          <h1 style={{
+            fontSize: 26,
+            fontWeight: 700,
+            color: '#f5f7ff',
+            letterSpacing: '-0.02em',
+            margin: 0,
+          }}>
+            Settings
+          </h1>
+        </motion.div>
 
-        {/* Active User */}
-        <div style={{ borderRadius: 20, padding: '18px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: 16 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(165,180,252,0.7)', marginBottom: 14 }}>Active User</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {users.map(u => (
-              <motion.button key={u} whileTap={{ scale: 0.96 }} onClick={() => setActiveUser(u)}
-                style={{ padding: '16px', borderRadius: 16, border: activeUser === u ? '1px solid rgba(165,180,252,0.5)' : '1px solid rgba(255,255,255,0.08)', background: activeUser === u ? 'linear-gradient(135deg,rgba(99,102,241,0.3),rgba(139,92,246,0.2))' : 'rgba(255,255,255,0.03)', cursor: 'pointer', transition: 'all 0.18s ease' }}
-              >
-                <p style={{ fontSize: 28, marginBottom: 8 }}>{u === 'Isaac' ? '👨🏽' : '👩🏽'}</p>
-                <p style={{ fontSize: 15, fontWeight: 700, color: activeUser === u ? '#a5b4fc' : 'rgba(255,255,255,0.5)' }}>{u}</p>
-                {activeUser === u && (
-                  <p style={{ fontSize: 11, color: 'rgba(165,180,252,0.6)', marginTop: 4 }}>● Active</p>
-                )}
-              </motion.button>
-            ))}
+        {/* ── Compact user switcher ──────────────────────────────────────── */}
+        <motion.div variants={itemVariants} style={{ marginBottom: 28 }}>
+          <p style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.28)',
+            marginBottom: 10,
+          }}>
+            Active User
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            {USERS.map(u => {
+              const isActive = activeUser === u.id
+              return (
+                <motion.button
+                  key={u.id}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => setActiveUser(u.id)}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '12px 14px',
+                    borderRadius: 16,
+                    border: isActive ? `1px solid ${u.accentBorder}` : '1px solid rgba(255,255,255,0.07)',
+                    background: isActive ? u.activeBg : 'rgba(255,255,255,0.03)',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* emoji avatar */}
+                  <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0 }}>{u.emoji}</span>
+
+                  {/* name + status */}
+                  <div style={{ textAlign: 'left', minWidth: 0 }}>
+                    <p style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: isActive ? u.accent : 'rgba(255,255,255,0.35)',
+                      margin: 0,
+                      lineHeight: 1.2,
+                    }}>
+                      {u.id}
+                    </p>
+                    <AnimatePresence mode="wait">
+                      {isActive ? (
+                        <motion.p
+                          key="active"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.18 }}
+                          style={{
+                            fontSize: 10,
+                            color: isActive ? u.accent : 'transparent',
+                            opacity: 0.7,
+                            margin: 0,
+                            marginTop: 2,
+                            letterSpacing: '0.04em',
+                          }}
+                        >
+                          ● Active
+                        </motion.p>
+                      ) : (
+                        <motion.p
+                          key="tap"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.18 }}
+                          style={{
+                            fontSize: 10,
+                            color: 'rgba(255,255,255,0.2)',
+                            margin: 0,
+                            marginTop: 2,
+                          }}
+                        >
+                          Tap to switch
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* active glow ring */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="user-active-ring"
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: 16,
+                        pointerEvents: 'none',
+                        boxShadow: `inset 0 0 0 1px ${u.accentBorder}`,
+                      }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </motion.button>
+              )
+            })}
           </div>
-        </div>
+        </motion.div>
 
-        {/* App info */}
-        <div style={{ borderRadius: 20, padding: '18px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', marginBottom: 16 }}>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 14 }}>About</p>
-          {rows.map((row, i) => (
-            <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 0', borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>{row.label}</p>
-              <p style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>{row.value}</p>
-            </div>
+        {/* ── Section label ─────────────────────────────────────────────── */}
+        <motion.p
+          variants={itemVariants}
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.28)',
+            marginBottom: 10,
+          }}
+        >
+          Options
+        </motion.p>
+
+        {/* ── Pastel option cards ───────────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {OPTIONS.map((opt) => (
+            <motion.button
+              key={opt.key}
+              variants={itemVariants}
+              whileTap={{ scale: 0.97 }}
+              // stub — wired up in future sessions
+              onClick={() => {}}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                padding: '15px 16px',
+                borderRadius: 18,
+                border: `1px solid ${opt.cardBorder}`,
+                background: opt.cardBg,
+                cursor: 'pointer',
+                textAlign: 'left',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+              }}
+            >
+              {/* pastel icon bubble */}
+              <div style={{
+                width: 42,
+                height: 42,
+                borderRadius: 13,
+                background: opt.bubbleBg,
+                border: `1px solid ${opt.bubbleBorder}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 20,
+                flexShrink: 0,
+              }}>
+                {opt.icon}
+              </div>
+
+              {/* label + subtitle */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: opt.key === 'reset' ? 'rgba(251,113,133,0.9)' : 'rgba(255,255,255,0.88)',
+                  margin: 0,
+                  lineHeight: 1.25,
+                }}>
+                  {opt.label}
+                </p>
+                <p style={{
+                  fontSize: 12,
+                  color: 'rgba(255,255,255,0.32)',
+                  margin: 0,
+                  marginTop: 3,
+                  lineHeight: 1.3,
+                }}>
+                  {opt.subtitle}
+                </p>
+              </div>
+
+              {/* chevron */}
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                style={{ flexShrink: 0, opacity: 0.3 }}
+              >
+                <path
+                  d="M6 3l5 5-5 5"
+                  stroke="#ffffff"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </motion.button>
           ))}
         </div>
 
-        {/* App name card */}
-        <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.12, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-          style={{ borderRadius: 20, padding: '22px', background: 'linear-gradient(135deg,rgba(99,102,241,0.2),rgba(139,92,246,0.15))', border: '1px solid rgba(99,102,241,0.28)', textAlign: 'center' }}
+        {/* ── Quiet footer ──────────────────────────────────────────────── */}
+        <motion.p
+          variants={itemVariants}
+          style={{
+            textAlign: 'center',
+            fontSize: 11,
+            color: 'rgba(255,255,255,0.12)',
+            marginTop: 36,
+            letterSpacing: '0.04em',
+          }}
         >
-          <p style={{ fontSize: 28, marginBottom: 8 }}>💑</p>
-          <p style={{ fontSize: 17, fontWeight: 700, color: '#a5b4fc', marginBottom: 4 }}>Isaac & Jenifa</p>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)' }}>Private Co-Op Budget App</p>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', marginTop: 8 }}>Built with ❤️ — All data synced live</p>
-        </motion.div>
+          Isaac & Jenifa · Co-Op Budget · v1.0.0
+        </motion.p>
 
       </motion.div>
     </div>
