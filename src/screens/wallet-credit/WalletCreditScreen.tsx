@@ -45,13 +45,14 @@ export function WalletCreditScreen() {
   const handleUpdate = async (id: string, w: NewWallet) => { await update(id, w) }
   const handleDelete = async (id: string) => { await remove(id) }
 
-  // ─── Section header ──────────────────────────────────────────────────────────
+  // ─── Section header: icon + label + plus button, all left-aligned ──────────────────
   const SectionHeader = ({
-    label, accent, onAdd,
+    icon, label, accent, onAdd,
   }: {
-    label: string; accent: string; onAdd: () => void
+    icon: string; label: string; accent: string; onAdd: () => void
   }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <span style={{ fontSize: 16, lineHeight: 1 }}>{icon}</span>
       <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent }}>{label}</p>
       <motion.button
         whileTap={{ scale: 0.88 }}
@@ -124,6 +125,7 @@ export function WalletCreditScreen() {
           {!loading && (
             <section style={{ marginBottom: 24, paddingTop: 8 }}>
               <SectionHeader
+                icon="👛"
                 label="Wallets"
                 accent="rgba(52,211,153,0.8)"
                 onAdd={() => setSheet({ type: 'add-cash' })}
@@ -153,11 +155,9 @@ export function WalletCreditScreen() {
                           cursor: 'pointer',
                         }}
                       >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {wallet.label}
-                          </p>
-                        </div>
+                        <p style={{ flex: 1, fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
+                          {wallet.label}
+                        </p>
                         <p style={{ fontSize: 16, fontWeight: 800, color: '#34D399', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
                           {formatINR(wallet.balance)}
                         </p>
@@ -173,6 +173,7 @@ export function WalletCreditScreen() {
           {!loading && (
             <section>
               <SectionHeader
+                icon="💳"
                 label="Credit Cards"
                 accent="rgba(248,113,113,0.8)"
                 onAdd={() => setSheet({ type: 'add-credit' })}
@@ -201,10 +202,10 @@ export function WalletCreditScreen() {
                           cursor: 'pointer',
                         }}
                       >
-                        {/* Card name row with inline icon */}
+                        {/* Name + balance row — no icon */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                           <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
-                            <span style={{ marginRight: 6, fontSize: 15 }}>💳</span>{card.label}
+                            {card.label}
                           </p>
                           <p style={{ fontSize: 16, fontWeight: 800, color: '#F87171', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
                             {formatINR(card.balance)}
