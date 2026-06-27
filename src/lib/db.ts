@@ -15,6 +15,10 @@ export interface Transaction {
   transaction_date: string
   type: 'income' | 'expense' | 'transfer'
   wallet_id?: string | null
+  // Links the OUT row and IN row of a transfer together.
+  // Both rows share the same transfer_pair_id UUID.
+  // NULL for every non-transfer transaction.
+  transfer_pair_id?: string | null
 }
 
 export interface NewTransaction {
@@ -33,6 +37,14 @@ function toDateOnly(value?: string | Date): string {
   if (!value) return new Date().toISOString().substring(0, 10)
   if (typeof value === 'string') return value.substring(0, 10)
   return value.toISOString().substring(0, 10)
+}
+
+// Simple UUID v4 generator — no external dependency needed.
+function uuidv4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
 }
 
 export async function fetchTransactions(): Promise<Transaction[]> {
@@ -66,10 +78,10 @@ export async function insertTransaction(tx: NewTransaction): Promise<Transaction
 }
 
 // ── insertTransferPair ───────────────────────────────────────────────────────
-// Writes TWO transaction rows — one for the source wallet (Transfer Out)
-// and one for the destination wallet (Transfer In).
-// Both use type: 'transfer' so they are naturally excluded from the Ledger
-// (which only queries income | expense) but appear in each wallet's own log.
+// Writes TWO transaction rows — one OUT (source wallet) and one IN (destination).
+// Both rows share the same transfer_pair_id so:
+//   • Ledger can show only the OUT leg (one line per transfer)
+//   • Deleting either leg auto-cascades to delete the paired leg
 export async function insertTransferPair(
   fromId: string,
   fromLabel: string,
@@ -79,14 +91,18 @@ export async function insertTransferPair(
   note: string,
   createdBy: AppUser,
 ): Promise<void> {
-  const today = toDateOnly()
+  const today  = toDateOnly()
+  const pairId = uuidv4()          // shared link between the two rows
+
   const shared = {
     amount,
     category: 'Transfer',
     created_by: createdBy,
     type: 'transfer' as const,
     transaction_date: today,
+    transfer_pair_id: pairId,
   }
+
   const outRow = {
     ...shared,
     wallet_id: fromId,
@@ -101,46 +117,85 @@ export async function insertTransferPair(
       ? `Transfer ← ${fromLabel}  ·  ${note}`
       : `Transfer ← ${fromLabel}`,
   }
+
   const { error } = await supabase
     .from('transactions')
     .insert([outRow, inRow])
   if (error) throw new Error(error.message)
 }
 
-// deleteTransaction — hardened against silent RLS failures.
+// ── deleteTransaction ────────────────────────────────────────────────────────
+// Deletes a single transaction row.
+// If the row has a transfer_pair_id, the paired leg is also deleted so that
+// a transfer is always removed atomically — both legs or neither.
 export async function deleteTransaction(id: string): Promise<void> {
-  const { error } = await supabase
+  // Step 1 — read the row so we know whether it belongs to a transfer pair
+  const { data: row, error: fetchErr } = await supabase
     .from('transactions')
-    .delete()
-    .eq('id', id)
-
-  if (error) throw new Error(error.message)
-
-  const { data: ghost, error: checkError } = await supabase
-    .from('transactions')
-    .select('id')
+    .select('id, transfer_pair_id')
     .eq('id', id)
     .maybeSingle()
 
-  if (checkError) throw new Error(checkError.message)
+  if (fetchErr) throw new Error(fetchErr.message)
 
-  if (ghost) {
-    const { error: retryError } = await supabase
+  const pairId = (row as { transfer_pair_id?: string | null } | null)?.transfer_pair_id ?? null
+
+  if (pairId) {
+    // Step 2a — transfer: delete both legs by transfer_pair_id in one query
+    const { error: pairDeleteErr } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('transfer_pair_id', pairId)
+
+    if (pairDeleteErr) throw new Error(pairDeleteErr.message)
+
+    // Verify both are gone
+    const { data: ghost } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('transfer_pair_id', pairId)
+
+    if (ghost && ghost.length > 0) {
+      throw new Error(
+        'Transfer delete was partially blocked. Please try again.'
+      )
+    }
+  } else {
+    // Step 2b — normal (non-transfer) row: single delete with ghost check
+    const { error } = await supabase
       .from('transactions')
       .delete()
       .eq('id', id)
-    if (retryError) throw new Error(retryError.message)
 
-    const { data: stillGhost } = await supabase
+    if (error) throw new Error(error.message)
+
+    const { data: ghost, error: checkError } = await supabase
       .from('transactions')
       .select('id')
       .eq('id', id)
       .maybeSingle()
 
-    if (stillGhost) {
-      throw new Error(
-        'Delete was blocked by database policy. This transaction could not be permanently removed.'
-      )
+    if (checkError) throw new Error(checkError.message)
+
+    if (ghost) {
+      // Retry once
+      const { error: retryError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id)
+      if (retryError) throw new Error(retryError.message)
+
+      const { data: stillGhost } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (stillGhost) {
+        throw new Error(
+          'Delete was blocked by database policy. This transaction could not be permanently removed.'
+        )
+      }
     }
   }
 }

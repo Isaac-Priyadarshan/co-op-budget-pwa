@@ -5,7 +5,7 @@ import { useCategories } from '../../hooks/useCategories'
 import { useWallets } from '../../hooks/useWallets'
 import { formatINR } from '../../utils/format'
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 const MONTH_NAMES = [
   'January','February','March','April','May','June',
   'July','August','September','October','November','December',
@@ -32,6 +32,35 @@ function formatTxDate(iso: string): string {
 }
 
 type TxList = ReturnType<typeof useTransactions>['transactions']
+
+// ── dedupeTransfers ──────────────────────────────────────────────────────────
+// For each transfer pair, keep only the OUT leg (description contains '→').
+// If for some reason neither leg has '→', keep the first one encountered.
+// Non-transfer rows pass through unchanged.
+function dedupeTransfers(txs: TxList): TxList {
+  const seen = new Set<string>()
+  const out: TxList = []
+
+  for (const tx of txs) {
+    if (tx.type !== 'transfer') {
+      out.push(tx)
+      continue
+    }
+    const pairId = tx.transfer_pair_id
+    if (!pairId) {
+      // Legacy transfer row with no pair_id — show as-is
+      out.push(tx)
+      continue
+    }
+    if (seen.has(pairId)) continue          // paired leg already added
+    // Only emit the OUT leg (→); skip the IN leg (←)
+    if (tx.description?.includes('→') || !out.find(r => r.transfer_pair_id === pairId)) {
+      seen.add(pairId)
+      out.push(tx)
+    }
+  }
+  return out
+}
 
 function groupByDate(txs: TxList) {
   const groups: Record<string, TxList> = {}
@@ -274,7 +303,8 @@ export function LedgerScreen() {
     if (catLookup[key]) return catLookup[key]
     const partial = Object.keys(catLookup).find(k => key.includes(k) || k.includes(key))
     if (partial) return catLookup[partial]
-    return { icon: '💳', accent: '#A78BFA', bg: 'rgba(167,139,250,0.12)', glow: 'rgba(167,139,250,0.18)' }
+    // Transfer rows get a distinct amber icon style
+    return { icon: '🔁', accent: '#FBBF24', bg: 'rgba(251,191,36,0.10)', glow: 'rgba(251,191,36,0.18)' }
   }
 
   const rangeTxs = useMemo(() => {
@@ -287,11 +317,19 @@ export function LedgerScreen() {
     })
   }, [transactions, startDate, endDate])
 
-  const filtered = useMemo(() =>
-    rangeTxs
-      .filter(tx => typeFilter === 'all' || tx.type === typeFilter)
-      .filter(tx => userFilter === 'all' || (tx.created_by ?? '').toLowerCase() === userFilter.toLowerCase()),
-  [rangeTxs, typeFilter, userFilter])
+  // Apply type + user filters, then dedupe transfer pairs so only one row per
+  // transfer shows in the ledger (the OUT leg: description contains '→').
+  // When typeFilter === 'all', transfers are included. When typeFilter is
+  // 'income' or 'expense', transfers are hidden (they are neither).
+  const filtered = useMemo(() => {
+    const byType = typeFilter === 'all'
+      ? rangeTxs
+      : rangeTxs.filter(tx => tx.type === typeFilter)
+    const byUser = byType.filter(
+      tx => userFilter === 'all' || (tx.created_by ?? '').toLowerCase() === userFilter.toLowerCase()
+    )
+    return dedupeTransfers(byUser)
+  }, [rangeTxs, typeFilter, userFilter])
 
   const rangeIncome  = useMemo(() => rangeTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [rangeTxs])
   const rangeExpense = useMemo(() => rangeTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [rangeTxs])
@@ -313,7 +351,6 @@ export function LedgerScreen() {
     }
   }
 
-  // Compact date input — fixed width so it fits inline with pills
   const dateInputStyle: React.CSSProperties = {
     width: 108, height: 28, borderRadius: 10, flexShrink: 0,
     background: 'rgba(255,255,255,0.06)',
@@ -325,7 +362,6 @@ export function LedgerScreen() {
 
   return (
     <div style={{ padding: '20px 20px 32px' }}>
-      {/* Delete error toast */}
       <AnimatePresence>
         {deleteError && (
           <DeleteErrorToast
@@ -412,21 +448,15 @@ export function LedgerScreen() {
           </div>
         </div>
 
-        {/* ── Single-line filter bar ─────────────────────────────────────────
-            Layout (left → right, no wrap, horizontal scroll if needed):
-            [All] [Income] [Expense]  |  [Both] [Isaac] [Jenifa]  |  [date]→[date]
-        ──────────────────────────────────────────────────────────────────── */}
+        {/* Single-line filter bar */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
           flexWrap: 'nowrap', overflowX: 'auto',
           marginBottom: 16,
-          // hide scrollbar cosmetically on webkit
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
         } as React.CSSProperties}>
-
-          {/* Type pills */}
           {(['all', 'income', 'expense'] as const).map(f => (
             <FilterPill
               key={f}
@@ -438,11 +468,7 @@ export function LedgerScreen() {
               onClick={() => setTypeFilter(f)}
             />
           ))}
-
-          {/* Vertical divider */}
           <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.13)', flexShrink: 0 }} />
-
-          {/* User pills */}
           {(['all', 'Isaac', 'Jenifa'] as const).map(u => (
             <FilterPill
               key={u}
@@ -454,11 +480,7 @@ export function LedgerScreen() {
               onClick={() => setUserFilter(u)}
             />
           ))}
-
-          {/* Vertical divider */}
           <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.13)', flexShrink: 0 }} />
-
-          {/* Date range — compact, fixed width, inline */}
           <input
             type="date" value={startDate} max={endDate}
             onChange={e => setStartDate(e.target.value)}
@@ -474,13 +496,9 @@ export function LedgerScreen() {
 
         {/* Transaction list */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: 'rgba(255,255,255,0.30)', fontSize: 13 }}>
-            Loading…
-          </div>
+          <div style={{ textAlign: 'center', padding: '48px 0', color: 'rgba(255,255,255,0.30)', fontSize: 13 }}>Loading…</div>
         ) : error ? (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: '#F87171', fontSize: 13 }}>
-            {error}
-          </div>
+          <div style={{ textAlign: 'center', padding: '48px 0', color: '#F87171', fontSize: 13 }}>{error}</div>
         ) : grouped.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '64px 0 32px' }}>
             <p style={{ fontSize: 32, marginBottom: 12 }}>📊</p>
@@ -491,7 +509,6 @@ export function LedgerScreen() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {grouped.map(([dateStr, txs]) => (
               <div key={dateStr}>
-                {/* Date header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.40)', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
                     {formatTxDate(txs[0].transaction_date ?? txs[0].created_at)}
@@ -502,14 +519,25 @@ export function LedgerScreen() {
                   </span>
                 </div>
 
-                {/* Transaction cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <AnimatePresence>
                     {txs.map(tx => {
-                      const meta   = getCatMeta(tx.category)
-                      const wallet = tx.wallet_id ? walletLookup[tx.wallet_id] : null
-                      const isConf = confirmId  === tx.id
-                      const isDel  = deletingId === tx.id
+                      const isTransfer = tx.type === 'transfer'
+                      const meta    = getCatMeta(tx.category)
+                      // Transfers never show a wallet pill in the ledger
+                      const wallet  = (!isTransfer && tx.wallet_id) ? walletLookup[tx.wallet_id] : null
+                      const isConf  = confirmId  === tx.id
+                      const isDel   = deletingId === tx.id
+
+                      // Transfer amount shown in amber (neutral — neither income nor expense)
+                      const amountColor = isTransfer ? '#FBBF24'
+                        : tx.type === 'income' ? '#34D399' : '#F87171'
+                      const amountPrefix = isTransfer ? '' : tx.type === 'income' ? '+' : '-'
+
+                      // Confirm message varies for transfers
+                      const confirmMsg = isTransfer
+                        ? 'Delete both legs of this transfer?'
+                        : 'Remove this transaction?'
 
                       return (
                         <motion.div
@@ -523,28 +551,29 @@ export function LedgerScreen() {
                             borderRadius: 16, overflow: 'hidden',
                             background: isConf
                               ? 'rgba(239,68,68,0.10)'
-                              : 'rgba(255,255,255,0.035)',
+                              : isTransfer
+                                ? 'rgba(251,191,36,0.04)'
+                                : 'rgba(255,255,255,0.035)',
                             border: isConf
                               ? '1px solid rgba(239,68,68,0.35)'
-                              : '1px solid rgba(255,255,255,0.07)',
+                              : isTransfer
+                                ? '1px solid rgba(251,191,36,0.14)'
+                                : '1px solid rgba(255,255,255,0.07)',
                             transition: 'background 0.2s, border-color 0.2s',
                           }}
                         >
-                          <div style={{
-                            display: 'flex', alignItems: 'center',
-                            padding: '12px 14px', gap: 12,
-                          }}>
-                            {/* Category icon */}
+                          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', gap: 12 }}>
+                            {/* Icon */}
                             <div style={{
                               width: 38, height: 38, borderRadius: 12, flexShrink: 0,
                               background: meta.bg, border: `1px solid ${meta.glow}`,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontSize: 17, boxShadow: `0 0 12px ${meta.glow}`,
                             }}>
-                              {meta.icon}
+                              {isTransfer ? '🔁' : meta.icon}
                             </div>
 
-                            {/* Details — fills available space */}
+                            {/* Details */}
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#F5F5F5', lineHeight: 1.2 }}>
@@ -553,34 +582,31 @@ export function LedgerScreen() {
                                 {wallet && <WalletPill label={wallet.label} type={wallet.type} />}
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
-                                  {tx.category}
-                                </span>
+                                {!isTransfer && (
+                                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                                    {tx.category}
+                                  </span>
+                                )}
                                 <span style={{ fontSize: 10, color: tx.created_by === 'Isaac' ? 'rgba(96,165,250,0.70)' : 'rgba(232,121,249,0.70)' }}>
                                   {tx.created_by}
                                 </span>
                               </div>
                             </div>
 
-                            {/* ── Right column: amount (top) + delete button (bottom)
-                                Both are right-aligned and pinned to the far right edge.
-                                flexDirection column + alignItems flex-end keeps the
-                                delete icon uniformly at the bottom-right of every row. */}
+                            {/* Right column: amount + delete */}
                             <div style={{
                               display: 'flex', flexDirection: 'column',
                               alignItems: 'flex-end', justifyContent: 'space-between',
                               flexShrink: 0, gap: 6,
                             }}>
-                              {/* Amount */}
                               <p style={{
                                 fontSize: 15, fontWeight: 800,
-                                color: tx.type === 'income' ? '#34D399' : '#F87171',
+                                color: amountColor,
                                 fontVariantNumeric: 'tabular-nums', lineHeight: 1,
                               }}>
-                                {tx.type === 'income' ? '+' : '-'}{formatINR(tx.amount)}
+                                {amountPrefix}{formatINR(tx.amount)}
                               </p>
 
-                              {/* Delete trigger — only shown when not in confirm state */}
                               {!isConf && (
                                 <motion.button
                                   whileTap={{ scale: 0.82 }}
@@ -620,7 +646,7 @@ export function LedgerScreen() {
                                   borderTop: '1px solid rgba(239,68,68,0.18)',
                                 }}>
                                   <p style={{ fontSize: 11, color: 'rgba(252,165,165,0.80)', fontWeight: 500 }}>
-                                    Remove this transaction?
+                                    {confirmMsg}
                                   </p>
                                   <div style={{ display: 'flex', gap: 8 }}>
                                     <motion.button
