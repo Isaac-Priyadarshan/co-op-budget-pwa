@@ -16,14 +16,17 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 
 /*
   FINAL LOCKED LAYOUT ─ bottom section renders top→bottom:
-  
-    [AMOUNT ZONE — flex:1]  big number + status chips + error
-    ────────────────────── BOTTOM (never moves) ──────────────────────
-    1. SUBCATEGORY CHIPS   (always visible, above toolbar)
-    2. PANEL TRAY          (note / wallet / calendar — slides up above toolbar)
-    3. TOOLBAR             (Note · Wallet · Calendar buttons)
+
+    [AMOUNT ZONE — flex:1]   big number + status chips + error
+    ─────────────── BOTTOM (never moves) ───────────────
+    1. SUBCATEGORY CHIPS      (always visible)
+    2. PANEL TRAY             (note/wallet/calendar — expands above toolbar)
+       └─ tray inner div has paddingBottom:12px + marginBottom:-12px
+          so its background physically slides BEHIND the toolbar row,
+          hiding any seam or cut-corner gap. Toolbar sits on top via zIndex.
+    3. TOOLBAR                (Note · Wallet · Calendar)
     4. NUMPAD
-    5. CONFIRM BUTTON
+    5. CONFIRM
 */
 
 export function EntryScreen() {
@@ -91,7 +94,7 @@ export function EntryScreen() {
     : readinessLevel === 1 ? `${accent}22` : 'rgba(255,255,255,0.05)'
   const confirmBorder = readinessLevel === 3
     ? 'none'
-    : `1px solid ${accent}${ readinessLevel === 2 ? '44' : readinessLevel === 1 ? '28' : '12' }`
+    : `1px solid ${accent}${readinessLevel === 2 ? '44' : readinessLevel === 1 ? '28' : '12'}`
   const confirmTextColor = readinessLevel === 3 ? '#000'
     : readinessLevel === 2 ? accent
     : readinessLevel === 1 ? `${accent}99` : 'rgba(255,255,255,0.20)'
@@ -147,14 +150,10 @@ export function EntryScreen() {
     }
   }, [canConfirm, category, activeUser, selectedSub, note, subs, addTransaction, amountValue, type, navigate])
 
-  // ─────────────────────── PANEL TRAY CONTENT ───────────────────────
-  // Rendered inside the animated tray that appears above the toolbar.
+  // ──────────────────────── PANEL TRAY CONTENT ────────────────────────
   const renderTray = () => {
     if (activePanel === 'note') return (
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        paddingInline: 4,
-      }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingInline: 4 }}>
         <span style={{ fontSize: 15, flexShrink: 0 }}>✏️</span>
         <input
           ref={noteInputRef}
@@ -164,8 +163,7 @@ export function EntryScreen() {
           maxLength={120}
           style={{
             flex: 1, background: 'none', border: 'none', outline: 'none',
-            fontSize: 14, fontWeight: 500, color: '#F5F5F5',
-            caretColor: accent,
+            fontSize: 14, fontWeight: 500, color: '#F5F5F5', caretColor: accent,
           }}
         />
         {note && (
@@ -176,7 +174,7 @@ export function EntryScreen() {
               background: 'rgba(255,255,255,0.10)', border: 'none', borderRadius: '50%',
               width: 22, height: 22, cursor: 'pointer', flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 1,
+              fontSize: 13, color: 'rgba(255,255,255,0.55)',
             }}
           >×</motion.button>
         )}
@@ -190,7 +188,7 @@ export function EntryScreen() {
           color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase',
         }}>Select Wallet / Card</div>
         {walletsLoading ? (
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)', padding: '2px 0' }}>Loading…</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.30)' }}>Loading…</div>
         ) : wallets.length === 0 ? (
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
             No wallets yet — add them in{' '}
@@ -213,8 +211,7 @@ export function EntryScreen() {
                       : 'rgba(255,255,255,0.06)',
                     color: sel ? accent : 'rgba(255,255,255,0.65)',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    whiteSpace: 'nowrap',
+                    display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
                     boxShadow: sel ? `0 0 10px ${accent}28` : 'none',
                     transition: 'all 0.15s ease',
                   }}
@@ -231,7 +228,6 @@ export function EntryScreen() {
 
     if (activePanel === 'calendar') return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {/* Year row */}
         <div style={{ display: 'flex', gap: 5, justifyContent: 'center' }}>
           {pickerYears.map(yr => (
             <motion.button key={yr} whileTap={{ scale: 0.88 }}
@@ -246,7 +242,6 @@ export function EntryScreen() {
             >{yr}</motion.button>
           ))}
         </div>
-        {/* Month row */}
         <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
           {MONTH_NAMES.map((mn, i) => (
             <motion.button key={mn} whileTap={{ scale: 0.88 }}
@@ -261,7 +256,6 @@ export function EntryScreen() {
             >{mn}</motion.button>
           ))}
         </div>
-        {/* Day row */}
         <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
           {pickerDays.map(dd => (
             <motion.button key={dd} whileTap={{ scale: 0.85 }}
@@ -345,10 +339,7 @@ export function EntryScreen() {
         }}>{dateLabel}</div>
       </div>
 
-      {/* ───────────────────── AMOUNT ZONE (flex:1) ─────────────────────
-          Big amount + wallet/sub status chips + error only.
-          No panels open here anymore.
-      ──────────────────────────────────────────────────── */}
+      {/* ──────────────────── AMOUNT ZONE (flex:1) ──────────────────── */}
       <div style={{
         position: 'relative', zIndex: 1,
         flex: 1, minHeight: 0,
@@ -356,7 +347,6 @@ export function EntryScreen() {
         alignItems: 'center', justifyContent: 'center',
         paddingInline: 16, overflow: 'hidden',
       }}>
-        {/* Big amount */}
         <motion.div
           key={raw}
           initial={{ scale: 0.96, opacity: 0.7 }}
@@ -373,14 +363,11 @@ export function EntryScreen() {
           }}
         >{formattedDisplay}</motion.div>
 
-        {/* Status chips: wallet + selected sub */}
         <AnimatePresence>
           {(walletLabel || selectedSubLabel) && (
             <motion.div
               key="status-row"
-              initial={{ opacity: 0, y: -5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -5 }}
+              initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
               transition={{ duration: 0.18 }}
               style={{ marginTop: 12, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}
             >
@@ -396,9 +383,7 @@ export function EntryScreen() {
               )}
               {selectedSubLabel && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.85 }}
+                  initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.85 }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 5,
                     padding: '4px 11px', borderRadius: 20,
@@ -412,7 +397,6 @@ export function EntryScreen() {
           )}
         </AnimatePresence>
 
-        {/* Error */}
         <AnimatePresence>
           {errMsg && (
             <motion.div
@@ -429,13 +413,7 @@ export function EntryScreen() {
         </AnimatePresence>
       </div>
 
-      {/* ──────────────── BOTTOM — FIXED ORDER ────────────────
-        1. SUBCATEGORY CHIPS
-        2. PANEL TRAY (note / wallet / calendar) ─ above toolbar
-        3. TOOLBAR
-        4. NUMPAD
-        5. CONFIRM
-      ────────────────────────────────────────────── */}
+      {/* ───────────────── BOTTOM ───────────────── */}
       <div style={{
         position: 'relative', zIndex: 1, flexShrink: 0,
         display: 'flex', flexDirection: 'column',
@@ -472,28 +450,43 @@ export function EntryScreen() {
           </div>
         )}
 
-        {/* ── 2. PANEL TRAY — slides up above toolbar, zero gap to toolbar ── */}
+        {/*
+          ── 2. PANEL TRAY ──
+          KEY TECHNIQUE:
+            The inner div uses  paddingBottom: 12  +  marginBottom: -12
+            This means the tray's background colour extends 12px BELOW its
+            visible content area, physically sliding behind the toolbar row.
+            The toolbar row sits on top via  position:relative / zIndex:2.
+            Result: the tray and toolbar share a seamless, curved-corner
+            junction with zero visible gap or cut edge.
+        */}
         <AnimatePresence>
           {activePanel !== null && (
             <motion.div
               key={activePanel}
-              initial={{ opacity: 0, height: 0, y: 4 }}
-              animate={{ opacity: 1, height: 'auto', y: 0 }}
-              exit={{ opacity: 0, height: 0, y: 4 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              style={{ overflow: 'hidden' }}
+              initial={{ opacity: 0, scaleY: 0.7, originY: 1 }}
+              animate={{ opacity: 1, scaleY: 1 }}
+              exit={{ opacity: 0, scaleY: 0.7 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                transformOrigin: 'bottom',
+                // overflow visible so the -12px bleed can show
+                overflow: 'visible',
+                position: 'relative', zIndex: 1,
+              }}
             >
               <div style={{
                 marginInline: 16,
-                marginBottom: 0,
-                padding: '10px 12px 12px',
-                // Top-rounded panel, bottom edge flush against toolbar below
+                // Bleed: extends 12px below its content, underneath the toolbar
+                paddingBottom: 12,
+                marginBottom: -12,
+                padding: '10px 14px 12px',
                 borderRadius: '14px 14px 0 0',
-                border: `1px solid ${accent}38`,
+                border: `1px solid ${accent}40`,
                 borderBottom: 'none',
-                background: `linear-gradient(180deg, ${ accent }0d 0%, rgba(255,255,255,0.025) 100%)`,
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
+                background: `linear-gradient(180deg, ${accent}12 0%, ${accent}06 100%)`,
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
               }}>
                 {renderTray()}
               </div>
@@ -501,12 +494,16 @@ export function EntryScreen() {
           )}
         </AnimatePresence>
 
-        {/* ── 3. TOOLBAR — Note · Wallet · Calendar ── */}
+        {/*
+          ── 3. TOOLBAR ──
+          position:relative + zIndex:2 ensures toolbar renders ON TOP of
+          the tray's -12px bleed, so only the background bleeds through,
+          not the tray content.
+        */}
         <div style={{
+          position: 'relative', zIndex: 2,
           display: 'flex', gap: 7,
-          paddingInline: 16,
-          paddingTop: 0,
-          paddingBottom: 6,
+          paddingInline: 16, paddingBottom: 6,
         }}>
           {([
             { id: 'note'     as const, icon: '✏️', label: note ? `“${note.slice(0, 13)}${note.length > 13 ? '…' : ''}”` : 'Note' },
@@ -522,17 +519,16 @@ export function EntryScreen() {
                 onClick={() => togglePanel(btn.id)}
                 style={{
                   flex: 1, height: 36, cursor: 'pointer',
-                  // When this button's panel is active, flatten the top corners
-                  // so the tray above and the toolbar button look like one unified shape
                   borderRadius: isActive ? '0 0 11px 11px' : 11,
                   border: `1px solid ${
                     isActive ? accent
                     : isDone  ? `${accent}55`
                     : 'rgba(255,255,255,0.10)'
                   }`,
+                  // Remove top border when tray is overlapping from above
                   borderTop: isActive ? 'none' : undefined,
                   background: isActive
-                    ? `linear-gradient(180deg, ${accent}2a 0%, ${accent}15 100%)`
+                    ? `linear-gradient(180deg, ${accent}22 0%, ${accent}12 100%)`
                     : isDone ? `${accent}10` : 'rgba(255,255,255,0.04)',
                   color: isActive ? accent : isDone ? `${accent}cc` : 'rgba(255,255,255,0.45)',
                   fontSize: 11, fontWeight: 700,
@@ -540,7 +536,6 @@ export function EntryScreen() {
                   letterSpacing: '0.02em',
                   whiteSpace: 'nowrap', overflow: 'hidden', paddingInline: 6,
                   transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
-                  boxShadow: isActive ? `0 -3px 12px ${accent}18` : 'none',
                 }}
               >
                 <span style={{ fontSize: 13, flexShrink: 0 }}>{btn.icon}</span>
@@ -566,9 +561,7 @@ export function EntryScreen() {
                 height: 56, borderRadius: 15, border: 'none',
                 background: k === '⌫'
                   ? `${accent}18`
-                  : k === '.'
-                  ? 'rgba(255,255,255,0.06)'
-                  : 'rgba(255,255,255,0.07)',
+                  : k === '.' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.07)',
                 color: k === '⌫' ? accent : '#FFFFFF',
                 fontSize: k === '⌫' ? 20 : 22,
                 fontWeight: k === '⌫' ? 700 : 600,
