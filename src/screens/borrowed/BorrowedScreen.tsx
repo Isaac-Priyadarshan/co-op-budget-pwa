@@ -8,7 +8,6 @@ import type { BorrowedEntry, BorrowedStatus } from '../../hooks/useBorrowed'
 import type { WalletEntry } from '../../lib/db'
 
 // ─── Animated wave canvas ─────────────────────────────────────────────────────
-// Amber / Orange palette — distinct from Indigo (Wallet) and Red/Green (credit)
 function SummaryWaveCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef    = useRef<number>(0)
@@ -22,7 +21,6 @@ function SummaryWaveCanvas() {
     const draw = () => {
       const W = canvas.width, H = canvas.height
       ctx.clearRect(0, 0, W, H)
-      // Wave 1 — Amber
       ctx.beginPath()
       for (let x = 0; x <= W; x += 2) {
         const y = H * 0.52
@@ -35,7 +33,6 @@ function SummaryWaveCanvas() {
       g1.addColorStop(0, 'rgba(251,146,60,0.20)')
       g1.addColorStop(1, 'rgba(251,146,60,0.04)')
       ctx.fillStyle = g1; ctx.fill()
-      // Wave 2 — Yellow
       ctx.beginPath()
       for (let x = 0; x <= W; x += 2) {
         const y = H * 0.64
@@ -48,7 +45,6 @@ function SummaryWaveCanvas() {
       g2.addColorStop(0, 'rgba(234,179,8,0.14)')
       g2.addColorStop(1, 'rgba(234,179,8,0.03)')
       ctx.fillStyle = g2; ctx.fill()
-      // Stroke line
       ctx.beginPath()
       for (let x = 0; x <= W; x += 2) {
         const y = H * 0.52
@@ -151,14 +147,14 @@ function AddBorrowedSheet({
   onClose: () => void
   onSave: (person: string, amount: number, walletId: string, dueDate: string, note: string) => Promise<void>
 }) {
-  const [person,          setPerson]        = useState('')
-  const [amount,          setAmount]        = useState('')
-  const [dueDate,         setDueDate]       = useState('')
-  const [note,            setNote]          = useState('')
-  const [selectedWallet,  setSelectedWallet] = useState<WalletEntry | null>(null)
+  const [person,           setPerson]         = useState('')
+  const [amount,           setAmount]         = useState('')
+  const [dueDate,          setDueDate]        = useState('')
+  const [note,             setNote]           = useState('')
+  const [selectedWallet,   setSelectedWallet] = useState<WalletEntry | null>(null)
   const [walletPickerOpen, setWalletPickerOpen] = useState(false)
-  const [saving,          setSaving]        = useState(false)
-  const [err,             setErr]           = useState('')
+  const [saving,           setSaving]         = useState(false)
+  const [err,              setErr]            = useState('')
 
   const reset = () => {
     setPerson(''); setAmount(''); setDueDate(''); setNote('')
@@ -168,9 +164,9 @@ function AddBorrowedSheet({
   const handleClose = () => { reset(); onClose() }
 
   const handleSave = async () => {
-    if (!person.trim())       { setErr('Enter a name'); return }
-    if (!amount || parseFloat(amount) <= 0) { setErr('Enter a valid amount'); return }
-    if (!selectedWallet)      { setErr('Select a source account'); return }
+    if (!person.trim())                        { setErr('Enter a name'); return }
+    if (!amount || parseFloat(amount) <= 0)    { setErr('Enter a valid amount'); return }
+    if (!selectedWallet)                       { setErr('Select a source account'); return }
     setSaving(true); setErr('')
     try {
       await onSave(person.trim(), parseFloat(amount), selectedWallet.id, dueDate, note.trim())
@@ -179,13 +175,17 @@ function AddBorrowedSheet({
     finally { setSaving(false) }
   }
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     width: '100%', padding: '13px 14px', borderRadius: 14,
     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
     color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none',
-    WebkitAppearance: 'none' as const,
+    WebkitAppearance: 'none',
   }
-  const labelStyle = { fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block' }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+    textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
+    marginBottom: 6, display: 'block',
+  }
 
   return (
     <AnimatePresence>
@@ -211,14 +211,12 @@ function AddBorrowedSheet({
             <p style={{ fontSize: 17, fontWeight: 800, color: '#f5f7ff', marginBottom: 24 }}>Add Borrowed Entry</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Person / Lender name */}
               <div>
                 <label style={labelStyle}>Borrowed From</label>
                 <input value={person} onChange={e => setPerson(e.target.value)}
                   placeholder="e.g. Mani, SBI, Friend" style={inputStyle} />
               </div>
 
-              {/* Amount */}
               <div>
                 <label style={labelStyle}>Amount (₹)</label>
                 <input type="number" inputMode="decimal" value={amount}
@@ -226,7 +224,6 @@ function AddBorrowedSheet({
                   placeholder="0" style={inputStyle} />
               </div>
 
-              {/* Source account — wallet picker */}
               <div>
                 <label style={labelStyle}>Received Into (Wallet)</label>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={() => setWalletPickerOpen(true)}
@@ -245,14 +242,12 @@ function AddBorrowedSheet({
                 </motion.button>
               </div>
 
-              {/* Due Date */}
               <div>
                 <label style={labelStyle}>Due Date (optional)</label>
                 <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
                   style={{ ...inputStyle, colorScheme: 'dark' }} />
               </div>
 
-              {/* Note */}
               <div>
                 <label style={labelStyle}>Note (optional)</label>
                 <input value={note} onChange={e => setNote(e.target.value)}
@@ -301,10 +296,10 @@ function PaymentSheet({
   onPartial: (id: string, amount: number, walletId: string) => Promise<void>
   onSettle:  (id: string, walletId: string) => Promise<void>
 }) {
-  const [amount,        setAmount]       = useState('')
+  const [amount,         setAmount]        = useState('')
   const [selectedWallet, setSelectedWallet] = useState<WalletEntry | null>(null)
-  const [pickerOpen,    setPickerOpen]   = useState(false)
-  const [err,           setErr]          = useState('')
+  const [pickerOpen,     setPickerOpen]    = useState(false)
+  const [err,            setErr]           = useState('')
 
   const remaining = entry ? parseFloat((entry.amount - entry.paid_amount).toFixed(2)) : 0
 
@@ -315,8 +310,8 @@ function PaymentSheet({
     if (!selectedWallet) { setErr('Select the account to pay from'); return }
     if (mode === 'partial') {
       const a = parseFloat(amount)
-      if (!a || a <= 0)      { setErr('Enter a valid amount'); return }
-      if (a > remaining)     { setErr(`Max payable: ${formatINR(remaining)}`); return }
+      if (!a || a <= 0)   { setErr('Enter a valid amount'); return }
+      if (a > remaining)  { setErr(`Max payable: ${formatINR(remaining)}`); return }
       setErr('')
       try { await onPartial(entry!.id, a, selectedWallet.id); handleClose() }
       catch { setErr('Failed. Try again.') }
@@ -327,13 +322,17 @@ function PaymentSheet({
     }
   }
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     width: '100%', padding: '13px 14px', borderRadius: 14,
     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
     color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none',
-    WebkitAppearance: 'none' as const,
+    WebkitAppearance: 'none',
   }
-  const labelStyle = { fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block' }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+    textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
+    marginBottom: 6, display: 'block',
+  }
 
   return (
     <AnimatePresence>
@@ -433,7 +432,7 @@ function PaymentSheet({
 // ─── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: BorrowedStatus }) {
   const map: Record<BorrowedStatus, { label: string; bg: string; color: string; border: string }> = {
-    pending: { label: 'PENDING', bg: 'rgba(251,146,60,0.12)', color: '#FB923C', border: 'rgba(251,146,60,0.28)' },
+    pending: { label: 'PENDING', bg: 'rgba(251,146,60,0.12)',  color: '#FB923C', border: 'rgba(251,146,60,0.28)' },
     partial: { label: 'PARTIAL', bg: 'rgba(251,191,36,0.12)', color: '#FBBF24', border: 'rgba(251,191,36,0.28)' },
     settled: { label: 'SETTLED', bg: 'rgba(52,211,153,0.12)', color: '#34D399', border: 'rgba(52,211,153,0.28)' },
   }
@@ -459,10 +458,10 @@ function BorrowedCard({
   onPartial: () => void
   onSettle: () => void
 }) {
-  const remaining   = entry.amount - entry.paid_amount
-  const paidPct     = entry.amount > 0 ? Math.min(100, (entry.paid_amount / entry.amount) * 100) : 0
-  const isSettled   = entry.status === 'settled'
-  const due         = entry.due_date ? dueDateLabel(entry.due_date) : null
+  const remaining = entry.amount - entry.paid_amount
+  const paidPct   = entry.amount > 0 ? Math.min(100, (entry.paid_amount / entry.amount) * 100) : 0
+  const isSettled = entry.status === 'settled'
+  const due       = entry.due_date ? dueDateLabel(entry.due_date) : null
 
   return (
     <motion.div
@@ -477,10 +476,8 @@ function BorrowedCard({
         overflow: 'hidden',
       }}
     >
-      {/* Main row — always visible */}
       <div onClick={onToggle} style={{ padding: '15px 16px', cursor: 'pointer' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          {/* Avatar */}
           <div style={{
             width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
             background: isSettled ? 'rgba(52,211,153,0.15)' : 'rgba(251,146,60,0.15)',
@@ -490,7 +487,6 @@ function BorrowedCard({
             {entry.person.charAt(0).toUpperCase()}
           </div>
 
-          {/* Name + status */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -505,7 +501,6 @@ function BorrowedCard({
             ) : null}
           </div>
 
-          {/* Amount + chevron */}
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <p style={{ fontSize: 15, fontWeight: 800, color: isSettled ? '#34D399' : '#FB923C', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
               {formatINR(entry.amount)}
@@ -524,7 +519,6 @@ function BorrowedCard({
           </motion.div>
         </div>
 
-        {/* Progress bar + due date */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
             <motion.div
@@ -539,7 +533,6 @@ function BorrowedCard({
         </div>
       </div>
 
-      {/* Expanded actions */}
       <AnimatePresence initial={false}>
         {expanded && !isSettled && (
           <motion.div
@@ -553,7 +546,8 @@ function BorrowedCard({
             <div style={{ padding: '0 16px 16px', display: 'flex', gap: 10 }}>
               <motion.button whileTap={{ scale: 0.95 }} onClick={onPartial}
                 style={{
-                  flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid rgba(251,191,36,0.32)',
+                  flex: 1, padding: '11px 0', borderRadius: 14,
+                  border: '1px solid rgba(251,191,36,0.32)',
                   background: 'rgba(251,191,36,0.1)', color: '#FBBF24',
                   fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 }}
@@ -562,7 +556,8 @@ function BorrowedCard({
               </motion.button>
               <motion.button whileTap={{ scale: 0.95 }} onClick={onSettle}
                 style={{
-                  flex: 1, padding: '11px 0', borderRadius: 14, border: '1px solid rgba(52,211,153,0.32)',
+                  flex: 1, padding: '11px 0', borderRadius: 14,
+                  border: '1px solid rgba(52,211,153,0.32)',
                   background: 'rgba(52,211,153,0.1)', color: '#34D399',
                   fontSize: 13, fontWeight: 700, cursor: 'pointer',
                 }}
@@ -584,7 +579,7 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
   return (
     <motion.button whileTap={{ scale: 0.92 }} onClick={onClick}
       style={{
-        height: 30, paddingInline: 14, borderRadius: 99, border: 'none', cursor: 'pointer',
+        height: 30, paddingInline: 14, borderRadius: 99, cursor: 'pointer',
         background: active ? 'rgba(251,146,60,0.22)' : 'rgba(255,255,255,0.07)',
         color: active ? '#FB923C' : 'rgba(255,255,255,0.45)',
         fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
@@ -599,7 +594,7 @@ function FilterPill({ label, active, onClick }: { label: string; active: boolean
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export function BorrowedScreen() {
-  const { user } = useUser()
+  const { activeUser } = useUser()
   const { entries, loading, error, saving, addBorrowed, makePayment, markSettled, totalOwed, nearestDue } = useBorrowed()
   const { wallets } = useWallets()
 
@@ -613,7 +608,7 @@ export function BorrowedScreen() {
     await addBorrowed({
       person,
       description: note,
-      borrowed_by: user!,
+      borrowed_by: activeUser!,
       amount,
       due_date: dueDate || null,
       source_wallet_id: walletId,
@@ -626,8 +621,7 @@ export function BorrowedScreen() {
     return true
   })
 
-  const dueDays    = nearestDue?.due_date ? daysAway(nearestDue.due_date) : null
-  const dueLabel   = nearestDue?.due_date ? dueDateLabel(nearestDue.due_date) : null
+  const dueLabel = nearestDue?.due_date ? dueDateLabel(nearestDue.due_date) : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -654,11 +648,9 @@ export function BorrowedScreen() {
           }}
         >
           <SummaryWaveCanvas />
-          {/* Top glint */}
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg,transparent,rgba(251,146,60,0.55),transparent)' }} />
 
           <div style={{ position: 'relative', zIndex: 2, display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'center', padding: '22px 20px 24px', gap: 12 }}>
-            {/* Left — Total Owed */}
             <div>
               <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(251,146,60,0.65)', marginBottom: 6 }}>Total Owed</p>
               <p style={{ fontSize: 26, fontWeight: 900, color: '#FB923C', fontVariantNumeric: 'tabular-nums', lineHeight: 1, textShadow: '0 0 18px rgba(251,146,60,0.45)' }}>
@@ -666,7 +658,6 @@ export function BorrowedScreen() {
               </p>
             </div>
 
-            {/* Right — Nearest due */}
             {nearestDue && dueLabel && (
               <div style={{ textAlign: 'right' }}>
                 <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 6 }}>Next Due</p>
@@ -683,7 +674,6 @@ export function BorrowedScreen() {
 
         {/* Filter + Add bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-          {/* Add button */}
           <motion.button whileTap={{ scale: 0.9 }} onClick={() => setAddOpen(true)}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
@@ -698,7 +688,6 @@ export function BorrowedScreen() {
             <span style={{ fontSize: 12, fontWeight: 700, color: '#FB923C', letterSpacing: '0.04em' }}>Add</span>
           </motion.button>
 
-          {/* Filter pills */}
           <FilterPill label="All"     active={filter === 'all'}     onClick={() => setFilter('all')} />
           <FilterPill label="Pending" active={filter === 'pending'} onClick={() => setFilter('pending')} />
           <FilterPill label="Settled" active={filter === 'settled'} onClick={() => setFilter('settled')} />
