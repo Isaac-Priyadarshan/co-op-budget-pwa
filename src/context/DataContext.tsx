@@ -51,14 +51,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [transactionsLoading, setTransactionsLoading] = useState(true)
   const [transactionsError, setTransactionsError] = useState<string | null>(null)
 
-  // Tracks IDs that are currently being deleted.
-  // The Realtime INSERT/UPDATE handlers check this set and skip any row
-  // whose ID is present — this is the core fix for the resurrection bug.
-  // When a delete fires, Supabase Realtime may emit a spurious INSERT/UPDATE
-  // event on other connected clients before the DELETE event arrives.
-  // By keeping the deleting ID in this set from the moment removeTransaction
-  // is called until the Realtime DELETE event confirms it, we prevent any
-  // optimistic INSERT/UPDATE from adding the row back.
+  // deletingIds: IDs currently mid-delete.
+  // Guards against Realtime INSERT/UPDATE resurrection and stale re-fetch restoration.
+  // Cleared explicitly on success AND by the Realtime DELETE event (belt-and-suspenders).
   const deletingIds = useRef<Set<string>>(new Set())
 
   const applyCategories = useCallback((cats: Category[]) => {
@@ -116,8 +111,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setTransactionsLoading(true)
       setTransactionsError(null)
       const data = await fetchTransactions()
-      // Filter out any IDs that are mid-delete so a slow network fetch
-      // cannot resurrect a row that was already optimistically stripped.
+      // Always filter out any IDs mid-delete — closes the refresh race window
       setTransactions(data.filter(t => !deletingIds.current.has(t.id)))
     } catch (e) {
       setTransactionsError(e instanceof Error ? e.message : 'Failed to load transactions')
@@ -141,10 +135,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const transactionsChannel = supabase
       .channel('realtime-transactions')
-      // ── INSERT ───────────────────────────────────────────────────────────
-      // Optimistically prepend the new row from payload.new.
-      // Skip if the ID is in deletingIds (resurrection guard).
-      // No network round-trip needed.
+      // INSERT — optimistic prepend, skip if in deletingIds
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'transactions' },
@@ -153,9 +144,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           if (!newRow?.id) return
           if (deletingIds.current.has(newRow.id)) return
           setTransactions(prev => {
-            // Deduplicate: skip if row already exists (e.g. added by addTransaction)
             if (prev.some(t => t.id === newRow.id)) return prev
-            // Insert in correct position: descending by transaction_date, then created_at
             const next = [newRow, ...prev]
             return next.sort((a, b) => {
               const dateDiff = b.transaction_date.localeCompare(a.transaction_date)
@@ -165,10 +154,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           })
         },
       )
-      // ── UPDATE ───────────────────────────────────────────────────────────
-      // Optimistically patch the changed row from payload.new.
-      // Skip if the ID is in deletingIds (resurrection guard).
-      // No network round-trip needed.
+      // UPDATE — optimistic patch, skip if in deletingIds
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'transactions' },
@@ -181,9 +167,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           )
         },
       )
-      // ── DELETE ───────────────────────────────────────────────────────────
-      // Strip by ID from payload.old. Clear from deletingIds set.
-      // No network round-trip needed.
+      // DELETE — strip by ID, clear deletingIds guard
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'transactions' },
@@ -290,26 +274,56 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await insertTransaction(tx)
   }, [])
 
-  // Optimistic delete:
-  // 1. Register ID in deletingIds BEFORE the DB call — this is the guard.
-  // 2. Strip from local state immediately (instant UI feedback).
-  // 3. Fire the DB delete.
-  // 4. On DB error, remove ID from deletingIds and restore the row.
-  // The Realtime DELETE event will also strip by ID and clean deletingIds,
-  // so the set self-cleans even on success.
+  // removeTransaction — hardened permanent delete
+  // Flow:
+  //   1. Register id in deletingIds BEFORE any await (resurrection guard)
+  //   2. Optimistic strip from local state (instant UI)
+  //   3. Fire DB delete
+  //   4. On SUCCESS:
+  //        a. Clear id from deletingIds immediately (don't wait for Realtime)
+  //        b. Belt-and-suspenders: strip from state again in case anything sneaked back
+  //        c. Verify row is truly gone from Supabase — if somehow still present, delete again
+  //   5. On ERROR:
+  //        a. Clear id from deletingIds
+  //        b. Restore the captured snapshot back into state
   const removeTransaction = useCallback(async (id: string) => {
-    // Register as deleting FIRST — before any await
+    // Step 1 — guard must be set BEFORE any await
     deletingIds.current.add(id)
-    // Capture the row in case we need to restore on error
+
+    // Step 2 — optimistic strip, capture snapshot for rollback
     let snapshot: Transaction | undefined
     setTransactions(prev => {
       snapshot = prev.find(t => t.id === id)
       return prev.filter(t => t.id !== id)
     })
+
     try {
+      // Step 3 — DB delete
       await deleteTransaction(id)
+
+      // Step 4a — clear guard immediately on success (Realtime may be slow or absent)
+      deletingIds.current.delete(id)
+
+      // Step 4b — belt-and-suspenders strip: removes the row if anything sneaked it back
+      // (e.g. a concurrent loadTransactions resolved after the delete)
+      setTransactions(prev => prev.filter(t => t.id !== id))
+
+      // Step 4c — verify: confirm Supabase no longer has this row
+      // If it does (extreme race), fire a second silent delete
+      const { data: ghost } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle()
+
+      if (ghost) {
+        // Row still exists in DB — delete again silently
+        await supabase.from('transactions').delete().eq('id', id)
+        // Final strip from local state
+        setTransactions(prev => prev.filter(t => t.id !== id))
+      }
     } catch (e) {
-      // DB delete failed — restore the row and unregister the guard
+      // Step 5 — DB delete failed — clear guard and restore row
       deletingIds.current.delete(id)
       if (snapshot) {
         setTransactions(prev => {
