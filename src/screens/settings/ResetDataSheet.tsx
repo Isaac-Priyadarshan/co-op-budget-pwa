@@ -54,6 +54,8 @@ const ALL_UUID   = 'id=neq.00000000-0000-0000-0000-000000000000'
 const ALL_UPREFS = 'user_name=in.(Isaac,Jenifa)'
 // transactions: null out wallet_id for rows that actually have one
 const HAS_WALLET = 'wallet_id=not.is.null'
+// lent: null out source_wallet_id FK before wallets are deleted
+const LENT_HAS_WALLET = 'source_wallet_id=not.is.null'
 
 // ─── 1. Erase History ──────────────────────────────────────────────────────────────────
 async function eraseHistory(): Promise<void> {
@@ -69,8 +71,11 @@ async function eraseCategories(): Promise<void> {
 
 // ─── 3. Erase Wallet & Credit Card ─────────────────────────────────────────────────────
 async function eraseWalletCredit(): Promise<void> {
-  await sbPatch('user_preferences', ALL_UPREFS, { default_wallet_id: null })
-  await sbPatch('transactions',     HAS_WALLET, { wallet_id: null })
+  // Null all FK references pointing at wallets before deleting wallets
+  await sbPatch('user_preferences', ALL_UPREFS,    { default_wallet_id: null })
+  await sbPatch('transactions',     HAS_WALLET,    { wallet_id: null })
+  await sbPatch('lent',             LENT_HAS_WALLET, { source_wallet_id: null })
+  // Now safe to delete wallets
   await sbDelete('wallets', ALL_UUID)
 }
 
@@ -80,28 +85,41 @@ async function clearBudget(): Promise<void> {
 }
 
 // ─── 5. Full Wipeout ───────────────────────────────────────────────────────────────────
+// DELETION ORDER (FK-safe):
+//   Phase A — null all FK columns that point at wallets
+//   Phase B — delete FK child tables first, wallets last among inter-linked tables
+//   Phase C — delete remaining standalone tables
+//   Phase D — delete user_preferences last (text PK, no id)
 async function fullWipeOut(): Promise<void> {
   const errors: string[] = []
   const safe = async (fn: () => Promise<void>) => {
     try { await fn() } catch (e) { errors.push(e instanceof Error ? e.message : String(e)) }
   }
 
-  // Step 1: Null FK refs first to prevent constraint violations
-  await safe(() => sbPatch('user_preferences', ALL_UPREFS, { default_wallet_id: null }))
-  await safe(() => sbPatch('transactions',     HAS_WALLET, { wallet_id: null }))
+  // ── Phase A: Null every FK that references wallets ─────────────────────────
+  await safe(() => sbPatch('user_preferences', ALL_UPREFS,      { default_wallet_id: null }))
+  await safe(() => sbPatch('transactions',     HAS_WALLET,      { wallet_id: null }))
+  await safe(() => sbPatch('lent',             LENT_HAS_WALLET, { source_wallet_id: null }))
 
-  // Step 2: Delete in FK-safe order
+  // ── Phase B: Delete FK children before their parents ───────────────────────
+  // lent & borrowed must go BEFORE wallets (source_wallet_id FK)
+  await safe(() => sbDelete('lent',               ALL_UUID))
+  await safe(() => sbDelete('borrowed',           ALL_UUID))
+  // transactions must go before wallets (wallet_id FK already nulled, but safer)
   await safe(() => sbDelete('transactions',       ALL_UUID))
+  // subcategories before categories
   await safe(() => sbDelete('subcategories',      ALL_UUID))
   await safe(() => sbDelete('categories',         ALL_UUID))
   await safe(() => sbDelete('budgets',            ALL_UUID))
+  // wallets — now safe, all FKs pointing at it are gone/nulled
   await safe(() => sbDelete('wallets',            ALL_UUID))
+
+  // ── Phase C: Standalone tables (no cross-references) ───────────────────────
   await safe(() => sbDelete('loans',              ALL_UUID))
   await safe(() => sbDelete('recurring_payments', ALL_UUID))
-  await safe(() => sbDelete('lent',               ALL_UUID))
-  await safe(() => sbDelete('borrowed',           ALL_UUID))
   await safe(() => sbDelete('assets',             ALL_UUID))
-  // user_preferences last — uses user_name PK, not id
+
+  // ── Phase D: user_preferences last (text PK) ───────────────────────────────
   await safe(() => sbDelete('user_preferences',   ALL_UPREFS))
 
   if (errors.length > 0)
