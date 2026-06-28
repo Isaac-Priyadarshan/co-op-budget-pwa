@@ -3,27 +3,25 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAssets } from '../../hooks/useAssets'
 import { AssetGroupPicker, ASSET_GROUPS, type AssetGroupId } from '../../components/shared/AssetGroupPicker'
 import { BankAssetSheet } from '../../components/assets/BankAssetSheet'
+import { RealEstateAssetSheet } from '../../components/assets/RealEstateAssetSheet'
 import { AssetComingSoonSheet } from '../../components/assets/AssetComingSoonSheet'
 import { formatINR, formatShortDate } from '../../utils/format'
 
-// Groups that have a dedicated full entry sheet
-const FULL_SHEET_GROUPS: AssetGroupId[] = ['Bank']
+// Add group IDs here as each dedicated sheet is built
+const FULL_SHEET_GROUPS: AssetGroupId[] = ['Bank', 'Real Estate']
 
 export function AssetScreen() {
   const { assets, loading, error, add, remove, totalValue } = useAssets()
 
-  const [pickerOpen,    setPickerOpen]    = useState(false)
-  const [activeGroup,   setActiveGroup]   = useState<AssetGroupId | undefined>(undefined)
-  const [working,       setWorking]       = useState<string | null>(null)
+  const [pickerOpen,  setPickerOpen]  = useState(false)
+  const [activeGroup, setActiveGroup] = useState<AssetGroupId | undefined>(undefined)
+  const [working,     setWorking]     = useState<string | null>(null)
 
-  // Derive which sheet to show from activeGroup
   const bankSheetOpen        = activeGroup === 'Bank'
+  const realEstateSheetOpen  = activeGroup === 'Real Estate'
   const comingSoonSheetOpen  = !!activeGroup && !FULL_SHEET_GROUPS.includes(activeGroup)
 
-  const handleGroupSelect = (group: AssetGroupId) => {
-    setActiveGroup(group)
-  }
-
+  const handleGroupSelect = (group: AssetGroupId) => setActiveGroup(group)
   const closeAll = () => setActiveGroup(undefined)
 
   const handleDelete = async (id: string) => {
@@ -33,14 +31,12 @@ export function AssetScreen() {
     finally   { setWorking(null) }
   }
 
-  // Group assets by ASSET_GROUPS order
-  const groupedAssets = useMemo(() => {
-    return ASSET_GROUPS
+  const groupedAssets = useMemo(() =>
+    ASSET_GROUPS
       .map(g => ({ group: g, items: assets.filter(a => a.category === g.id) }))
       .filter(g => g.items.length > 0)
-  }, [assets])
+  , [assets])
 
-  // Catch legacy categories not in the 6 groups
   const ungrouped = useMemo(() => {
     const known = new Set(ASSET_GROUPS.map(g => g.id))
     return assets.filter(a => !known.has(a.category as AssetGroupId))
@@ -64,24 +60,18 @@ export function AssetScreen() {
           backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
         }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }}>
-
-            {/* Left – Asset Value */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0 }}>Asset Value</p>
               <motion.p key={totalValue} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
                 style={{ fontSize: 16, fontWeight: 800, color: '#6ee7b7', fontVariantNumeric: 'tabular-nums', margin: 0 }}
               >{loading ? '—' : formatINR(totalValue)}</motion.p>
             </div>
-
-            {/* Centre – Net Worth */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '0 16px' }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0 }}>Net Worth</p>
               <motion.p key={totalValue + '-nw'} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.04 }}
                 style={{ fontSize: 24, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums', margin: 0, textShadow: '0 0 24px rgba(52,211,153,0.55)', letterSpacing: '-0.02em' }}
               >{loading ? '—' : formatINR(totalValue)}</motion.p>
             </div>
-
-            {/* Right – Count */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0, textAlign: 'right' }}>Assets</p>
               <motion.p key={assets.length} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.08 }}
@@ -118,7 +108,7 @@ export function AssetScreen() {
         {/* ── Loading ── */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {[1, 2, 3].map(i => <div key={i} style={{ height: 80, borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }} />)}
+            {[1,2,3].map(i => <div key={i} style={{ height: 80, borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }} />)}
           </div>
         )}
 
@@ -149,7 +139,6 @@ export function AssetScreen() {
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
                   transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  {/* Group header */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 18 }}>{group.emoji}</span>
@@ -159,8 +148,6 @@ export function AssetScreen() {
                       {formatINR(items.reduce((s, a) => s + a.value, 0))}
                     </p>
                   </div>
-
-                  {/* Items */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {items.map(asset => (
                       <motion.div
@@ -196,7 +183,6 @@ export function AssetScreen() {
               ))}
             </AnimatePresence>
 
-            {/* Legacy catch-all */}
             {ungrouped.length > 0 && (
               <div>
                 <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', marginBottom: 10 }}>📦 Other</p>
@@ -231,19 +217,15 @@ export function AssetScreen() {
         onSelect={(group) => { setPickerOpen(false); handleGroupSelect(group) }}
       />
 
-      {/* ── Bank Entry Sheet ── */}
-      <BankAssetSheet
-        open={bankSheetOpen}
-        onClose={closeAll}
-        onSave={add}
-      />
+      {/* ── Bank Sheet ── */}
+      <BankAssetSheet open={bankSheetOpen} onClose={closeAll} onSave={add} />
 
-      {/* ── Coming Soon Sheet (Stock, Fund, Crypto, Real Estate, Precious Metal) ── */}
-      <AssetComingSoonSheet
-        open={comingSoonSheetOpen}
-        onClose={closeAll}
-        groupId={activeGroup}
-      />
+      {/* ── Real Estate Sheet ── */}
+      <RealEstateAssetSheet open={realEstateSheetOpen} onClose={closeAll} onSave={add} />
+
+      {/* ── Coming Soon (Stock, Fund, Crypto, Precious Metal) ── */}
+      <AssetComingSoonSheet open={comingSoonSheetOpen} onClose={closeAll} groupId={activeGroup} />
+
     </div>
   )
 }
