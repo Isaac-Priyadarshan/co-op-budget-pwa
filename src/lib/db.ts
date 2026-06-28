@@ -10,6 +10,7 @@ export interface Transaction {
   amount: number
   description: string
   category: string
+  category_id?: string | null
   created_by: AppUser
   created_at: string
   transaction_date: string
@@ -22,6 +23,7 @@ export interface NewTransaction {
   amount: number
   description: string
   category: string
+  category_id?: string | null
   created_by: AppUser
   type: 'income' | 'expense' | 'transfer'
   wallet_id?: string | null
@@ -61,6 +63,7 @@ export async function insertTransaction(tx: NewTransaction): Promise<Transaction
     transaction_date: toDateOnly(tx.transaction_date),
   }
   if (tx.wallet_id) payload.wallet_id = tx.wallet_id
+  if (tx.category_id) payload.category_id = tx.category_id
 
   const { data, error } = await supabase
     .from('transactions')
@@ -419,7 +422,7 @@ export async function fetchLoans(): Promise<LoanEntry[]> {
     .select('*')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return (data ?? []) as LoanEntry[]
+  return (data ?? []) as LoanEntry[]\
 }
 
 export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
