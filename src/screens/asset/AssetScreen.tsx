@@ -13,6 +13,12 @@ import { formatINR, formatShortDate } from '../../utils/format'
 import { parseBankNotes, compoundWithTopUps } from '../../utils/bankCalc'
 import type { BankDeposit } from '../../utils/bankCalc'
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+function fmtMonthYear(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+}
+
 // ─── P&L badge ────────────────────────────────────────────────────────────────
 function PnlBadge({ asset }: {
   asset: { value: number; current_price: number | null; quantity: number | null; buy_price: number | null }
@@ -171,7 +177,7 @@ function GroupCard({ group, total, count, loading, onPress }: {
   )
 }
 
-// ─── Bank asset card (with compound appreciation + top-up button) ─────────────
+// ─── Bank asset card — compact + expandable ───────────────────────────────────
 function BankAssetCard({
   asset, allBankItems, onDelete, onTopUp, working,
 }: {
@@ -181,11 +187,15 @@ function BankAssetCard({
   onTopUp: (asset: AssetItem) => void
   working: string | null
 }) {
-  const { rate, startDate } = parseBankNotes(asset.notes)
+  const [expanded, setExpanded] = useState(false)
 
-  // Collect all deposits for this bank label (root + top-ups)
+  const { rate } = parseBankNotes(asset.notes)
+
+  // Extract account type from label e.g. "SBI – FD" → "FD"
+  const accountType = asset.label.includes('–') ? asset.label.split('–').pop()?.trim() ?? '' : ''
+
   const siblingDeposits = useMemo((): BankDeposit[] => {
-    if (!rate || !startDate) return []
+    if (!rate) return []
     return allBankItems
       .filter(a => a.label === asset.label)
       .map(a => {
@@ -193,23 +203,18 @@ function BankAssetCard({
         return p.startDate ? { amount: a.value, startDate: p.startDate, rate: rate } : null
       })
       .filter((d): d is BankDeposit => d !== null)
-  }, [allBankItems, asset.label, rate, startDate])
+  }, [allBankItems, asset.label, rate])
 
   const appreciated = useMemo(() =>
     siblingDeposits.length > 0 ? compoundWithTopUps(siblingDeposits) : null
   , [siblingDeposits])
 
-  // Only show this card for root entries (not top-ups) to avoid duplication
-  // A top-up has "top-up" in its notes
-  const isTopUp = asset.notes?.includes('top-up') ?? false
-  if (isTopUp) return null
+  // Skip top-up rows — they're folded into the root card
+  if (asset.notes?.includes('top-up')) return null
 
   const totalPrincipal = allBankItems
     .filter(a => a.label === asset.label)
     .reduce((s, a) => s + a.value, 0)
-
-  const interestEarned = appreciated !== null ? appreciated - totalPrincipal : null
-  const hasGain = interestEarned !== null && interestEarned > 0.005
 
   return (
     <motion.div
@@ -219,78 +224,117 @@ function BankAssetCard({
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       style={{
         borderRadius: 18,
-        background: 'rgba(96,165,250,0.10)',
-        border: '1px solid rgba(96,165,250,0.18)',
+        background: 'rgba(96,165,250,0.08)',
+        border: '1px solid rgba(96,165,250,0.16)',
         overflow: 'hidden',
+        cursor: 'pointer',
       }}
+      onClick={() => setExpanded(e => !e)}
     >
-      {/* Main row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px' }}>
+      {/* ── Main compact row ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
+
+        {/* Left: emoji */}
         <span style={{ fontSize: 22, flexShrink: 0 }}>🏦</span>
+
+        {/* Center: name + type · rate */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{
+            fontSize: 14, fontWeight: 700, color: '#f5f7ff',
+            margin: '0 0 3px', whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
             {asset.label}
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            {rate && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#93c5fd', background: 'rgba(96,165,250,0.12)', padding: '1px 7px', borderRadius: 99, border: '1px solid rgba(96,165,250,0.25)' }}>
-                {rate.toFixed(2)}% p.a.
-              </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            {accountType && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: '#93c5fd',
+                background: 'rgba(96,165,250,0.12)',
+                padding: '1px 7px', borderRadius: 99,
+                border: '1px solid rgba(96,165,250,0.22)',
+              }}>{accountType}</span>
             )}
-            {startDate && (
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)' }}>
-                From {startDate}
+            {rate && (
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', fontVariantNumeric: 'tabular-nums' }}>
+                {rate.toFixed(2)}% p.a.
               </span>
             )}
           </div>
         </div>
+
+        {/* Right: invested → appreciated */}
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <p style={{ fontSize: 15, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums', margin: '0 0 2px' }}>
-            {formatINR(totalPrincipal)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>
+              {formatINR(totalPrincipal)}
+            </span>
+            {appreciated !== null && (
+              <>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>→</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
+                  ≈ {formatINR(appreciated)}
+                </span>
+              </>
+            )}
+          </div>
+          {/* Created date: bottom-right — Mon Year */}
+          <p style={{
+            fontSize: 10, color: 'rgba(255,255,255,0.22)',
+            margin: '3px 0 0', textAlign: 'right',
+            fontVariantNumeric: 'tabular-nums',
+          }}>
+            {fmtMonthYear(asset.created_at)}
           </p>
-          {appreciated !== null && (
-            <p style={{ fontSize: 12, fontWeight: 700, color: '#34d399', fontVariantNumeric: 'tabular-nums', margin: '0 0 2px' }}>
-              ≈ {formatINR(appreciated)}
-            </p>
-          )}
-          {hasGain && (
-            <p style={{ fontSize: 10, color: 'rgba(52,211,153,0.7)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
-              +{formatINR(interestEarned!)}
-            </p>
-          )}
         </div>
       </div>
 
-      {/* Action row */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 16px 10px',
-        borderTop: '1px solid rgba(96,165,250,0.10)',
-        background: 'rgba(96,165,250,0.04)',
-      }}>
-        <motion.button
-          whileTap={{ scale: 0.94 }}
-          onClick={() => onTopUp(asset)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '5px 14px', borderRadius: 99,
-            background: 'rgba(96,165,250,0.14)', border: '1px solid rgba(96,165,250,0.3)',
-            color: '#93c5fd', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-          }}
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Add Deposit
-        </motion.button>
-        <button
-          onClick={() => onDelete(asset.id)}
-          disabled={working === asset.id}
-          style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-        >
-          {working === asset.id ? '…' : 'delete'}
-        </button>
-      </div>
+      {/* ── Expandable action strip ── */}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="actions"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 14px 10px',
+                borderTop: '1px solid rgba(96,165,250,0.10)',
+                background: 'rgba(96,165,250,0.04)',
+              }}
+            >
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => { setExpanded(false); onTopUp(asset) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 14px', borderRadius: 99,
+                  background: 'rgba(96,165,250,0.14)', border: '1px solid rgba(96,165,250,0.3)',
+                  color: '#93c5fd', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Add Deposit
+              </motion.button>
+              <button
+                onClick={() => onDelete(asset.id)}
+                disabled={working === asset.id}
+                style={{ fontSize: 11, color: 'rgba(248,113,113,0.55)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+              >
+                {working === asset.id ? '…' : 'delete'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
@@ -361,8 +405,6 @@ function GroupDetailView({
   working: string | null
 }) {
   const isBank = group.id === 'Bank'
-
-  // For bank group: only show root entries (non-top-up) in the list
   const displayItems = isBank
     ? items.filter(a => !(a.notes?.includes('top-up') ?? false))
     : items
@@ -403,7 +445,7 @@ function GroupDetailView({
       {/* Loading */}
       {loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[1, 2, 3].map(i => <div key={i} style={{ height: 72, borderRadius: 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} />)}
+          {[1, 2, 3].map(i => <div key={i} style={{ height: 66, borderRadius: 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} />)}
         </div>
       )}
 
@@ -458,8 +500,7 @@ export function AssetScreen() {
   const [sheetGroup,    setSheetGroup]    = useState<AssetGroupId | undefined>(undefined)
   const [working,       setWorking]       = useState<string | null>(null)
 
-  // Top-up sheet state
-  const [topUpAsset,   setTopUpAsset]   = useState<AssetItem | null>(null)
+  const [topUpAsset, setTopUpAsset] = useState<AssetItem | null>(null)
   const topUpOpen = topUpAsset !== null
   const topUpRate = useMemo(() => {
     if (!topUpAsset) return 0
