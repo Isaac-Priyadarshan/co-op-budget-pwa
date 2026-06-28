@@ -5,8 +5,6 @@ import type { NewAsset } from '../../lib/db'
 const ACCOUNT_TYPES = ['Savings', 'Current', 'FD', 'RD', 'NRE', 'NRO'] as const
 type AccountType = typeof ACCOUNT_TYPES[number]
 
-const NAV_BAR_HEIGHT = 96
-
 interface Props {
   open: boolean
   onClose: () => void
@@ -64,14 +62,14 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
               position: 'fixed',
-              bottom: NAV_BAR_HEIGHT,
+              bottom: 'var(--nav-h, 100px)',
               left: 0, right: 0, zIndex: 50,
               background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)',
               border: '1px solid rgba(96,165,250,0.22)',
               borderBottom: '1px solid rgba(96,165,250,0.10)',
               borderRadius: '28px 28px 20px 20px',
               display: 'flex', flexDirection: 'column',
-              maxHeight: `calc(92dvh - ${NAV_BAR_HEIGHT}px)`,
+              maxHeight: 'calc(92dvh - var(--nav-h, 100px))',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
@@ -115,7 +113,7 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
               </div>
 
               <label style={{ display: 'block', marginBottom: 18 }}>
-                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Estimated Value (&#x20b9;)</p>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Estimated Value (\u20b9)</p>
                 <input type="number" inputMode="decimal" placeholder="0.00"
                   value={value} onChange={e => setValue(e.target.value)}
                   style={{ width: '100%', padding: '13px 16px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 14, color: '#93c5fd', fontSize: 28, fontWeight: 800, outline: 'none', fontVariantNumeric: 'tabular-nums' }}
@@ -138,7 +136,7 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
             <div style={{ flexShrink: 0, padding: '12px 20px 16px', borderTop: '1px solid rgba(96,165,250,0.18)', background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)' }}>
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={saving}
                 style={{ width: '100%', padding: '16px', background: saving ? 'rgba(96,165,250,0.2)' : 'linear-gradient(135deg, #60a5fa, #3b82f6)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 20px rgba(96,165,250,0.35)', transition: 'all 0.16s ease' }}
-              >{saving ? 'Saving…' : 'Save Bank Asset'}</motion.button>
+              >{saving ? 'Saving\u2026' : 'Save Bank Asset'}</motion.button>
             </div>
           </motion.div>
         </>

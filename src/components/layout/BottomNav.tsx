@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { NAV_GROUPS, type ScreenId } from '../../lib/constants'
 
@@ -8,35 +8,51 @@ interface BottomNavProps {
 }
 
 const ICONS: Record<string, string> = {
-  wallet:            '💰',
-  home:              '🏠',
-  'book-open':       '📖',
-  'arrow-down-left': '⬇️',
-  'credit-card':     '💳',
-  'arrow-up-right':  '⬆️',
-  landmark:          '🏦',
-  'pie-chart':       '📊',
-  briefcase:         '💼',
-  repeat:            '🔄',
-  'bar-chart-2':     '📈',
-  settings:          '⚙️',
+  wallet:            '\ud83d\udcb0',
+  home:              '\ud83c\udfe0',
+  'book-open':       '\ud83d\udcd6',
+  'arrow-down-left': '\u2b07\ufe0f',
+  'credit-card':     '\ud83d\udcb3',
+  'arrow-up-right':  '\u2b06\ufe0f',
+  landmark:          '\ud83c\udfe6',
+  'pie-chart':       '\ud83d\udcca',
+  briefcase:         '\ud83d\udcbc',
+  repeat:            '\ud83d\udd04',
+  'bar-chart-2':     '\ud83d\udcc8',
+  settings:          '\u2699\ufe0f',
 }
 
-// Default screen to land on when each group tab is tapped
 const GROUP_DEFAULTS: ScreenId[] = [
-  'home',             // Finance
-  'wallet-credit',    // Tracking
-  'account-overview', // Assets
-  'asset',            // More  ← was recurring-payment, now asset
+  'home',
+  'wallet-credit',
+  'account-overview',
+  'asset',
 ]
 
 export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
   const [activeGroup, setActiveGroup] = useState(0)
+  const navRef = useRef<HTMLDivElement>(null)
+
+  // Measure real nav height and publish it as a CSS variable so all sheets
+  // can use var(--nav-h) for their `bottom` offset — no magic numbers needed.
+  useLayoutEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const update = () => {
+      const h = el.getBoundingClientRect().height
+      document.documentElement.style.setProperty('--nav-h', `${Math.ceil(h)}px`)
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const currentGroup = NAV_GROUPS[activeGroup]
 
   return (
     <div
+      ref={navRef}
       style={{
         flexShrink: 0,
         paddingBottom: 'env(safe-area-inset-bottom)',

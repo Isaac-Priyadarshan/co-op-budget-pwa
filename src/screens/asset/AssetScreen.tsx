@@ -10,7 +10,6 @@ import { CryptoAssetSheet }       from '../../components/assets/CryptoAssetSheet
 import { PreciousMetalAssetSheet } from '../../components/assets/PreciousMetalAssetSheet'
 import { formatINR, formatShortDate } from '../../utils/format'
 
-// All 6 groups now have dedicated sheets — no more "Coming Soon"
 const FULL_SHEET_GROUPS: AssetGroupId[] = ['Bank', 'Real Estate', 'Stock', 'Mutual Fund', 'Crypto', 'Precious Metal']
 
 function PnlBadge({ asset }: { asset: { value: number; current_price: number | null; quantity: number | null; buy_price: number | null } }) {
@@ -29,7 +28,7 @@ function PnlBadge({ asset }: { asset: { value: number; current_price: number | n
       border:     `1px solid ${gain ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
       whiteSpace: 'nowrap' as const,
     }}>
-      {gain ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+      {gain ? '\u25b2' : '\u25bc'} {Math.abs(pct).toFixed(1)}%
     </span>
   )
 }
@@ -70,7 +69,9 @@ export function AssetScreen() {
   }, [assets])
 
   return (
-    <div style={{ padding: '20px 20px 32px', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    // paddingBottom uses the same CSS var the sheets use, so the last card
+    // never sits behind the nav bar when scrolled all the way down.
+    <div style={{ padding: '20px 20px 0', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 'calc(var(--nav-h, 100px) + 24px)' }}>
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -90,19 +91,19 @@ export function AssetScreen() {
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0 }}>Asset Value</p>
               <motion.p key={totalValue} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
                 style={{ fontSize: 16, fontWeight: 800, color: '#6ee7b7', fontVariantNumeric: 'tabular-nums', margin: 0 }}
-              >{loading ? '—' : formatINR(totalValue)}</motion.p>
+              >{loading ? '\u2014' : formatINR(totalValue)}</motion.p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '0 16px' }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0 }}>Net Worth</p>
               <motion.p key={totalValue + '-nw'} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.04 }}
                 style={{ fontSize: 24, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums', margin: 0, textShadow: '0 0 24px rgba(52,211,153,0.55)', letterSpacing: '-0.02em' }}
-              >{loading ? '—' : formatINR(totalValue)}</motion.p>
+              >{loading ? '\u2014' : formatINR(totalValue)}</motion.p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
               <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0, textAlign: 'right' }}>Assets</p>
               <motion.p key={assets.length} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.08 }}
                 style={{ fontSize: 24, fontWeight: 900, color: '#6ee7b7', fontVariantNumeric: 'tabular-nums', margin: 0, textShadow: '0 0 20px rgba(110,231,183,0.4)' }}
-              >{loading ? '—' : assets.length}</motion.p>
+              >{loading ? '\u2014' : assets.length}</motion.p>
             </div>
           </div>
         </div>
@@ -169,7 +170,7 @@ export function AssetScreen() {
                           <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.label}</p>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
-                              {formatShortDate(asset.created_at)}{asset.notes ? ` · ${asset.notes}` : ''}
+                              {formatShortDate(asset.created_at)}{asset.notes ? ` \u00b7 ${asset.notes}` : ''}
                             </p>
                             <PnlBadge asset={asset} />
                           </div>
@@ -183,7 +184,7 @@ export function AssetScreen() {
                           )}
                           <button onClick={() => handleDelete(asset.id)} disabled={working === asset.id}
                             style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-                          >{working === asset.id ? '…' : 'delete'}</button>
+                          >{working === asset.id ? '\u2026' : 'delete'}</button>
                         </div>
                       </motion.div>
                     ))}
@@ -201,13 +202,13 @@ export function AssetScreen() {
                       <span style={{ fontSize: 22 }}>📦</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px' }}>{asset.label}</p>
-                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>{asset.category} · {formatShortDate(asset.created_at)}</p>
+                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>{asset.category} \u00b7 {formatShortDate(asset.created_at)}</p>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <p style={{ fontSize: 15, fontWeight: 800, color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums', margin: '0 0 4px' }}>{formatINR(asset.value)}</p>
                         <button onClick={() => handleDelete(asset.id)} disabled={working === asset.id}
                           style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer' }}
-                        >{working === asset.id ? '…' : 'delete'}</button>
+                        >{working === asset.id ? '\u2026' : 'delete'}</button>
                       </div>
                     </div>
                   ))}
