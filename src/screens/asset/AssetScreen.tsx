@@ -14,9 +14,10 @@ import { parseBankNotes, compoundWithTopUps } from '../../utils/bankCalc'
 import type { BankDeposit } from '../../utils/bankCalc'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-function fmtMonthYear(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+/** "2024-06-15" → "15 Jun 2024" */
+function fmtStartDate(iso: string): string {
+  const d = new Date(iso + 'T00:00:00')
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 // ─── P&L badge ────────────────────────────────────────────────────────────────
@@ -189,10 +190,7 @@ function BankAssetCard({
 }) {
   const [expanded, setExpanded] = useState(false)
 
-  const { rate } = parseBankNotes(asset.notes)
-
-  // Extract account type from label e.g. "SBI – FD" → "FD"
-  const accountType = asset.label.includes('–') ? asset.label.split('–').pop()?.trim() ?? '' : ''
+  const { rate, startDate } = parseBankNotes(asset.notes)
 
   const siblingDeposits = useMemo((): BankDeposit[] => {
     if (!rate) return []
@@ -209,7 +207,7 @@ function BankAssetCard({
     siblingDeposits.length > 0 ? compoundWithTopUps(siblingDeposits) : null
   , [siblingDeposits])
 
-  // Skip top-up rows — they're folded into the root card
+  // Skip top-up rows — folded into root card
   if (asset.notes?.includes('top-up')) return null
 
   const totalPrincipal = allBankItems
@@ -234,37 +232,36 @@ function BankAssetCard({
       {/* ── Main compact row ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
 
-        {/* Left: emoji */}
+        {/* Emoji */}
         <span style={{ fontSize: 22, flexShrink: 0 }}>🏦</span>
 
-        {/* Center: name + type · rate */}
+        {/* Name + rate pill (no account type pill) */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{
             fontSize: 14, fontWeight: 700, color: '#f5f7ff',
-            margin: '0 0 3px', whiteSpace: 'nowrap',
+            margin: '0 0 4px', whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {asset.label}
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            {accountType && (
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: '#93c5fd',
-                background: 'rgba(96,165,250,0.12)',
-                padding: '1px 7px', borderRadius: 99,
-                border: '1px solid rgba(96,165,250,0.22)',
-              }}>{accountType}</span>
-            )}
-            {rate && (
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', fontVariantNumeric: 'tabular-nums' }}>
-                {rate.toFixed(2)}% p.a.
-              </span>
-            )}
-          </div>
+          {rate && (
+            <span style={{
+              display: 'inline-block',
+              fontSize: 11, fontWeight: 700,
+              color: '#93c5fd',
+              background: 'rgba(96,165,250,0.15)',
+              padding: '2px 9px', borderRadius: 99,
+              border: '1px solid rgba(96,165,250,0.35)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {rate.toFixed(2)}% p.a.
+            </span>
+          )}
         </div>
 
-        {/* Right: invested → appreciated */}
+        {/* Values + start date */}
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          {/* Invested → Appreciated on same line */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>
               {formatINR(totalPrincipal)}
@@ -273,19 +270,21 @@ function BankAssetCard({
               <>
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>→</span>
                 <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
-                  ≈ {formatINR(appreciated)}
+                  ≈ {formatINR(appreciated)}
                 </span>
               </>
             )}
           </div>
-          {/* Created date: bottom-right — Mon Year */}
-          <p style={{
-            fontSize: 10, color: 'rgba(255,255,255,0.22)',
-            margin: '3px 0 0', textAlign: 'right',
-            fontVariantNumeric: 'tabular-nums',
-          }}>
-            {fmtMonthYear(asset.created_at)}
-          </p>
+          {/* Start date: day Mon Year — bottom-right */}
+          {startDate && (
+            <p style={{
+              fontSize: 10, color: 'rgba(255,255,255,0.28)',
+              margin: '3px 0 0', textAlign: 'right',
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {fmtStartDate(startDate)}
+            </p>
+          )}
         </div>
       </div>
 
