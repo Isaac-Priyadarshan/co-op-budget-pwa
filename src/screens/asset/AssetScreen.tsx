@@ -34,7 +34,7 @@ function PnlBadge({ asset }: {
   )
 }
 
-// ─── Global summary card (top of screen) ──────────────────────────────────
+// ─── Global summary card (grid view only) ────────────────────────────────────
 function SummaryCard({ totalValue, assetCount, loading }: {
   totalValue: number; assetCount: number; loading: boolean
 }) {
@@ -70,7 +70,7 @@ function SummaryCard({ totalValue, assetCount, loading }: {
   )
 }
 
-// ─── Per-group summary card (top of detail view) ───────────────────────────
+// ─── Per-group summary card (detail view only) ────────────────────────────────
 type AssetItem = {
   id: string; label: string; category: string; value: number; notes: string | null
   created_at: string; current_price: number | null; quantity: number | null
@@ -85,19 +85,13 @@ function GroupSummaryCard({
   onBack: () => void
 }) {
   const totalInvested = items.reduce((s, a) => s + a.value, 0)
-
-  // Live value: only items that have current_price + quantity
-  const liveItems   = items.filter(a => a.current_price != null && a.quantity != null)
-  const liveValue   = liveItems.reduce((s, a) => s + (a.current_price! * a.quantity!), 0)
-  const hasLive     = liveItems.length > 0
-
-  const pnlAbs = liveValue - liveItems.reduce((s, a) => s + a.value, 0)
-  const pnlPct = liveItems.length > 0
-    ? (liveItems.reduce((s, a) => s + a.value, 0) > 0
-      ? (pnlAbs / liveItems.reduce((s, a) => s + a.value, 0)) * 100
-      : 0)
-    : 0
-  const pnlGain = pnlAbs >= 0
+  const liveItems     = items.filter(a => a.current_price != null && a.quantity != null)
+  const liveValue     = liveItems.reduce((s, a) => s + (a.current_price! * a.quantity!), 0)
+  const hasLive       = liveItems.length > 0
+  const investedLive  = liveItems.reduce((s, a) => s + a.value, 0)
+  const pnlAbs        = liveValue - investedLive
+  const pnlPct        = investedLive > 0 ? (pnlAbs / investedLive) * 100 : 0
+  const pnlGain       = pnlAbs >= 0
 
   return (
     <motion.div
@@ -105,15 +99,14 @@ function GroupSummaryCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       style={{
-        borderRadius: 24,
-        padding: '20px 20px 18px',
+        borderRadius: 24, padding: '20px 20px 18px',
         background: group.color,
         border: `1px solid ${group.border}`,
         boxShadow: `0 4px 28px ${group.color}, 0 1px 0 rgba(255,255,255,0.04) inset`,
         position: 'relative', overflow: 'hidden',
       }}
     >
-      {/* Glow blob top-right */}
+      {/* Glow blob */}
       <div style={{
         position: 'absolute', top: -30, right: -30,
         width: 120, height: 120, borderRadius: '50%',
@@ -121,7 +114,7 @@ function GroupSummaryCard({
         pointerEvents: 'none', opacity: 0.6,
       }} />
 
-      {/* Top row: back btn + label */}
+      {/* Back btn + label row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, position: 'relative', zIndex: 1 }}>
         <motion.button
           whileTap={{ scale: 0.88 }}
@@ -164,8 +157,7 @@ function GroupSummaryCard({
 
       {/* Pills row */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
-
-        {/* Asset count */}
+        {/* Count pill */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 5,
           padding: '5px 12px', borderRadius: 99,
@@ -185,7 +177,7 @@ function GroupSummaryCard({
           </span>
         </div>
 
-        {/* Live value pill — only when available */}
+        {/* Live value pill */}
         {hasLive && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 5,
@@ -199,7 +191,7 @@ function GroupSummaryCard({
           </div>
         )}
 
-        {/* P&L pill — only when live data exists and diff is non-zero */}
+        {/* P&L pill */}
         {hasLive && Math.abs(pnlAbs) >= 0.01 && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 5,
@@ -237,11 +229,8 @@ function GroupCard({
       style={{
         display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
         gap: 10, padding: '18px 16px',
-        background: group.color,
-        border: `1px solid ${group.border}`,
-        borderRadius: 22,
-        cursor: 'pointer',
-        width: '100%',
+        background: group.color, border: `1px solid ${group.border}`,
+        borderRadius: 22, cursor: 'pointer', width: '100%',
         boxShadow: `0 4px 20px ${group.color}`,
         position: 'relative', overflow: 'hidden',
       }}
@@ -249,12 +238,9 @@ function GroupCard({
       <div style={{
         position: 'absolute', top: -20, right: -20,
         width: 70, height: 70, borderRadius: '50%',
-        background: group.border, filter: 'blur(22px)',
-        pointerEvents: 'none',
+        background: group.border, filter: 'blur(22px)', pointerEvents: 'none',
       }} />
-
       <span style={{ fontSize: 30, lineHeight: 1 }}>{group.emoji}</span>
-
       <div style={{ width: '100%' }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: group.text, margin: '0 0 5px', letterSpacing: '-0.01em' }}>
           {group.label}
@@ -270,7 +256,6 @@ function GroupCard({
           </p>
         )}
       </div>
-
       {count > 0 && (
         <div style={{
           position: 'absolute', bottom: 12, right: 12,
@@ -308,17 +293,16 @@ function GroupDetailView({
       transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
       style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
     >
-      {/* ── Per-group summary card (replaces old minimal header) ── */}
+      {/* ── Group summary card (has back btn inside) ── */}
       <GroupSummaryCard group={group} items={items} onBack={onBack} />
 
-      {/* ── Full-width Add button ── */}
+      {/* ── Add button ── */}
       <motion.button
         whileTap={{ scale: 0.97 }}
         onClick={onAddPress}
         style={{
           width: '100%', padding: '14px 20px',
-          background: group.color,
-          border: `1px solid ${group.border}`,
+          background: group.color, border: `1px solid ${group.border}`,
           borderRadius: 16, cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           boxShadow: `0 4px 18px ${group.color}`,
@@ -350,8 +334,7 @@ function GroupDetailView({
         <motion.div
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
           style={{
-            textAlign: 'center', padding: '52px 20px',
-            borderRadius: 22,
+            textAlign: 'center', padding: '52px 20px', borderRadius: 22,
             background: group.color.replace('0.18', '0.06'),
             border: `1px dashed ${group.border.replace('0.35', '0.25')}`,
           }}
@@ -463,25 +446,33 @@ export function AssetScreen() {
         transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
         style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
       >
-        {/* ── Global summary card (always visible) ── */}
-        <SummaryCard totalValue={totalValue} assetCount={assets.length} loading={loading} />
-
         {error && (
           <div style={{ padding: 16, borderRadius: 16, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 14 }}>
             {error}
           </div>
         )}
 
-        {/* ── View toggle: grid ↔ detail ── */}
+        {/*
+          AnimatePresence now wraps BOTH views completely.
+          Grid view  → shows global SummaryCard + 2×3 grid
+          Detail view → shows group SummaryCard (with back btn) + add btn + list
+          The global SummaryCard is INSIDE the grid branch so it disappears on drill-in.
+        */}
         <AnimatePresence mode="wait">
           {selectedGroup === null ? (
+
+            /* ── Grid view ── */
             <motion.div
               key="grid"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
             >
+              {/* Global summary card — only visible in grid view */}
+              <SummaryCard totalValue={totalValue} assetCount={assets.length} loading={loading} />
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {ASSET_GROUPS.map((g, i) => (
                   <motion.div
@@ -501,7 +492,10 @@ export function AssetScreen() {
                 ))}
               </div>
             </motion.div>
+
           ) : (
+
+            /* ── Detail view — full clean screen, no global card ── */
             activeGroupMeta && (
               <GroupDetailView
                 key={'detail-' + selectedGroup}
@@ -514,6 +508,7 @@ export function AssetScreen() {
                 working={working}
               />
             )
+
           )}
         </AnimatePresence>
       </motion.div>
