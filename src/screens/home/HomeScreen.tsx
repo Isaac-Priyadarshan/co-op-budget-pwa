@@ -640,8 +640,7 @@ export function HomeScreen() {
         .filter(t => {
           if (t.type !== type) return false
           // Primary: match by category_id UUID (new rows)
-          const txCatId = (t as Record<string, unknown>).category_id as string | null | undefined
-          if (txCatId) return txCatId === cat.id
+          if (t.category_id) return t.category_id === cat.id
           // Fallback: label match for old rows that don't have category_id yet
           return (t.category ?? '').toLowerCase() === cat.label.toLowerCase()
         })
