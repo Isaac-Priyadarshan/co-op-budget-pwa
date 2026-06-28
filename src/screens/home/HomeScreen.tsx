@@ -21,8 +21,6 @@ const EXPENSE_ICONS = ['🛒','🍔','🚗','🏠','💊','👗','✈️','🎬'
 const INCOME_ICONS  = ['💼','📈','💰','🏦','🎯','🏆','💻','🤝','📝','🎨','🏗️','🚀','💎','🌱','🎤','📸','🛍️','🧑‍🏫','📊','🏡','💡','🎪','🧾','🔑','🛠️','🎵','📚','🌐','🤑','🏅']
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
-function getDaysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate() }
-function getFirstDayOfMonth(y: number, m: number) { return new Date(y, m, 1).getDay() }
 
 interface ManagerProps {
   type: 'expense' | 'income'
@@ -66,7 +64,6 @@ function CategoryManagerSheet({
   const [saving, setSaving] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [expandedCat, setExpandedCat] = useState<string | null>(null)
-  const [addingSubFor, setAddingSubFor] = useState<string | null>(null)
   const [subInputs, setSubInputs] = useState<Record<string, string>>({})
   const [orderedCategories, setOrderedCategories] = useState(categories)
   const [orderedSubs, setOrderedSubs] = useState<Record<string, Subcategory[]>>(subcategories)
@@ -167,7 +164,6 @@ function CategoryManagerSheet({
     setSaving(false)
     if (err) { setError(err); return }
     setSubInputs(prev => ({ ...prev, [categoryId]: '' }))
-    setAddingSubFor(null)
     setError('')
   }
 
@@ -226,7 +222,6 @@ function CategoryManagerSheet({
           <Reorder.Group axis="y" values={syncCategories} onReorder={handleCategoryReorder} style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
             {syncCategories.map(cat => {
               const isExpanded = expandedCat === cat.id
-              const isAddingSub = addingSubFor === cat.id
               const isEditingCat = editingCatId === cat.id
               const catSubs = (orderedSubs[cat.id] ?? subcategories[cat.id] ?? [])
                 .map(local => (subcategories[cat.id] ?? []).find(s => s.id === local.id) ?? local)
@@ -372,27 +367,20 @@ function CategoryManagerSheet({
                               )}
                             </Reorder.Group>
 
-                            <motion.button whileTap={{ scale: 0.96 }}
-                              onClick={() => { setAddingSubFor(cat.id); setError('') }}
-                              style={{ height: 40, borderRadius: 12, background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.24)', color: '#FBBF24', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-                            >+ Add Subcategory</motion.button>
-
-                            <AnimatePresence>
-                              {isAddingSub && (
-                                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} style={{ display: 'flex', gap: 8 }}>
-                                  <input value={subInputs[cat.id] ?? ''}
-                                    onChange={e => { setSubInputs(prev => ({ ...prev, [cat.id]: e.target.value })); setError('') }}
-                                    placeholder="Subcategory name…"
-                                    style={{ flex: 1, height: 42, borderRadius: 12, padding: '0 12px', fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#F5F5F5', outline: 'none' }}
-                                  />
-                                  <motion.button whileTap={{ scale: 0.95 }}
-                                    onClick={() => void handleAddSubcategory(cat.id)}
-                                    disabled={saving}
-                                    style={{ height: 42, padding: '0 14px', borderRadius: 12, background: 'linear-gradient(135deg,#F59E0B,#FBBF24)', border: 'none', color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
-                                  >{saving ? '…' : 'Add'}</motion.button>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
+                            {/* Always-visible add subcategory row — no extra tap needed */}
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <input
+                                value={subInputs[cat.id] ?? ''}
+                                onChange={e => { setSubInputs(prev => ({ ...prev, [cat.id]: e.target.value })); setError('') }}
+                                placeholder="New subcategory…"
+                                style={{ flex: 1, height: 42, borderRadius: 12, padding: '0 12px', fontSize: 13, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#F5F5F5', outline: 'none' }}
+                              />
+                              <motion.button whileTap={{ scale: 0.95 }}
+                                onClick={() => void handleAddSubcategory(cat.id)}
+                                disabled={saving}
+                                style={{ height: 42, padding: '0 14px', borderRadius: 12, background: 'linear-gradient(135deg,#F59E0B,#FBBF24)', border: 'none', color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
+                              >{saving ? '…' : 'Add'}</motion.button>
+                            </div>
                           </div>
                         </motion.div>
                       )}
@@ -462,24 +450,11 @@ function CategoryManagerSheet({
 }
 
 interface MonthNavProps {
-  year: number; month: number; selectedDate: Date | null
-  onPrev: () => void; onNext: () => void; onSelectDate: (d: Date) => void
+  year: number; month: number
+  onPrev: () => void; onNext: () => void
 }
 
-function MonthNavigator({ year, month, selectedDate, onPrev, onNext, onSelectDate }: MonthNavProps) {
-  const [calOpen, setCalOpen] = useState(false)
-  const daysInMonth = getDaysInMonth(year, month)
-  const firstDay = getFirstDayOfMonth(year, month)
-  const blanks = Array(firstDay).fill(null)
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
-
-  const isSelected = (d: number) =>
-    selectedDate?.getFullYear() === year && selectedDate?.getMonth() === month && selectedDate?.getDate() === d
-  const isToday = (d: number) => {
-    const t = new Date()
-    return t.getFullYear() === year && t.getMonth() === month && t.getDate() === d
-  }
-
+function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -489,11 +464,9 @@ function MonthNavigator({ year, month, selectedDate, onPrev, onNext, onSelectDat
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
         </motion.button>
 
-        <motion.button whileTap={{ scale: 0.97 }} onClick={() => setCalOpen(v => !v)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <span style={{ fontSize: 18, fontWeight: 700, color: '#F5F5F5', letterSpacing: '-0.01em', lineHeight: 1.1 }}>{MONTH_NAMES[month]} {year}</span>
-        </motion.button>
+        <span style={{ fontSize: 18, fontWeight: 700, color: '#F5F5F5', letterSpacing: '-0.01em', lineHeight: 1.1 }}>
+          {MONTH_NAMES[month]} {year}
+        </span>
 
         <motion.button whileTap={{ scale: 0.85 }} onClick={onNext}
           style={{ width: 40, height: 40, borderRadius: 14, background: 'linear-gradient(135deg, rgba(251,191,36,0.14), rgba(217,119,6,0.10))', border: '1px solid rgba(251,191,36,0.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
@@ -501,33 +474,6 @@ function MonthNavigator({ year, month, selectedDate, onPrev, onNext, onSelectDat
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
         </motion.button>
       </div>
-
-      <AnimatePresence>
-        {calOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 12 }} exit={{ opacity: 0, height: 0, marginTop: 0 }}
-            transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div style={{ borderRadius: 20, background: 'rgba(18,14,4,0.92)', border: '1px solid rgba(251,191,36,0.20)', padding: '16px 14px', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)', boxShadow: '0 8px 32px rgba(0,0,0,0.6)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 10 }}>
-                {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
-                  <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'rgba(251,191,36,0.45)', fontWeight: 700, letterSpacing: '0.06em' }}>{d}</div>
-                ))}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-                {blanks.map((_, i) => <div key={`b${i}`} />)}
-                {days.map(d => (
-                  <motion.button key={d} whileTap={{ scale: 0.82 }}
-                    onClick={() => { onSelectDate(new Date(year, month, d)); setCalOpen(false) }}
-                    style={{ aspectRatio: '1', borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: isSelected(d) ? 700 : 400, background: isSelected(d) ? 'linear-gradient(135deg,#F59E0B,#FBBF24)' : isToday(d) ? 'rgba(251,191,36,0.18)' : 'transparent', color: isSelected(d) ? '#000' : isToday(d) ? '#FBBF24' : 'rgba(255,255,255,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', boxShadow: isSelected(d) ? '0 2px 8px rgba(251,191,36,0.45)' : 'none' }}
-                  >{d}</motion.button>
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }
@@ -609,7 +555,6 @@ export function HomeScreen() {
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [managerOpen, setManagerOpen] = useState<'expense' | 'income' | null>(null)
 
   const {
@@ -619,13 +564,10 @@ export function HomeScreen() {
 
   const { transactions, loading: txLoading } = useTransactions()
 
-  // Filter by transaction_date (the date the user set), not created_at (server insert time)
   const monthTxs = useMemo(() => transactions.filter(tx => {
     if (isExcluded(tx)) return false
-    // transaction_date is stored as YYYY-MM-DD string
     const raw = tx.transaction_date as string | null | undefined
     if (!raw) {
-      // Fallback to created_at for very old rows that pre-date transaction_date
       const d = new Date(tx.created_at)
       return d.getFullYear() === year && d.getMonth() === month
     }
@@ -633,15 +575,12 @@ export function HomeScreen() {
     return y === year && m - 1 === month
   }), [transactions, year, month])
 
-  // Match by category_id (UUID) — reliable. Falls back to label match for legacy rows.
   const calcAmounts = (cats: Category[], type: 'expense' | 'income') =>
     cats.reduce((map, cat) => {
       const total = monthTxs
         .filter(t => {
           if (t.type !== type) return false
-          // Primary: match by category_id UUID (new rows)
           if (t.category_id) return t.category_id === cat.id
-          // Fallback: label match for old rows that don't have category_id yet
           return (t.category ?? '').toLowerCase() === cat.label.toLowerCase()
         })
         .reduce((s, t) => s + t.amount, 0)
@@ -654,26 +593,15 @@ export function HomeScreen() {
   const monthExpenses = useMemo(() => monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [monthTxs])
   const monthIncome = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthTxs])
 
-  const handlePrev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1); setSelectedDate(null) }
-  const handleNext = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1); setSelectedDate(null) }
+  const handlePrev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
+  const handleNext = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
 
   const loading = catsLoading || txLoading
 
   return (
     <div style={{ minHeight: '100%', padding: '20px 20px 32px' }}>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}>
-        <MonthNavigator year={year} month={month} selectedDate={selectedDate} onPrev={handlePrev} onNext={handleNext} onSelectDate={setSelectedDate} />
-
-        <AnimatePresence>
-          {selectedDate && (
-            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.30)', borderRadius: 100, padding: '4px 12px 4px 8px', marginBottom: 16 }}
-            >
-              <span style={{ fontSize: 11, color: '#FBBF24', fontWeight: 600 }}>📅 {selectedDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-              <button onClick={() => setSelectedDate(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'rgba(251,191,36,0.5)', padding: 0, lineHeight: 1 }}>✕</button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <MonthNavigator year={year} month={month} onPrev={handlePrev} onNext={handleNext} />
 
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
