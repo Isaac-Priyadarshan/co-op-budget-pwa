@@ -31,8 +31,8 @@ type Filter = 'active' | 'past' | 'all'
 export function RecurringPaymentScreen() {
   const { items, loading, toggle, remove, totalMonthly, refresh } = useRecurring()
 
-  const [filter, setFilter]       = useState<Filter>('active')
-  const [sheetOpen, setSheetOpen] = useState(false)
+  const [filter, setFilter]         = useState<Filter>('active')
+  const [sheetOpen, setSheetOpen]   = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -158,7 +158,7 @@ export function RecurringPaymentScreen() {
             <span className="text-4xl mb-3">\ud83d\udd04</span>
             <p className="text-white/40 text-sm">
               {filter === 'active' ? 'No active recurring payments'
-               : filter === 'past' ? 'No paused payments'
+               : filter === 'past'   ? 'No paused payments'
                : 'No recurring payments yet'}
             </p>
             {filter !== 'all' && (
@@ -212,6 +212,7 @@ export function RecurringPaymentScreen() {
                         {fmt(item.amount)}
                       </p>
                       <div className="flex items-center gap-2">
+                        {/* Pause / Resume */}
                         <button
                           onClick={() => handleToggle(item.id, item.active)}
                           disabled={togglingId === item.id}
@@ -236,6 +237,7 @@ export function RecurringPaymentScreen() {
                           )}
                         </button>
 
+                        {/* Delete */}
                         <button
                           onClick={() => handleDelete(item.id)}
                           disabled={deletingId === item.id}
@@ -265,10 +267,11 @@ export function RecurringPaymentScreen() {
         )}
       </div>
 
+      {/* ADD SHEET — prop is onSave (not onSaved) */}
       <RecurringSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        onSaved={async () => { setSheetOpen(false); await refresh() }}
+        onSave={async () => { setSheetOpen(false); await refresh() }}
       />
     </div>
   )
