@@ -422,7 +422,7 @@ export async function fetchLoans(): Promise<LoanEntry[]> {
     .select('*')
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
-  return (data ?? []) as LoanEntry[]\
+  return (data ?? []) as LoanEntry[]
 }
 
 export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
