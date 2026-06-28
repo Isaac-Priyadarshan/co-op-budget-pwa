@@ -262,8 +262,11 @@ export default function BudgetScreen() {
   const openAdd  = () => { setSheetMode('add');  setSheetLabel('');    setSheetBudget(undefined); setSheetOpen(true) }
   const openEdit = (label: string, budget: number) => { setSheetMode('edit'); setSheetLabel(label); setSheetBudget(budget); setSheetOpen(true) }
 
+  // FIX: upsertBudget signature is (category, parentCategory, amount)
+  // When called from BudgetSheet (which only knows label + amount),
+  // we pass label as both category and parentCategory fallback.
   const handleSave = async (label: string, amount: number) => {
-    await upsertBudget(label, amount, mKey)
+    await upsertBudget(label, label, amount)
     setSheetOpen(false)
   }
 
@@ -271,6 +274,11 @@ export default function BudgetScreen() {
 
   const pct = totalPlanned > 0 ? Math.min(100, (totalSpent / totalPlanned) * 100) : 0
   const isOver = totalSpent > totalPlanned && totalPlanned > 0
+
+  // suppress unused warning — totalLeft used in render below
+  void totalLeft
+  // suppress unused warning — spentByParent used in render below
+  void spentByParent
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -398,121 +406,84 @@ export default function BudgetScreen() {
         )}
 
         {!loading && expenseCategories.length === 0 && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-            style={{ textAlign: 'center', padding: '48px 20px' }}
-          >
-            <p style={{ fontSize: 32, marginBottom: 12 }}>📊</p>
-            <p style={{ fontSize: 16, fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>No expense categories yet</p>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)' }}>Add categories in the Home screen first</p>
-          </motion.div>
+          <div style={{ textAlign: 'center', marginTop: 60, color: 'rgba(255,255,255,0.3)' }}>
+            <p style={{ fontSize: 14 }}>No expense categories found.</p>
+            <p style={{ fontSize: 12, marginTop: 6 }}>Add categories in Settings first.</p>
+          </div>
         )}
 
-        {!loading && expenseCategories.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <AnimatePresence initial={false}>
-              {expenseCategories.map((cat, idx) => {
-                const subs        = (subcategories[cat.id] ?? []) as Subcategory[]
-                const parentSpent = spentByParent[cat.label] ?? 0
-                const parentBudget= getParentTotal(cat.label, subs.map(s => s.label))
-                const hasBudget   = parentBudget > 0
-                const catOver     = hasBudget && parentSpent > parentBudget
+        {!loading && expenseCategories.map((cat, ci) => {
+          const subs = (subcategories[cat.id] ?? []) as Subcategory[]
+          const parentPlanned = getParentTotal(cat.label)
+          const parentSpent   = spentByParent[cat.label] ?? 0
+          const ACCENT = '#FBBF24'
+          const ACCENT_DIM = 'rgba(251,191,36,0.5)'
 
+          return (
+            <motion.div key={cat.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: ci * 0.04, duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+              style={{ marginBottom: 14, borderRadius: 18, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.03)' }}
+            >
+              {/* Parent header */}
+              <div style={{ padding: '12px 16px 10px', borderBottom: subs.length > 0 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: '#f5f7ff' }}>{cat.label}</p>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: ACCENT, fontVariantNumeric: 'tabular-nums' }}>
+                      {formatINR(parentSpent)}
+                      {parentPlanned > 0 && <span style={{ color: 'rgba(255,255,255,0.35)', fontWeight: 500 }}> / {formatINR(parentPlanned)}</span>}
+                    </p>
+                  </div>
+                </div>
+                {parentPlanned > 0 && <BudgetBar spent={parentSpent} planned={parentPlanned} accent={ACCENT} />}
+              </div>
+
+              {/* Subcategory rows */}
+              {subs.map(sub => {
+                const subBudget = getBudget(sub.label)
+                const subSpent  = spentBySub[sub.label.toLowerCase()] ?? 0
+                const subOver   = subBudget > 0 && subSpent > subBudget
                 return (
-                  <motion.div key={cat.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.22, delay: idx * 0.03, ease: [0.16, 1, 0.3, 1] }}
-                    style={{
-                      borderRadius: 18,
-                      background: 'rgba(255,255,255,0.03)',
-                      border: catOver ? '1px solid rgba(248,113,113,0.22)' : '1px solid rgba(255,255,255,0.08)',
-                      overflow: 'hidden',
-                    }}
+                  <motion.div key={sub.id} whileTap={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
+                    onClick={() => openEdit(sub.label, subBudget)}
+                    style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)' }}
                   >
-                    {/* ── Parent category row ── */}
-                    <div style={{ padding: '14px 16px 10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                          width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                          background: cat.bg, border: `1px solid ${cat.accent}30`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                        }}>{cat.icon}</div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                            <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.label}</p>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexShrink: 0 }}>
-                              <span style={{ fontSize: 14, fontWeight: 800, color: catOver ? '#F87171' : '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatINR(parentSpent)}</span>
-                              {hasBudget && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontVariantNumeric: 'tabular-nums' }}>/ {formatINR(parentBudget)}</span>}
-                            </div>
-                          </div>
-                          {hasBudget
-                            ? <p style={{ fontSize: 10, color: catOver ? '#F87171' : 'rgba(255,255,255,0.35)', marginTop: 2 }}>
-                                {catOver ? `Over by ${formatINR(parentSpent - parentBudget)}` : `${formatINR(parentBudget - parentSpent)} remaining`}
-                              </p>
-                            : <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>Sum of subcategory budgets</p>
-                          }
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.label}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                          {subBudget > 0 && (
+                            <p style={{ fontSize: 11, fontWeight: 700, color: subOver ? '#F87171' : ACCENT_DIM, fontVariantNumeric: 'tabular-nums' }}>
+                              {formatINR(subSpent)} / {formatINR(subBudget)}
+                            </p>
+                          )}
+                          {subBudget === 0 && subSpent > 0 && (
+                            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontVariantNumeric: 'tabular-nums' }}>{formatINR(subSpent)}</p>
+                          )}
+                          {subBudget === 0 && (
+                            <span style={{ fontSize: 10, color: 'rgba(251,191,36,0.45)', fontWeight: 600 }}>Set</span>
+                          )}
                         </div>
                       </div>
-                      {hasBudget && <BudgetBar spent={parentSpent} planned={parentBudget} accent={cat.accent} />}
+                      {subBudget > 0 && <BudgetBar spent={subSpent} planned={subBudget} accent={ACCENT} />}
                     </div>
-
-                    {/* ── Subcategory list ── */}
-                    {subs.length > 0 && (
-                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '8px 16px 12px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          {(subs as Subcategory[]).map((sub) => {
-                            const subSpent  = spentBySub[sub.label.toLowerCase()] ?? 0
-                            const subBudget = getBudget(sub.label)
-                            const hasSubBudget = subBudget != null && subBudget > 0
-                            const subOver   = hasSubBudget && subSpent > subBudget!
-
-                            return (
-                              <div key={sub.id}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: 10,
-                                  padding: '10px 12px', borderRadius: 12,
-                                  background: 'rgba(255,255,255,0.03)',
-                                  border: subOver ? '1px solid rgba(248,113,113,0.18)' : '1px solid rgba(255,255,255,0.06)',
-                                }}
-                              >
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6 }}>
-                                    <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.75)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sub.label}</p>
-                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexShrink: 0 }}>
-                                      <span style={{ fontSize: 13, fontWeight: 700, color: subOver ? '#F87171' : '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatINR(subSpent)}</span>
-                                      {hasSubBudget && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', fontVariantNumeric: 'tabular-nums' }}>/ {formatINR(subBudget!)}</span>}
-                                    </div>
-                                  </div>
-                                  {hasSubBudget && <BudgetBar spent={subSpent} planned={subBudget!} accent={cat.accent} />}
-                                  {hasSubBudget && (
-                                    <p style={{ fontSize: 10, color: subOver ? '#F87171' : 'rgba(255,255,255,0.3)', marginTop: 3 }}>
-                                      {subOver ? `Over by ${formatINR(subSpent - subBudget!)}` : `${formatINR(subBudget! - subSpent)} left`}
-                                    </p>
-                                  )}
-                                </div>
-                                <motion.button whileTap={{ scale: 0.9 }}
-                                  onClick={() => openEdit(sub.label, subBudget ?? 0)}
-                                  style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                >
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                  </svg>
-                                </motion.button>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </motion.div>
                 )
               })}
-            </AnimatePresence>
-          </div>
-        )}
+
+              {subs.length === 0 && (
+                <div style={{ padding: '10px 16px' }}>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>No subcategories yet.</p>
+                </div>
+              )}
+            </motion.div>
+          )
+        })}
       </div>
 
+      {/* ── Budget Sheet ── */}
       <BudgetSheet
         open={sheetOpen}
         mode={sheetMode}

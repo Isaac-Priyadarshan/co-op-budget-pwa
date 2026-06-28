@@ -6,7 +6,7 @@ import { useDataContext } from '../context/DataContext'
 // so they must be excluded from all budget and home screen calculations.
 export const EXCLUDED_CATEGORIES = ['Lent', 'Recovery', 'Borrowed', 'Repayment', 'Transfer']
 
-function isExcluded(tx: { category?: string; type?: string }): boolean {
+export function isExcluded(tx: { category?: string; type?: string }): boolean {
   if (tx.type === 'transfer') return true
   const cat = tx.category ?? ''
   return EXCLUDED_CATEGORIES.some(ec => cat.toLowerCase() === ec.toLowerCase())
