@@ -10,7 +10,7 @@ import { CryptoAssetSheet }        from '../../components/assets/CryptoAssetShee
 import { PreciousMetalAssetSheet } from '../../components/assets/PreciousMetalAssetSheet'
 import { formatINR, formatShortDate } from '../../utils/format'
 
-// ─── P&L badge ────────────────────────────────────────────────────────────────
+// ─── P&L badge (inline on asset cards) ───────────────────────────────────────
 function PnlBadge({ asset }: {
   asset: { value: number; current_price: number | null; quantity: number | null; buy_price: number | null }
 }) {
@@ -34,7 +34,7 @@ function PnlBadge({ asset }: {
   )
 }
 
-// ─── Summary card (identical to original) ────────────────────────────────────
+// ─── Global summary card (top of screen) ──────────────────────────────────
 function SummaryCard({ totalValue, assetCount, loading }: {
   totalValue: number; assetCount: number; loading: boolean
 }) {
@@ -70,6 +70,156 @@ function SummaryCard({ totalValue, assetCount, loading }: {
   )
 }
 
+// ─── Per-group summary card (top of detail view) ───────────────────────────
+type AssetItem = {
+  id: string; label: string; category: string; value: number; notes: string | null
+  created_at: string; current_price: number | null; quantity: number | null
+  buy_price: number | null; last_synced: string | null
+}
+
+function GroupSummaryCard({
+  group, items, onBack,
+}: {
+  group: typeof ASSET_GROUPS[number]
+  items: AssetItem[]
+  onBack: () => void
+}) {
+  const totalInvested = items.reduce((s, a) => s + a.value, 0)
+
+  // Live value: only items that have current_price + quantity
+  const liveItems   = items.filter(a => a.current_price != null && a.quantity != null)
+  const liveValue   = liveItems.reduce((s, a) => s + (a.current_price! * a.quantity!), 0)
+  const hasLive     = liveItems.length > 0
+
+  const pnlAbs = liveValue - liveItems.reduce((s, a) => s + a.value, 0)
+  const pnlPct = liveItems.length > 0
+    ? (liveItems.reduce((s, a) => s + a.value, 0) > 0
+      ? (pnlAbs / liveItems.reduce((s, a) => s + a.value, 0)) * 100
+      : 0)
+    : 0
+  const pnlGain = pnlAbs >= 0
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      style={{
+        borderRadius: 24,
+        padding: '20px 20px 18px',
+        background: group.color,
+        border: `1px solid ${group.border}`,
+        boxShadow: `0 4px 28px ${group.color}, 0 1px 0 rgba(255,255,255,0.04) inset`,
+        position: 'relative', overflow: 'hidden',
+      }}
+    >
+      {/* Glow blob top-right */}
+      <div style={{
+        position: 'absolute', top: -30, right: -30,
+        width: 120, height: 120, borderRadius: '50%',
+        background: group.border, filter: 'blur(40px)',
+        pointerEvents: 'none', opacity: 0.6,
+      }} />
+
+      {/* Top row: back btn + label */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, position: 'relative', zIndex: 1 }}>
+        <motion.button
+          whileTap={{ scale: 0.88 }}
+          onClick={onBack}
+          style={{
+            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+            background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </motion.button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <span style={{ fontSize: 18 }}>{group.emoji}</span>
+          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: group.text, margin: 0, opacity: 0.85 }}>
+            {group.label}
+          </p>
+        </div>
+      </div>
+
+      {/* Big invested value */}
+      <div style={{ position: 'relative', zIndex: 1, marginBottom: 14 }}>
+        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: group.text, opacity: 0.6, margin: '0 0 4px' }}>
+          Total Invested
+        </p>
+        <motion.p
+          key={totalInvested}
+          initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+          style={{
+            fontSize: 32, fontWeight: 900, color: '#f5f7ff',
+            fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.025em',
+            margin: 0, textShadow: `0 0 28px ${group.border}`,
+          }}
+        >
+          {formatINR(totalInvested)}
+        </motion.p>
+      </div>
+
+      {/* Pills row */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+
+        {/* Asset count */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '5px 12px', borderRadius: 99,
+          background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}`,
+        }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="3" y="14" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" />
+          </svg>
+          <span style={{ fontSize: 12, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums' }}>
+            {items.length}
+          </span>
+          <span style={{ fontSize: 10, color: group.text, opacity: 0.65, fontWeight: 600 }}>
+            {items.length === 1 ? 'asset' : 'assets'}
+          </span>
+        </div>
+
+        {/* Live value pill — only when available */}
+        {hasLive && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '5px 12px', borderRadius: 99,
+            background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}`,
+          }}>
+            <span style={{ fontSize: 9, color: group.text, opacity: 0.6, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Live</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>
+              {formatINR(liveValue)}
+            </span>
+          </div>
+        )}
+
+        {/* P&L pill — only when live data exists and diff is non-zero */}
+        {hasLive && Math.abs(pnlAbs) >= 0.01 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '5px 12px', borderRadius: 99,
+            background: pnlGain ? 'rgba(52,211,153,0.18)' : 'rgba(248,113,113,0.18)',
+            border: `1px solid ${pnlGain ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)'}`,
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 900, color: pnlGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>
+              {pnlGain ? '▲' : '▼'} {formatINR(Math.abs(pnlAbs))}
+            </span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: pnlGain ? '#34d399' : '#f87171', opacity: 0.8 }}>
+              {Math.abs(pnlPct).toFixed(1)}%
+            </span>
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
 // ─── 6 Pastel Group Cards (2-col grid) ───────────────────────────────────────
 function GroupCard({
   group, total, count, loading, onPress,
@@ -96,12 +246,10 @@ function GroupCard({
         position: 'relative', overflow: 'hidden',
       }}
     >
-      {/* subtle corner glow */}
       <div style={{
         position: 'absolute', top: -20, right: -20,
         width: 70, height: 70, borderRadius: '50%',
-        background: group.border,
-        filter: 'blur(22px)',
+        background: group.border, filter: 'blur(22px)',
         pointerEvents: 'none',
       }} />
 
@@ -115,9 +263,10 @@ function GroupCard({
           <div style={{ height: 14, width: 60, borderRadius: 6, background: 'rgba(255,255,255,0.08)' }} />
         ) : (
           <p style={{ fontSize: 15, fontWeight: 900, color: '#f5f7ff', margin: 0, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
-            {count === 0 ? (
-              <span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.3)' }}>No entries yet</span>
-            ) : formatINR(total)}
+            {count === 0
+              ? <span style={{ fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.3)' }}>No entries yet</span>
+              : formatINR(total)
+            }
           </p>
         )}
       </div>
@@ -139,12 +288,6 @@ function GroupCard({
 }
 
 // ─── Per-group detail view ────────────────────────────────────────────────────
-type AssetItem = {
-  id: string; label: string; category: string; value: number; notes: string | null
-  created_at: string; current_price: number | null; quantity: number | null
-  buy_price: number | null; last_synced: string | null
-}
-
 function GroupDetailView({
   group, items, loading, onBack, onAddPress, onDelete, working,
 }: {
@@ -156,8 +299,6 @@ function GroupDetailView({
   onDelete: (id: string) => void
   working: string | null
 }) {
-  const total = items.reduce((s, a) => s + a.value, 0)
-
   return (
     <motion.div
       key={'detail-' + group.id}
@@ -167,36 +308,8 @@ function GroupDetailView({
       transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
       style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
     >
-      {/* ── Back + header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <motion.button
-          whileTap={{ scale: 0.88 }}
-          onClick={onBack}
-          style={{
-            width: 34, height: 34, borderRadius: 12, flexShrink: 0,
-            background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </motion.button>
-
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 20 }}>{group.emoji}</span>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: group.text, margin: 0 }}>
-              {group.label}
-            </p>
-          </div>
-          {items.length > 0 && (
-            <p style={{ fontSize: 20, fontWeight: 900, color: '#f5f7ff', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
-              {formatINR(total)}
-            </p>
-          )}
-        </div>
-      </div>
+      {/* ── Per-group summary card (replaces old minimal header) ── */}
+      <GroupSummaryCard group={group} items={items} onBack={onBack} />
 
       {/* ── Full-width Add button ── */}
       <motion.button
@@ -323,7 +436,6 @@ export function AssetScreen() {
     finally   { setWorking(null) }
   }
 
-  // Pre-compute per-group totals + counts
   const groupStats = useMemo(() =>
     Object.fromEntries(
       ASSET_GROUPS.map(g => {
@@ -351,7 +463,7 @@ export function AssetScreen() {
         transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
         style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
       >
-        {/* ── Summary Card (always visible) ── */}
+        {/* ── Global summary card (always visible) ── */}
         <SummaryCard totalValue={totalValue} assetCount={assets.length} loading={loading} />
 
         {error && (
@@ -363,7 +475,6 @@ export function AssetScreen() {
         {/* ── View toggle: grid ↔ detail ── */}
         <AnimatePresence mode="wait">
           {selectedGroup === null ? (
-            /* ── 2-col pastel group grid ── */
             <motion.div
               key="grid"
               initial={{ opacity: 0, x: -20 }}
@@ -391,7 +502,6 @@ export function AssetScreen() {
               </div>
             </motion.div>
           ) : (
-            /* ── Group detail view ── */
             activeGroupMeta && (
               <GroupDetailView
                 key={'detail-' + selectedGroup}
@@ -408,7 +518,7 @@ export function AssetScreen() {
         </AnimatePresence>
       </motion.div>
 
-      {/* ── Asset sheets (all 6, open driven by sheetGroup) ── */}
+      {/* ── Asset sheets ── */}
       <BankAssetSheet
         open={sheetGroup === 'Bank'}
         onClose={() => setSheetGroup(undefined)}
