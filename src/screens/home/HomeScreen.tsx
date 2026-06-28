@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
-import { useTransactions } from '../../hooks/useTransactions'
+import { useTransactions, isExcluded } from '../../hooks/useTransactions'
 import { useCategories } from '../../hooks/useCategories'
 import type { Category, Subcategory } from '../../types/category'
 import { formatINR } from '../../utils/format'
@@ -661,9 +661,9 @@ function CollapsibleSection({ title, total, color, glowColor, categories, amount
 
       <AnimatePresence initial={false}>
         {open && (
-          <motion.div key="content" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
+          <motion.key="content" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
             <CategoryGrid categories={categories} amounts={amounts} type={type} />
-          </motion.div>
+          </motion.key>
         )}
       </AnimatePresence>
     </div>
@@ -684,7 +684,10 @@ export function HomeScreen() {
 
   const { transactions, loading: txLoading } = useTransactions()
 
+  // isExcluded() strips out Lent, Borrowed, Transfer, Recovery, Repayment rows
+  // so money-movement entries never inflate Home screen expense/income totals.
   const monthTxs = useMemo(() => transactions.filter(tx => {
+    if (isExcluded(tx)) return false
     const d = new Date(tx.created_at)
     return d.getFullYear() === year && d.getMonth() === month
   }), [transactions, year, month])
