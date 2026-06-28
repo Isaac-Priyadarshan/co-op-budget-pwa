@@ -10,7 +10,7 @@ import { CryptoAssetSheet }        from '../../components/assets/CryptoAssetShee
 import { PreciousMetalAssetSheet } from '../../components/assets/PreciousMetalAssetSheet'
 import { formatINR, formatShortDate } from '../../utils/format'
 
-// ─── P&L badge (inline on asset cards) ───────────────────────────────────────
+// ─── P&L badge ────────────────────────────────────────────────────────────────
 function PnlBadge({ asset }: {
   asset: { value: number; current_price: number | null; quantity: number | null; buy_price: number | null }
 }) {
@@ -34,7 +34,7 @@ function PnlBadge({ asset }: {
   )
 }
 
-// ─── Global summary card (grid view only) ────────────────────────────────────
+// ─── Global summary card (grid view only) ──────────────────────────────────
 function SummaryCard({ totalValue, assetCount, loading }: {
   totalValue: number; assetCount: number; loading: boolean
 }) {
@@ -70,7 +70,7 @@ function SummaryCard({ totalValue, assetCount, loading }: {
   )
 }
 
-// ─── Per-group summary card (detail view only) ────────────────────────────────
+// ─── Per-group summary card (data only — no nav inside) ────────────────────────
 type AssetItem = {
   id: string; label: string; category: string; value: number; notes: string | null
   created_at: string; current_price: number | null; quantity: number | null
@@ -78,11 +78,10 @@ type AssetItem = {
 }
 
 function GroupSummaryCard({
-  group, items, onBack,
+  group, items,
 }: {
   group: typeof ASSET_GROUPS[number]
   items: AssetItem[]
-  onBack: () => void
 }) {
   const totalInvested = items.reduce((s, a) => s + a.value, 0)
   const liveItems     = items.filter(a => a.current_price != null && a.quantity != null)
@@ -114,30 +113,7 @@ function GroupSummaryCard({
         pointerEvents: 'none', opacity: 0.6,
       }} />
 
-      {/* Back btn + label row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, position: 'relative', zIndex: 1 }}>
-        <motion.button
-          whileTap={{ scale: 0.88 }}
-          onClick={onBack}
-          style={{
-            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
-            background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </motion.button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ fontSize: 18 }}>{group.emoji}</span>
-          <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: group.text, margin: 0, opacity: 0.85 }}>
-            {group.label}
-          </p>
-        </div>
-      </div>
-
-      {/* Big invested value */}
+      {/* Total Invested */}
       <div style={{ position: 'relative', zIndex: 1, marginBottom: 14 }}>
         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: group.text, opacity: 0.6, margin: '0 0 4px' }}>
           Total Invested
@@ -293,32 +269,68 @@ function GroupDetailView({
       transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
       style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
     >
-      {/* ── Group summary card (has back btn inside) ── */}
-      <GroupSummaryCard group={group} items={items} onBack={onBack} />
-
-      {/* ── Add button ── */}
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={onAddPress}
-        style={{
-          width: '100%', padding: '14px 20px',
-          background: group.color, border: `1px solid ${group.border}`,
-          borderRadius: 16, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          boxShadow: `0 4px 18px ${group.color}`,
-        }}
-      >
-        <span style={{
-          width: 22, height: 22, borderRadius: '50%',
-          background: group.border.replace('0.35', '0.3'),
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+      {/* ── Top nav bar: [ ← ]  emoji + name  [ + ] ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '40px 1fr 40px',
+        alignItems: 'center',
+      }}>
+        {/* Left: back button */}
+        <motion.button
+          whileTap={{ scale: 0.88 }}
+          onClick={onBack}
+          style={{
+            width: 36, height: 36, borderRadius: 12,
+            background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="rgba(255,255,255,0.75)" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
           </svg>
-        </span>
-        <span style={{ fontSize: 15, fontWeight: 800, color: group.text }}>Add {group.label}</span>
-      </motion.button>
+        </motion.button>
+
+        {/* Center: emoji + name */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <span style={{ fontSize: 20 }}>{group.emoji}</span>
+          <p style={{
+            fontSize: 16, fontWeight: 700, color: '#f5f7ff',
+            margin: 0, letterSpacing: '-0.01em',
+          }}>
+            {group.label}
+          </p>
+        </div>
+
+        {/* Right: + icon button */}
+        <motion.button
+          whileTap={{ scale: 0.88 }}
+          onClick={onAddPress}
+          style={{
+            width: 36, height: 36, borderRadius: 12,
+            background: group.color,
+            border: `1px solid ${group.border}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: `0 2px 12px ${group.color}`,
+            marginLeft: 'auto',
+          }}
+          aria-label={`Add ${group.label}`}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke={group.text} strokeWidth="3"
+            strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </motion.button>
+      </div>
+
+      {/* ── Group summary card (pure data, no nav) ── */}
+      <GroupSummaryCard group={group} items={items} />
 
       {/* ── Loading skeletons ── */}
       {loading && (
@@ -344,7 +356,7 @@ function GroupDetailView({
             No {group.label} assets yet
           </p>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.28)' }}>
-            Tap Add {group.label} above to record one
+            Tap + above to add your first {group.label} asset
           </p>
         </motion.div>
       )}
@@ -452,12 +464,6 @@ export function AssetScreen() {
           </div>
         )}
 
-        {/*
-          AnimatePresence now wraps BOTH views completely.
-          Grid view  → shows global SummaryCard + 2×3 grid
-          Detail view → shows group SummaryCard (with back btn) + add btn + list
-          The global SummaryCard is INSIDE the grid branch so it disappears on drill-in.
-        */}
         <AnimatePresence mode="wait">
           {selectedGroup === null ? (
 
@@ -470,9 +476,7 @@ export function AssetScreen() {
               transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
               style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
             >
-              {/* Global summary card — only visible in grid view */}
               <SummaryCard totalValue={totalValue} assetCount={assets.length} loading={loading} />
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {ASSET_GROUPS.map((g, i) => (
                   <motion.div
@@ -495,7 +499,7 @@ export function AssetScreen() {
 
           ) : (
 
-            /* ── Detail view — full clean screen, no global card ── */
+            /* ── Detail view ── */
             activeGroupMeta && (
               <GroupDetailView
                 key={'detail-' + selectedGroup}
