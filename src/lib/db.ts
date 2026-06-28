@@ -156,12 +156,8 @@ export async function deleteTransaction(id: string): Promise<void> {
     const inLeg  = rows.find(r => r.description?.includes('\u2190'))
 
     const balanceOps: Promise<void>[] = []
-    if (outLeg?.wallet_id) {
-      balanceOps.push(adjustWalletBalance(outLeg.wallet_id, outLeg.amount))
-    }
-    if (inLeg?.wallet_id) {
-      balanceOps.push(adjustWalletBalance(inLeg.wallet_id, -inLeg.amount))
-    }
+    if (outLeg?.wallet_id) balanceOps.push(adjustWalletBalance(outLeg.wallet_id, outLeg.amount))
+    if (inLeg?.wallet_id)  balanceOps.push(adjustWalletBalance(inLeg.wallet_id, -inLeg.amount))
     await Promise.all(balanceOps)
 
     const { error: pairDeleteErr } = await supabase
@@ -169,14 +165,6 @@ export async function deleteTransaction(id: string): Promise<void> {
       .delete()
       .eq('transfer_pair_id', pairId)
     if (pairDeleteErr) throw new Error(pairDeleteErr.message)
-
-    const { data: ghost } = await supabase
-      .from('transactions')
-      .select('id')
-      .eq('transfer_pair_id', pairId)
-    if (ghost && ghost.length > 0) {
-      throw new Error('Transfer delete was partially blocked. Please try again.')
-    }
     return
   }
 
@@ -185,37 +173,8 @@ export async function deleteTransaction(id: string): Promise<void> {
     await adjustWalletBalance(typedRow.wallet_id, delta)
   }
 
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from('transactions').delete().eq('id', id)
   if (error) throw new Error(error.message)
-
-  const { data: ghost, error: checkError } = await supabase
-    .from('transactions')
-    .select('id')
-    .eq('id', id)
-    .maybeSingle()
-  if (checkError) throw new Error(checkError.message)
-
-  if (ghost) {
-    const { error: retryError } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', id)
-    if (retryError) throw new Error(retryError.message)
-
-    const { data: stillGhost } = await supabase
-      .from('transactions')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle()
-    if (stillGhost) {
-      throw new Error(
-        'Delete was blocked by database policy. This transaction could not be permanently removed.'
-      )
-    }
-  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -266,76 +225,39 @@ export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
   if (typeof entry.sort_order === 'number') payload.sort_order = entry.sort_order
 
   if (entry.id) {
-    const { data, error } = await supabase
-      .from('wallets')
-      .update(payload)
-      .eq('id', entry.id)
-      .select()
-      .single()
+    const { data, error } = await supabase.from('wallets').update(payload).eq('id', entry.id).select().single()
     if (error) throw new Error(error.message)
     return data as WalletEntry
   }
-
-  const { data, error } = await supabase
-    .from('wallets')
-    .insert(payload)
-    .select()
-    .single()
+  const { data, error } = await supabase.from('wallets').insert(payload).select().single()
   if (error) throw new Error(error.message)
   return data as WalletEntry
 }
 
-export async function adjustWalletBalance(
-  walletId: string,
-  delta: number,
-): Promise<void> {
-  const { data: wallet, error: fetchErr } = await supabase
-    .from('wallets')
-    .select('balance')
-    .eq('id', walletId)
-    .single()
+export async function adjustWalletBalance(walletId: string, delta: number): Promise<void> {
+  const { data: wallet, error: fetchErr } = await supabase.from('wallets').select('balance').eq('id', walletId).single()
   if (fetchErr) throw new Error(fetchErr.message)
   const current = (wallet as { balance: number }).balance
-  const { error } = await supabase
-    .from('wallets')
-    .update({ balance: parseFloat((current + delta).toFixed(2)) })
-    .eq('id', walletId)
+  const { error } = await supabase.from('wallets').update({ balance: parseFloat((current + delta).toFixed(2)) }).eq('id', walletId)
   if (error) throw new Error(error.message)
 }
 
-// Alias used by TransferSheet
-export async function updateWalletBalance(
-  walletId: string,
-  delta: number,
-): Promise<void> {
+export async function updateWalletBalance(walletId: string, delta: number): Promise<void> {
   return adjustWalletBalance(walletId, delta)
 }
 
 export async function deleteWallet(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('wallets')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from('wallets').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
 
-export async function updateWalletSortOrders(
-  items: { id: string; sort_order: number }[],
-): Promise<void> {
-  const updates = items.map(item =>
-    supabase
-      .from('wallets')
-      .update({ sort_order: item.sort_order })
-      .eq('id', item.id)
-  )
-  const results = await Promise.all(updates)
-  for (const { error } of results) {
-    if (error) throw new Error(error.message)
-  }
+export async function updateWalletSortOrders(items: { id: string; sort_order: number }[]): Promise<void> {
+  const results = await Promise.all(items.map(item => supabase.from('wallets').update({ sort_order: item.sort_order }).eq('id', item.id)))
+  for (const { error } of results) { if (error) throw new Error(error.message) }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ASSETS MODULE
+// ASSETS MODULE  (extended with live market columns)
 // ════════════════════════════════════════════════════════════════════════════
 
 export interface AssetEntry {
@@ -346,6 +268,12 @@ export interface AssetEntry {
   owner: 'Isaac' | 'Jenifa' | 'Both'
   notes: string | null
   created_at: string
+  // market columns (nullable — only present on live-tracked assets)
+  ticker:        string | null
+  quantity:      number | null
+  buy_price:     number | null
+  current_price: number | null
+  last_synced:   string | null
 }
 
 export interface NewAsset {
@@ -354,6 +282,10 @@ export interface NewAsset {
   value: number
   owner: 'Isaac' | 'Jenifa' | 'Both'
   notes?: string | null
+  // optional market fields
+  ticker?:    string | null
+  quantity?:  number | null
+  buy_price?: number | null
 }
 
 export async function fetchAssets(): Promise<AssetEntry[]> {
@@ -366,26 +298,24 @@ export async function fetchAssets(): Promise<AssetEntry[]> {
 }
 
 export async function insertAsset(entry: NewAsset): Promise<AssetEntry> {
-  const { data, error } = await supabase
-    .from('assets')
-    .insert({
-      label:    entry.label,
-      category: entry.category,
-      value:    entry.value,
-      owner:    entry.owner,
-      notes:    entry.notes ?? null,
-    })
-    .select()
-    .single()
+  const payload: Record<string, unknown> = {
+    label:    entry.label,
+    category: entry.category,
+    value:    entry.value,
+    owner:    entry.owner,
+    notes:    entry.notes ?? null,
+  }
+  if (entry.ticker   != null) payload.ticker    = entry.ticker
+  if (entry.quantity != null) payload.quantity   = entry.quantity
+  if (entry.buy_price != null) payload.buy_price = entry.buy_price
+
+  const { data, error } = await supabase.from('assets').insert(payload).select().single()
   if (error) throw new Error(error.message)
   return data as AssetEntry
 }
 
 export async function deleteAsset(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('assets')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from('assets').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
 
@@ -419,48 +349,29 @@ export interface NewLoan {
 }
 
 export async function fetchLoans(): Promise<LoanEntry[]> {
-  const { data, error } = await supabase
-    .from('loans')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const { data, error } = await supabase.from('loans').select('*').order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as LoanEntry[]
 }
 
 export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
-  const { data, error } = await supabase
-    .from('loans')
-    .insert({
-      label:         entry.label,
-      principal:     entry.principal,
-      outstanding:   entry.outstanding,
-      emi_amount:    entry.emi_amount    ?? null,
-      interest_rate: entry.interest_rate ?? null,
-      lender:        entry.lender,
-      owner:         'Both',   // hardcoded default — owner field is not user-facing
-      closed:        false,
-      start_date:    entry.start_date    ?? null,
-      end_date:      entry.end_date      ?? null,
-    })
-    .select()
-    .single()
+  const { data, error } = await supabase.from('loans').insert({
+    label: entry.label, principal: entry.principal, outstanding: entry.outstanding,
+    emi_amount: entry.emi_amount ?? null, interest_rate: entry.interest_rate ?? null,
+    lender: entry.lender, owner: 'Both', closed: false,
+    start_date: entry.start_date ?? null, end_date: entry.end_date ?? null,
+  }).select().single()
   if (error) throw new Error(error.message)
   return data as LoanEntry
 }
 
 export async function closeLoan(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('loans')
-    .update({ closed: true, outstanding: 0 })
-    .eq('id', id)
+  const { error } = await supabase.from('loans').update({ closed: true, outstanding: 0 }).eq('id', id)
   if (error) throw new Error(error.message)
 }
 
 export async function deleteLoan(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('loans')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from('loans').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
 
@@ -490,44 +401,26 @@ export interface NewRecurring {
 }
 
 export async function fetchRecurring(): Promise<RecurringEntry[]> {
-  const { data, error } = await supabase
-    .from('recurring_payments')
-    .select('*')
-    .order('created_at', { ascending: false })
+  const { data, error } = await supabase.from('recurring_payments').select('*').order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as RecurringEntry[]
 }
 
 export async function insertRecurring(entry: NewRecurring): Promise<RecurringEntry> {
-  const { data, error } = await supabase
-    .from('recurring_payments')
-    .insert({
-      label:     entry.label,
-      amount:    entry.amount,
-      frequency: entry.frequency,
-      next_due:  entry.next_due ?? null,
-      owner:     entry.owner,
-      active:    true,
-      notes:     entry.notes ?? null,
-    })
-    .select()
-    .single()
+  const { data, error } = await supabase.from('recurring_payments').insert({
+    label: entry.label, amount: entry.amount, frequency: entry.frequency,
+    next_due: entry.next_due ?? null, owner: entry.owner, active: true, notes: entry.notes ?? null,
+  }).select().single()
   if (error) throw new Error(error.message)
   return data as RecurringEntry
 }
 
 export async function toggleRecurring(id: string, active: boolean): Promise<void> {
-  const { error } = await supabase
-    .from('recurring_payments')
-    .update({ active })
-    .eq('id', id)
+  const { error } = await supabase.from('recurring_payments').update({ active }).eq('id', id)
   if (error) throw new Error(error.message)
 }
 
 export async function deleteRecurring(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('recurring_payments')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from('recurring_payments').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }

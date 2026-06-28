@@ -2,13 +2,37 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAssets } from '../../hooks/useAssets'
 import { AssetGroupPicker, ASSET_GROUPS, type AssetGroupId } from '../../components/shared/AssetGroupPicker'
-import { BankAssetSheet } from '../../components/assets/BankAssetSheet'
-import { RealEstateAssetSheet } from '../../components/assets/RealEstateAssetSheet'
-import { AssetComingSoonSheet } from '../../components/assets/AssetComingSoonSheet'
+import { BankAssetSheet }         from '../../components/assets/BankAssetSheet'
+import { RealEstateAssetSheet }   from '../../components/assets/RealEstateAssetSheet'
+import { StockAssetSheet }        from '../../components/assets/StockAssetSheet'
+import { MutualFundAssetSheet }   from '../../components/assets/MutualFundAssetSheet'
+import { CryptoAssetSheet }       from '../../components/assets/CryptoAssetSheet'
+import { PreciousMetalAssetSheet } from '../../components/assets/PreciousMetalAssetSheet'
 import { formatINR, formatShortDate } from '../../utils/format'
 
-// Add group IDs here as each dedicated sheet is built
-const FULL_SHEET_GROUPS: AssetGroupId[] = ['Bank', 'Real Estate']
+// All 6 groups now have dedicated sheets — no more "Coming Soon"
+const FULL_SHEET_GROUPS: AssetGroupId[] = ['Bank', 'Real Estate', 'Stock', 'Mutual Fund', 'Crypto', 'Precious Metal']
+
+function PnlBadge({ asset }: { asset: { value: number; current_price: number | null; quantity: number | null; buy_price: number | null } }) {
+  if (!asset.current_price || !asset.quantity || !asset.buy_price) return null
+  const currentVal = asset.current_price * asset.quantity
+  const investedVal = asset.buy_price * asset.quantity
+  const diff = currentVal - investedVal
+  const pct  = investedVal > 0 ? (diff / investedVal) * 100 : 0
+  if (Math.abs(diff) < 0.01) return null
+  const gain = diff > 0
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 100,
+      background: gain ? 'rgba(52,211,153,0.15)' : 'rgba(248,113,113,0.15)',
+      color:      gain ? '#34d399'               : '#f87171',
+      border:     `1px solid ${gain ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
+      whiteSpace: 'nowrap' as const,
+    }}>
+      {gain ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+    </span>
+  )
+}
 
 export function AssetScreen() {
   const { assets, loading, error, add, remove, totalValue } = useAssets()
@@ -17,9 +41,12 @@ export function AssetScreen() {
   const [activeGroup, setActiveGroup] = useState<AssetGroupId | undefined>(undefined)
   const [working,     setWorking]     = useState<string | null>(null)
 
-  const bankSheetOpen        = activeGroup === 'Bank'
-  const realEstateSheetOpen  = activeGroup === 'Real Estate'
-  const comingSoonSheetOpen  = !!activeGroup && !FULL_SHEET_GROUPS.includes(activeGroup)
+  const bankSheetOpen    = activeGroup === 'Bank'
+  const realEstateOpen   = activeGroup === 'Real Estate'
+  const stockOpen        = activeGroup === 'Stock'
+  const mutualFundOpen   = activeGroup === 'Mutual Fund'
+  const cryptoOpen       = activeGroup === 'Crypto'
+  const preciousMetalOpen = activeGroup === 'Precious Metal'
 
   const handleGroupSelect = (group: AssetGroupId) => setActiveGroup(group)
   const closeAll = () => setActiveGroup(undefined)
@@ -50,7 +77,6 @@ export function AssetScreen() {
         transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
         style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
       >
-
         {/* ── Summary Card ── */}
         <div style={{
           borderRadius: 24, padding: '22px 24px',
@@ -83,44 +109,29 @@ export function AssetScreen() {
 
         {/* ── Add Button ── */}
         <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={() => setPickerOpen(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '11px 20px 11px 12px', borderRadius: 100,
-              background: 'linear-gradient(135deg, #34d399, #059669)',
-              border: 'none', cursor: 'pointer',
-              boxShadow: '0 4px 18px rgba(52,211,153,0.40)',
-              color: '#0a0a0a', fontSize: 14, fontWeight: 700,
-            }}
+          <motion.button whileTap={{ scale: 0.88 }} onClick={() => setPickerOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px 11px 12px', borderRadius: 100, background: 'linear-gradient(135deg,#34d399,#059669)', border: 'none', cursor: 'pointer', boxShadow: '0 4px 18px rgba(52,211,153,0.40)', color: '#0a0a0a', fontSize: 14, fontWeight: 700 }}
             aria-label="Add asset"
           >
             <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(0,0,0,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </span>
             Add Asset
           </motion.button>
         </div>
 
-        {/* ── Loading ── */}
         {loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1,2,3].map(i => <div key={i} style={{ height: 80, borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }} />)}
           </div>
         )}
 
-        {/* ── Error ── */}
         {error && (
           <div style={{ padding: 16, borderRadius: 16, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 14 }}>{error}</div>
         )}
 
-        {/* ── Empty State ── */}
         {!loading && !error && assets.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
             style={{ textAlign: 'center', padding: '52px 20px', borderRadius: 24, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}
           >
             <p style={{ fontSize: 40, marginBottom: 14 }}>💎</p>
@@ -129,13 +140,11 @@ export function AssetScreen() {
           </motion.div>
         )}
 
-        {/* ── Grouped Asset List ── */}
         {!loading && !error && groupedAssets.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
             <AnimatePresence initial={false}>
               {groupedAssets.map(({ group, items }) => (
-                <motion.div
-                  key={group.id}
+                <motion.div key={group.id}
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
                   transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
                 >
@@ -150,29 +159,29 @@ export function AssetScreen() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {items.map(asset => (
-                      <motion.div
-                        key={asset.id} layout
+                      <motion.div key={asset.id} layout
                         initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -30, scale: 0.95 }}
                         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 14,
-                          padding: '14px 16px', borderRadius: 18,
-                          background: group.color,
-                          border: `1px solid ${group.border.replace('0.35', '0.18')}`,
-                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 18, background: group.color, border: `1px solid ${group.border.replace('0.35', '0.18')}` }}
                       >
                         <span style={{ fontSize: 22, flexShrink: 0 }}>{group.emoji}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.label}</p>
-                          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
-                            {formatShortDate(asset.created_at)}{asset.notes ? ` · ${asset.notes}` : ''}
-                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
+                              {formatShortDate(asset.created_at)}{asset.notes ? ` · ${asset.notes}` : ''}
+                            </p>
+                            <PnlBadge asset={asset} />
+                          </div>
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <p style={{ fontSize: 15, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums', margin: '0 0 4px' }}>{formatINR(asset.value)}</p>
-                          <button
-                            onClick={() => handleDelete(asset.id)}
-                            disabled={working === asset.id}
+                          <p style={{ fontSize: 15, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums', margin: '0 0 2px' }}>{formatINR(asset.value)}</p>
+                          {asset.current_price && asset.last_synced && (
+                            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', margin: '0 0 3px', fontVariantNumeric: 'tabular-nums' }}>
+                              Live: {formatINR(asset.current_price * (asset.quantity ?? 1))}
+                            </p>
+                          )}
+                          <button onClick={() => handleDelete(asset.id)} disabled={working === asset.id}
                             style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
                           >{working === asset.id ? '…' : 'delete'}</button>
                         </div>
@@ -207,25 +216,18 @@ export function AssetScreen() {
             )}
           </div>
         )}
-
       </motion.div>
 
-      {/* ── Group Picker ── */}
-      <AssetGroupPicker
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
+      {/* ── Sheets ── */}
+      <AssetGroupPicker open={pickerOpen} onClose={() => setPickerOpen(false)}
         onSelect={(group) => { setPickerOpen(false); handleGroupSelect(group) }}
       />
-
-      {/* ── Bank Sheet ── */}
-      <BankAssetSheet open={bankSheetOpen} onClose={closeAll} onSave={add} />
-
-      {/* ── Real Estate Sheet ── */}
-      <RealEstateAssetSheet open={realEstateSheetOpen} onClose={closeAll} onSave={add} />
-
-      {/* ── Coming Soon (Stock, Fund, Crypto, Precious Metal) ── */}
-      <AssetComingSoonSheet open={comingSoonSheetOpen} onClose={closeAll} groupId={activeGroup} />
-
+      <BankAssetSheet          open={bankSheetOpen}     onClose={closeAll} onSave={add} />
+      <RealEstateAssetSheet    open={realEstateOpen}    onClose={closeAll} onSave={add} />
+      <StockAssetSheet         open={stockOpen}         onClose={closeAll} onSave={add} />
+      <MutualFundAssetSheet    open={mutualFundOpen}    onClose={closeAll} onSave={add} />
+      <CryptoAssetSheet        open={cryptoOpen}        onClose={closeAll} onSave={add} />
+      <PreciousMetalAssetSheet open={preciousMetalOpen} onClose={closeAll} onSave={add} />
     </div>
   )
 }
