@@ -400,10 +400,11 @@ export interface LoanEntry {
   outstanding: number
   emi_amount: number | null
   interest_rate: number | null
-  owner: 'Isaac' | 'Jenifa' | 'Both'
   lender: string
   closed: boolean
   created_at: string
+  start_date: string | null
+  end_date: string | null
 }
 
 export interface NewLoan {
@@ -412,8 +413,9 @@ export interface NewLoan {
   outstanding: number
   emi_amount?: number | null
   interest_rate?: number | null
-  owner: 'Isaac' | 'Jenifa' | 'Both'
   lender: string
+  start_date?: string | null
+  end_date?: string | null
 }
 
 export async function fetchLoans(): Promise<LoanEntry[]> {
@@ -434,9 +436,10 @@ export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
       outstanding:   entry.outstanding,
       emi_amount:    entry.emi_amount    ?? null,
       interest_rate: entry.interest_rate ?? null,
-      owner:         entry.owner,
       lender:        entry.lender,
       closed:        false,
+      start_date:    entry.start_date    ?? null,
+      end_date:      entry.end_date      ?? null,
     })
     .select()
     .single()
