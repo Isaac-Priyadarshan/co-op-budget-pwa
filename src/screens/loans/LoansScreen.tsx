@@ -2,7 +2,13 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useLoans } from '../../hooks/useLoans'
 import { LoanSheet } from '../../components/shared/LoanSheet'
-import { formatINR, formatShortDate } from '../../utils/format'
+import { formatINR } from '../../utils/format'
+
+function formatShortDate(iso: string) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
+}
 
 export function LoansScreen() {
   const { loans, loading, error, add, close, remove, totalOutstanding, totalEMI } = useLoans()
@@ -15,113 +21,305 @@ export function LoansScreen() {
   )
 
   const handleClose = async (id: string) => {
-    setWorking(id); try { await close(id) } catch (e) { console.error(e) } finally { setWorking(null) }
+    setWorking(id)
+    try { await close(id) } catch (e) { console.error(e) } finally { setWorking(null) }
   }
   const handleDelete = async (id: string) => {
-    setWorking(id); try { await remove(id) } catch (e) { console.error(e) } finally { setWorking(null) }
+    setWorking(id)
+    try { await remove(id) } catch (e) { console.error(e) } finally { setWorking(null) }
   }
 
   return (
-    <div style={{ padding: '24px 20px 32px', minHeight: '100%' }}>
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
+    <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', padding: '20px 20px 32px', gap: 18 }}>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
+      >
 
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div>
-            <p style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(253,211,77,0.7)', marginBottom: 4 }}>EMIs & Debt</p>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: '#f5f7ff', letterSpacing: '-0.02em' }}>Loans</h1>
+        {/* ── Summary Card ── */}
+        <div style={{
+          borderRadius: 24,
+          padding: '22px 24px',
+          background: 'linear-gradient(135deg, rgba(251,191,36,0.10) 0%, rgba(239,68,68,0.08) 100%)',
+          border: '1px solid rgba(251,191,36,0.22)',
+          boxShadow: '0 4px 32px rgba(251,191,36,0.10), 0 1px 0 rgba(255,255,255,0.04) inset',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex',
+          alignItems: 'stretch',
+          gap: 0,
+        }}>
+          {/* Total Outstanding */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <p style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: 'rgba(252,165,165,0.7)', margin: 0,
+            }}>Total Outstanding</p>
+            <motion.p
+              key={totalOutstanding}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+              style={{
+                fontSize: 22, fontWeight: 800, color: '#fca5a5',
+                fontVariantNumeric: 'tabular-nums', margin: 0,
+                textShadow: '0 0 20px rgba(248,113,113,0.5)',
+              }}
+            >{formatINR(totalOutstanding)}</motion.p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: 0 }}>
+              {loans.filter(l => !l.closed).length} active loan{loans.filter(l => !l.closed).length !== 1 ? 's' : ''}
+            </p>
           </div>
-          <motion.button whileTap={{ scale: 0.93 }} onClick={() => setSheetOpen(true)}
-            style={{ padding: '10px 18px', background: 'linear-gradient(135deg,#f59e0b,#d97706)', border: 'none', borderRadius: 14, color: '#0a0a0a', fontSize: 14, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(251,191,36,0.4)' }}
-          >+ Add</motion.button>
+
+          {/* Divider */}
+          <div style={{
+            width: 1, background: 'rgba(255,255,255,0.08)',
+            margin: '0 20px', alignSelf: 'stretch', flexShrink: 0,
+          }} />
+
+          {/* Monthly EMI */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <p style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: 'rgba(251,191,36,0.7)', margin: 0,
+            }}>Monthly EMI</p>
+            <motion.p
+              key={totalEMI}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}
+              style={{
+                fontSize: 22, fontWeight: 800, color: '#fcd34d',
+                fontVariantNumeric: 'tabular-nums', margin: 0,
+                textShadow: '0 0 20px rgba(251,191,36,0.5)',
+              }}
+            >{formatINR(totalEMI)}</motion.p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: 0 }}>per month</p>
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-          {[
-            { label: 'Total Outstanding', value: totalOutstanding, color: '#fca5a5', bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.22)' },
-            { label: 'Monthly EMIs', value: totalEMI, color: '#fcd34d', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.22)' },
-          ].map(s => (
-            <div key={s.label} style={{ borderRadius: 20, padding: '18px 16px', background: s.bg, border: `1px solid ${s.border}` }}>
-              <p style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>{s.label}</p>
-              <p style={{ fontSize: 18, fontWeight: 700, color: s.color, fontVariantNumeric: 'tabular-nums' }}>{formatINR(s.value)}</p>
-            </div>
-          ))}
+        {/* ── Action Bar: + button + filter pills ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Add button */}
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={() => setSheetOpen(true)}
+            style={{
+              width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+              background: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 16px rgba(251,191,36,0.45)',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </motion.button>
+
+          {/* Filter pills */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['active', 'closed', 'all'] as const).map(f => (
+              <motion.button
+                key={f}
+                whileTap={{ scale: 0.93 }}
+                onClick={() => setFilter(f)}
+                style={{
+                  padding: '8px 16px', borderRadius: 100,
+                  border: filter === f ? '1px solid rgba(251,191,36,0.55)' : '1px solid rgba(255,255,255,0.09)',
+                  background: filter === f ? 'rgba(251,191,36,0.16)' : 'rgba(255,255,255,0.04)',
+                  color: filter === f ? '#fcd34d' : 'rgba(255,255,255,0.4)',
+                  fontSize: 13, fontWeight: filter === f ? 700 : 400,
+                  cursor: 'pointer', textTransform: 'capitalize',
+                  transition: 'all 0.14s ease',
+                }}
+              >{f}</motion.button>
+            ))}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {(['active', 'closed', 'all'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              style={{ padding: '7px 16px', borderRadius: 100, border: filter === f ? '1px solid rgba(251,191,36,0.5)' : '1px solid rgba(255,255,255,0.08)', background: filter === f ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', color: filter === f ? '#fcd34d' : 'rgba(255,255,255,0.45)', fontSize: 13, fontWeight: filter === f ? 600 : 400, cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.14s ease' }}
-            >{f}</button>
-          ))}
-        </div>
+        {/* ── Loan List ── */}
+        {loading && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{
+                height: 120, borderRadius: 20,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+              }} />
+            ))}
+          </div>
+        )}
 
-        {loading && <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{[1,2].map(i => <div key={i} style={{ height: 110, borderRadius: 18, background: 'rgba(255,255,255,0.05)' }} />)}</div>}
-        {error && <div style={{ padding: 16, borderRadius: 16, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 14 }}>{error}</div>}
+        {error && (
+          <div style={{
+            padding: 16, borderRadius: 16,
+            background: 'rgba(248,113,113,0.1)',
+            color: '#fca5a5', fontSize: 14,
+          }}>{error}</div>
+        )}
 
         {!loading && !error && filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '48px 20px', borderRadius: 20, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <p style={{ fontSize: 36, marginBottom: 12 }}>🏦</p>
-            <p style={{ fontSize: 15, fontWeight: 500, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>{filter === 'active' ? 'No active loans!' : 'Nothing here'}</p>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>Tap + Add to track a loan or EMI</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+            style={{
+              textAlign: 'center', padding: '52px 20px',
+              borderRadius: 24,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <p style={{ fontSize: 40, marginBottom: 14 }}>🏦</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>
+              {filter === 'active' ? 'No active loans' : filter === 'closed' ? 'No closed loans' : 'No loans yet'}
+            </p>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.28)' }}>Tap ＋ above to add a loan or EMI</p>
+          </motion.div>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <AnimatePresence initial={false}>
             {filtered.map(loan => {
-              const paidPct = loan.principal > 0 ? Math.min(Math.round(((loan.principal - loan.outstanding) / loan.principal) * 100), 100) : 0
+              const paidPct = loan.principal > 0
+                ? Math.min(Math.round(((loan.principal - loan.outstanding) / loan.principal) * 100), 100)
+                : 0
+
               return (
-                <motion.div key={loan.id} layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -40, scale: 0.95 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ borderRadius: 20, padding: '18px', background: loan.closed ? 'rgba(255,255,255,0.02)' : 'rgba(251,191,36,0.07)', border: loan.closed ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(251,191,36,0.2)' }}
+                <motion.div
+                  key={loan.id}
+                  layout
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: -40, scale: 0.95 }}
+                  transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+                  style={{
+                    borderRadius: 22,
+                    padding: '18px 18px 14px',
+                    background: loan.closed
+                      ? 'rgba(255,255,255,0.02)'
+                      : 'rgba(251,191,36,0.06)',
+                    border: loan.closed
+                      ? '1px solid rgba(255,255,255,0.07)'
+                      : '1px solid rgba(251,191,36,0.20)',
+                    boxShadow: loan.closed ? 'none' : '0 2px 16px rgba(251,191,36,0.07)',
+                  }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                  {/* Row 1: label + outstanding */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <p style={{ fontSize: 15, fontWeight: 700, color: loan.closed ? 'rgba(255,255,255,0.4)' : '#f5f7ff', textDecoration: loan.closed ? 'line-through' : 'none' }}>{loan.label}</p>
-                        {loan.closed && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 100, background: 'rgba(110,231,183,0.15)', color: '#6ee7b7', fontWeight: 600 }}>CLOSED</span>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <p style={{
+                          fontSize: 15, fontWeight: 700, margin: 0,
+                          color: loan.closed ? 'rgba(255,255,255,0.38)' : '#f5f7ff',
+                          textDecoration: loan.closed ? 'line-through' : 'none',
+                        }}>{loan.label}</p>
+                        {loan.closed && (
+                          <span style={{
+                            fontSize: 10, padding: '2px 8px', borderRadius: 100,
+                            background: 'rgba(110,231,183,0.15)', color: '#6ee7b7', fontWeight: 700,
+                          }}>CLOSED</span>
+                        )}
                       </div>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
-                        {loan.lender} · {loan.owner} · {formatShortDate(loan.created_at)}
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
+                        {loan.lender}
                         {(loan.interest_rate ?? 0) > 0 ? ` · ${loan.interest_rate}% p.a.` : ''}
+                        {loan.created_at ? ` · since ${formatShortDate(loan.created_at)}` : ''}
                       </p>
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 2 }}>Outstanding</p>
-                      <p style={{ fontSize: 17, fontWeight: 700, color: loan.closed ? 'rgba(255,255,255,0.3)' : '#fca5a5', fontVariantNumeric: 'tabular-nums' }}>{formatINR(loan.outstanding)}</p>
+                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 14 }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: '0 0 2px' }}>Outstanding</p>
+                      <p style={{
+                        fontSize: 18, fontWeight: 800, margin: 0,
+                        color: loan.closed ? 'rgba(255,255,255,0.25)' : '#fca5a5',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}>{formatINR(loan.outstanding)}</p>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
-                    <span>Principal: <span style={{ color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>{formatINR(loan.principal)}</span></span>
-                    <span>EMI: <span style={{ color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>{formatINR(loan.emi_amount ?? 0)}/mo</span></span>
+                  {/* Row 2: principal + EMI */}
+                  <div style={{
+                    display: 'flex', justifyContent: 'space-between',
+                    fontSize: 12, color: 'rgba(255,255,255,0.38)',
+                    marginBottom: loan.closed ? 10 : 14,
+                  }}>
+                    <span>
+                      Principal:&nbsp;
+                      <span style={{ color: 'rgba(255,255,255,0.6)', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatINR(loan.principal)}
+                      </span>
+                    </span>
+                    <span>
+                      EMI:&nbsp;
+                      <span style={{ color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>
+                        {formatINR(loan.emi_amount ?? 0)}/mo
+                      </span>
+                    </span>
                   </div>
 
+                  {/* Progress bar — active loans only */}
                   {!loan.closed && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ height: 5, borderRadius: 100, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                        <motion.div initial={{ width: 0 }} animate={{ width: `${paidPct}%` }} transition={{ delay: 0.3, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                          style={{ height: '100%', background: 'linear-gradient(90deg,#6ee7b7,#34d399)', borderRadius: 100 }} />
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{
+                        height: 7, borderRadius: 100,
+                        background: 'rgba(255,255,255,0.09)',
+                        overflow: 'hidden',
+                      }}>
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${paidPct}%` }}
+                          transition={{ delay: 0.3, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                          style={{
+                            height: '100%',
+                            background: 'linear-gradient(90deg, #6ee7b7, #34d399)',
+                            borderRadius: 100,
+                            boxShadow: '0 0 8px rgba(52,211,153,0.5)',
+                          }}
+                        />
                       </div>
-                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>{paidPct}% repaid</p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 5 }}>
+                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0 }}>
+                          {paidPct}% repaid
+                        </p>
+                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0 }}>
+                          {formatINR(loan.outstanding)} left
+                        </p>
+                      </div>
                     </div>
                   )}
 
+                  {/* Actions */}
                   <div style={{ display: 'flex', gap: 8 }}>
                     {!loan.closed && (
-                      <button onClick={() => handleClose(loan.id)} disabled={working === loan.id}
-                        style={{ flex: 1, padding: '9px', borderRadius: 12, background: 'rgba(110,231,183,0.12)', border: '1px solid rgba(110,231,183,0.25)', color: '#6ee7b7', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-                      >{working === loan.id ? '…' : '✓ Mark Closed'}</button>
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => handleClose(loan.id)}
+                        disabled={working === loan.id}
+                        style={{
+                          flex: 1, padding: '10px', borderRadius: 13,
+                          background: 'rgba(110,231,183,0.10)',
+                          border: '1px solid rgba(110,231,183,0.28)',
+                          color: '#6ee7b7', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        }}
+                      >{working === loan.id ? '…' : '✓ Mark Closed'}</motion.button>
                     )}
-                    <button onClick={() => handleDelete(loan.id)} disabled={working === loan.id}
-                      style={{ padding: '9px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.3)', fontSize: 13, cursor: 'pointer' }}
-                    >Delete</button>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleDelete(loan.id)}
+                      disabled={working === loan.id}
+                      style={{
+                        padding: '10px 16px', borderRadius: 13,
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.18)',
+                        color: 'rgba(252,165,165,0.6)', fontSize: 13, cursor: 'pointer',
+                      }}
+                    >Delete</motion.button>
                   </div>
                 </motion.div>
               )
             })}
           </AnimatePresence>
         </div>
+
       </motion.div>
+
       <LoanSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={add} />
     </div>
   )
