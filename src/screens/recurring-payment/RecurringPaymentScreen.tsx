@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecurring } from '../../hooks/useRecurring'
 import type { RecurringEntry } from '../../lib/db'
-import RecurringSheet from '../../components/shared/RecurringSheet'
+import { RecurringSheet } from '../../components/shared/RecurringSheet'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -28,17 +28,16 @@ function formatNextDue(dateStr: string | null): string {
 type Filter = 'active' | 'past' | 'all'
 
 // ─── component ────────────────────────────────────────────────────────────────
-export default function RecurringPaymentScreen() {
-  // hook returns: items, loading, error, add, toggle, remove, totalMonthly, refresh
+export function RecurringPaymentScreen() {
   const { items, loading, toggle, remove, totalMonthly, refresh } = useRecurring()
 
-  const [filter, setFilter]     = useState<Filter>('active')
+  const [filter, setFilter]       = useState<Filter>('active')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // ── derived stats ──────────────────────────────────────────────────────────
-  const activeList   = useMemo(() => items.filter((r: RecurringEntry) => r.active),  [items])
+  // ── derived stats
+  const activeList   = useMemo(() => items.filter((r: RecurringEntry) =>  r.active), [items])
   const inactiveList = useMemo(() => items.filter((r: RecurringEntry) => !r.active), [items])
 
   const displayed = useMemo<RecurringEntry[]>(() => {
@@ -47,7 +46,7 @@ export default function RecurringPaymentScreen() {
     return items
   }, [filter, activeList, inactiveList, items])
 
-  // ── actions ────────────────────────────────────────────────────────────────
+  // ── actions
   async function handleToggle(id: string, current: boolean) {
     setTogglingId(id)
     try   { await toggle(id, !current) }
@@ -62,12 +61,11 @@ export default function RecurringPaymentScreen() {
     finally   { setDeletingId(null) }
   }
 
-  // ── render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-black overflow-hidden">
       <div className="flex-1 overflow-y-auto overscroll-none px-4 pt-5 pb-6 space-y-4">
 
-        {/* ── SUMMARY CARD ── */}
+        {/* SUMMARY CARD */}
         <motion.div
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -87,9 +85,7 @@ export default function RecurringPaymentScreen() {
               {fmt(Math.round(totalMonthly))}
             </p>
           )}
-
           <div className="h-px bg-white/10 mb-3" />
-
           <div className="flex items-center">
             <div className="flex-1 text-center">
               <p className="text-2xl font-semibold text-emerald-400 tabular-nums">
@@ -107,7 +103,7 @@ export default function RecurringPaymentScreen() {
           </div>
         </motion.div>
 
-        {/* ── ACTION BAR ── */}
+        {/* ACTION BAR */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -146,7 +142,7 @@ export default function RecurringPaymentScreen() {
           </div>
         </motion.div>
 
-        {/* ── LIST ── */}
+        {/* LIST */}
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map(i => (
@@ -215,9 +211,7 @@ export default function RecurringPaymentScreen() {
                       <p className={`text-lg font-bold tabular-nums ${item.active ? 'text-emerald-400' : 'text-white/30'}`}>
                         {fmt(item.amount)}
                       </p>
-
                       <div className="flex items-center gap-2">
-                        {/* Pause / Resume */}
                         <button
                           onClick={() => handleToggle(item.id, item.active)}
                           disabled={togglingId === item.id}
@@ -242,7 +236,6 @@ export default function RecurringPaymentScreen() {
                           )}
                         </button>
 
-                        {/* Delete */}
                         <button
                           onClick={() => handleDelete(item.id)}
                           disabled={deletingId === item.id}
@@ -272,7 +265,6 @@ export default function RecurringPaymentScreen() {
         )}
       </div>
 
-      {/* ── ADD SHEET ── */}
       <RecurringSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
@@ -281,3 +273,5 @@ export default function RecurringPaymentScreen() {
     </div>
   )
 }
+
+export default RecurringPaymentScreen
