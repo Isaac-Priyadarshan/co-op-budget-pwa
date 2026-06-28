@@ -11,6 +11,10 @@ export const ASSET_GROUPS = [
 
 export type AssetGroupId = typeof ASSET_GROUPS[number]['id']
 
+// Exact height of BottomNav (two rows: screen tabs ~52px + group pills ~40px + borders)
+// Using CSS calc so it adapts if safe-area changes, but never obscures nav.
+const NAV_BAR_HEIGHT = 96
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -22,42 +26,55 @@ export function AssetGroupPicker({ open, onClose, onSelect }: Props) {
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — covers everything including behind the nav bar */}
           <motion.div
             key="agp-bd"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.72)',
+              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+              zIndex: 40,
+            }}
           />
 
-          {/* Sheet */}
+          {/* Sheet — sits ABOVE the bottom nav bar */}
           <motion.div
             key="agp-sh"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+              position: 'fixed',
+              // Float above the nav bar so nothing is hidden underneath it
+              bottom: NAV_BAR_HEIGHT,
+              left: 0,
+              right: 0,
+              zIndex: 50,
               background: 'linear-gradient(180deg,#0d0d0d 0%,#080808 100%)',
-              border: '1px solid rgba(110,231,183,0.18)', borderBottom: 'none',
-              borderRadius: '28px 28px 0 0',
-              /* flex column so header stays pinned and grid scrolls */
-              display: 'flex', flexDirection: 'column',
-              maxHeight: '88dvh',
+              border: '1px solid rgba(110,231,183,0.18)',
+              borderBottom: '1px solid rgba(110,231,183,0.10)',
+              borderRadius: '28px 28px 20px 20px',
+              // Flex column so header stays pinned and grid scrolls if needed
+              display: 'flex',
+              flexDirection: 'column',
+              // Max height = viewport minus nav bar minus a comfortable top gap
+              maxHeight: `calc(88dvh - ${NAV_BAR_HEIGHT}px)`,
               padding: '0 20px',
-              paddingBottom: 'calc(env(safe-area-inset-bottom) + 36px)',
+              paddingBottom: 20,
             }}
           >
-            {/* Handle */}
+            {/* Drag handle */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
               <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
             </div>
 
             <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', marginBottom: 6, flexShrink: 0 }}>Add Asset</p>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.02em', marginBottom: 22, flexShrink: 0 }}>Choose a group</h2>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.02em', marginBottom: 18, flexShrink: 0 }}>Choose a group</h2>
 
             {/* Scrollable 2-column grid — all 6 tiles always reachable */}
-            <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingBottom: 4 }}>
                 {ASSET_GROUPS.map((g, i) => (
                   <motion.button
                     key={g.id}
