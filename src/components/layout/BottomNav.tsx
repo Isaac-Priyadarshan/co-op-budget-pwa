@@ -8,26 +8,26 @@ interface BottomNavProps {
 }
 
 const ICONS: Record<string, string> = {
-  wallet: '💰',
-  home: '🏠',
-  'book-open': '📖',
+  wallet:            '💰',
+  home:              '🏠',
+  'book-open':       '📖',
   'arrow-down-left': '⬇️',
-  'credit-card': '💳',
-  'arrow-up-right': '⬆️',
-  landmark: '🏦',
-  'pie-chart': '📊',
-  briefcase: '💼',
-  repeat: '🔄',
-  'bar-chart-2': '📈',
-  settings: '⚙️',
+  'credit-card':     '💳',
+  'arrow-up-right':  '⬆️',
+  landmark:          '🏦',
+  'pie-chart':       '📊',
+  briefcase:         '💼',
+  repeat:            '🔄',
+  'bar-chart-2':     '📈',
+  settings:          '⚙️',
 }
 
 // Default screen to land on when each group tab is tapped
 const GROUP_DEFAULTS: ScreenId[] = [
   'home',             // Finance
   'wallet-credit',    // Tracking
-  'account-overview', // Asset
-  'overview',         // More
+  'account-overview', // Assets
+  'asset',            // More  ← was recurring-payment, now asset
 ]
 
 export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
