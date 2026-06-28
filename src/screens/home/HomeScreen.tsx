@@ -43,24 +43,13 @@ function DragHandle() {
   return (
     <div
       style={{
-        width: 32,
-        height: 32,
-        borderRadius: '50%',
-        background: 'rgba(251,191,36,0.10)',
-        border: '1px solid rgba(251,191,36,0.22)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#FBBF24',
-        fontSize: 15,
-        cursor: 'grab',
-        flexShrink: 0,
+        width: 32, height: 32, borderRadius: '50%',
+        background: 'rgba(251,191,36,0.10)', border: '1px solid rgba(251,191,36,0.22)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#FBBF24', fontSize: 15, cursor: 'grab', flexShrink: 0,
       }}
-      aria-hidden="true"
-      title="Drag to reorder"
-    >
-      ≡
-    </div>
+      aria-hidden="true" title="Drag to reorder"
+    >≡</div>
   )
 }
 
@@ -630,16 +619,32 @@ export function HomeScreen() {
 
   const { transactions, loading: txLoading } = useTransactions()
 
+  // Filter by transaction_date (the date the user set), not created_at (server insert time)
   const monthTxs = useMemo(() => transactions.filter(tx => {
     if (isExcluded(tx)) return false
-    const d = new Date(tx.created_at)
-    return d.getFullYear() === year && d.getMonth() === month
+    // transaction_date is stored as YYYY-MM-DD string
+    const raw = tx.transaction_date as string | null | undefined
+    if (!raw) {
+      // Fallback to created_at for very old rows that pre-date transaction_date
+      const d = new Date(tx.created_at)
+      return d.getFullYear() === year && d.getMonth() === month
+    }
+    const [y, m] = raw.split('-').map(Number)
+    return y === year && m - 1 === month
   }), [transactions, year, month])
 
+  // Match by category_id (UUID) — reliable. Falls back to label match for legacy rows.
   const calcAmounts = (cats: Category[], type: 'expense' | 'income') =>
     cats.reduce((map, cat) => {
       const total = monthTxs
-        .filter(t => t.type === type && (t.category ?? '').toLowerCase().includes(cat.label.toLowerCase()))
+        .filter(t => {
+          if (t.type !== type) return false
+          // Primary: match by category_id UUID (new rows)
+          const txCatId = (t as Record<string, unknown>).category_id as string | null | undefined
+          if (txCatId) return txCatId === cat.id
+          // Fallback: label match for old rows that don't have category_id yet
+          return (t.category ?? '').toLowerCase() === cat.label.toLowerCase()
+        })
         .reduce((s, t) => s + t.amount, 0)
       return { ...map, [cat.id]: total }
     }, {} as Record<string, number>)

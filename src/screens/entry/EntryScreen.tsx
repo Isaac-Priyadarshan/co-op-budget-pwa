@@ -16,7 +16,6 @@ const KEY_ROWS = [
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 // Format a Date to YYYY-MM-DD without timezone drift.
-// Supabase transactions.transaction_date is a DATE column — never send a full ISO timestamp.
 function toDateString(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -54,7 +53,7 @@ export function EntryScreen() {
 
   const noteInputRef = useRef<HTMLInputElement>(null)
 
-  // ── Auto-select active user's default wallet on mount ──────────────────────────
+  // Auto-select active user's default wallet on mount
   useEffect(() => {
     if (!activeUser || walletsLoading || wallets.length === 0) return
     if (walletId !== null) return
@@ -152,22 +151,20 @@ export function EntryScreen() {
     if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
     setSaving(true); setErrMsg(null)
 
-    // subLabel is the selected subcategory name (e.g. "VEEG", "Fuel")
-    // We save it as the `category` field so BudgetScreen can match spending per subcategory.
-    // When no subcategory exists, we fall back to the parent category label.
-    const subLabel     = subs.find(s => s.id === selectedSub)?.label ?? ''
-    const categoryKey  = subLabel || category.label   // ← THE FIX: subcategory name as category
-    const descParts    = [subLabel, note].filter(Boolean)
+    // subLabel is used only for the human-readable description.
+    // category_id (UUID) is now saved for reliable matching in HomeScreen / BudgetScreen.
+    const subLabel    = subs.find(s => s.id === selectedSub)?.label ?? ''
+    const descParts   = [subLabel, note].filter(Boolean)
 
     try {
       await addTransaction({
         amount:           amountValue,
         description:      descParts.join(' · ') || category.label,
-        category:         categoryKey,               // subcategory label (or parent if no sub)
+        category:         category.label,        // parent category label (for display)
+        category_id:      category.id,           // ← NEW: UUID for reliable matching
         created_by:       activeUser,
         type:             (type as 'income' | 'expense') ?? 'expense',
         wallet_id:        walletId ?? undefined,
-        // Send clean YYYY-MM-DD — DATE column in Supabase rejects ISO timestamps
         transaction_date: toDateString(txDate),
       })
       setSaving(false); setSuccess(true)
@@ -178,11 +175,11 @@ export function EntryScreen() {
     }
   }, [canConfirm, category, activeUser, selectedSub, note, subs, addTransaction, amountValue, type, navigate, txDate, walletId])
 
-  // ── derived values for summary line
+  // derived values for summary line
   const selectedSubLabel = subs.find(s => s.id === selectedSub)?.label ?? null
   const showSummary      = selectedSubLabel !== null || walletLabel !== ''
 
-  // ── TRAY CONTENT ───────────────────────────────────────────────────────────────────────────────
+  // TRAY CONTENT
   const renderTrayContent = () => {
     if (activePanel === 'note') return (
       <div style={{
@@ -278,7 +275,7 @@ export function EntryScreen() {
     return null
   }
 
-  // ── NOT FOUND ─────────────────────────────────────────────────────────────────────────────────
+  // NOT FOUND
   if (!category) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100dvh', gap: 12 }}>
@@ -291,7 +288,6 @@ export function EntryScreen() {
     )
   }
 
-  // ── MAIN RENDER ────────────────────────────────────────────────────────────────────────────────────
   return (
     <div style={{
       position: 'fixed', inset: 0,
@@ -308,7 +304,7 @@ export function EntryScreen() {
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <div style={{
         position: 'relative', zIndex: 10,
         display: 'flex', alignItems: 'center',
@@ -342,7 +338,7 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* ── AMOUNT DISPLAY ── */}
+      {/* AMOUNT DISPLAY */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '1 1 auto',
@@ -416,7 +412,7 @@ export function EntryScreen() {
         </AnimatePresence>
       </div>
 
-      {/* ── SUBCATEGORY CHIPS ── */}
+      {/* SUBCATEGORY CHIPS */}
       {subs.length > 0 && (
         <div style={{
           position: 'relative', zIndex: 2,
@@ -443,7 +439,7 @@ export function EntryScreen() {
         </div>
       )}
 
-      {/* ── TOOLBAR CARD ── */}
+      {/* TOOLBAR CARD */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
@@ -505,7 +501,7 @@ export function EntryScreen() {
         </div>
       </div>
 
-      {/* ── NUMPAD + CONFIRM ── */}
+      {/* NUMPAD + CONFIRM */}
       <div style={{
         position: 'relative', zIndex: 2,
         flex: '0 0 auto',
@@ -569,65 +565,56 @@ export function EntryScreen() {
           }}
         >
           {saving ? (
-            <>
-              <motion.span
-                animate={{ rotate: 360 }}
-                transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-                style={{ display: 'inline-block', fontSize: 16 }}
-              >⟳</motion.span>
-              Saving…
-            </>
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }}
+              style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${confirmTextColor}40`, borderTopColor: confirmTextColor }}
+            />
           ) : success ? (
-            <motion.span initial={{ scale: 0.5 }} animate={{ scale: 1 }} style={{ fontSize: 18 }}>✅</motion.span>
-          ) : 'Confirm'}
+            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 18 }}>
+              ✓ Saved
+            </motion.span>
+          ) : (
+            `Confirm ${type === 'income' ? 'Income' : 'Expense'}`
+          )}
         </motion.button>
 
         {errMsg && (
-          <motion.p
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{ fontSize: 11, color: '#F87171', textAlign: 'center', marginTop: 6 }}
+          <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+            style={{ marginTop: 8, fontSize: 12, color: '#F87171', textAlign: 'center' }}
           >{errMsg}</motion.p>
         )}
       </div>
-
     </div>
   )
 }
 
-// ── Toolbar button component ──────────────────────────────────────────────────────────────────────────────
-interface ToolbarBtnProps {
-  active: boolean
-  accent: string
-  onClick: () => void
-  label: string
-  icon: string
-  filled: boolean
-}
-function ToolbarBtn({ active, accent, onClick, label, icon, filled }: ToolbarBtnProps) {
+function ToolbarBtn({
+  active, accent, onClick, label, icon, filled,
+}: {
+  active: boolean; accent: string; onClick: () => void
+  label: string; icon: string; filled: boolean
+}) {
   return (
     <motion.button
       whileTap={{ scale: 0.90 }}
       onClick={onClick}
       style={{
         flex: 1,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-        padding: '6px 8px',
-        borderRadius: 12,
-        border: 'none',
+        height: 36,
+        borderRadius: 11,
+        background: active ? `${accent}18` : filled ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.04)',
+        border: active ? `1px solid ${accent}45` : filled ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(255,255,255,0.07)',
         cursor: 'pointer',
-        background: active
-          ? `${accent}22`
-          : filled ? `${accent}11` : 'rgba(255,255,255,0.04)',
-        transition: 'background 0.15s',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        fontSize: 11, fontWeight: 700,
+        color: active ? accent : filled ? '#F5F5F5' : 'rgba(255,255,255,0.35)',
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        transition: 'all 0.15s',
       }}
     >
-      <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
-      <span style={{
-        fontSize: 11, fontWeight: 600,
-        color: active ? accent : filled ? `${accent}CC` : 'rgba(255,255,255,0.35)',
-        maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }}>{label}</span>
+      <span style={{ fontSize: 13 }}>{icon}</span>
+      <span style={{ maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
     </motion.button>
   )
 }
