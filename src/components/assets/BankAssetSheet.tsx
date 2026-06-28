@@ -57,7 +57,7 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
           />
 
-          {/* Sheet \u2014 flex column: header pinned \u2022 body scrolls \u2022 footer pinned */}
+          {/* Sheet — flex column: header pinned • body scrolls • footer pinned */}
           <motion.div key="bank-sh"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
@@ -77,14 +77,14 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
 
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 26, padding: '0 20px', flexShrink: 0 }}>
-              <div style={{ width: 48, height: 48, borderRadius: 16, flexShrink: 0, background: 'rgba(96,165,250,0.18)', border: '1px solid rgba(96,165,250,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>\u{1F3E6}</div>
+              <div style={{ width: 48, height: 48, borderRadius: 16, flexShrink: 0, background: 'rgba(96,165,250,0.18)', border: '1px solid rgba(96,165,250,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🏦</div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: '#93c5fd', margin: '0 0 2px' }}>Bank</p>
                 <h2 style={{ fontSize: 22, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.02em', margin: 0 }}>Add Bank Asset</h2>
               </div>
             </div>
 
-            {/* \u2500\u2500 Scrollable body \u2500\u2500 */}
+            {/* ── Scrollable body ── */}
             <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 8px' }}>
 
               {/* Bank Name */}
@@ -117,7 +117,7 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
 
               {/* Estimated Value */}
               <label style={{ display: 'block', marginBottom: 18 }}>
-                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Estimated Value (\u20b9)</p>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Estimated Value (&#x20b9;)</p>
                 <input type="number" inputMode="decimal" placeholder="0.00"
                   value={value} onChange={e => setValue(e.target.value)}
                   style={{ width: '100%', padding: '13px 16px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 14, color: '#93c5fd', fontSize: 28, fontWeight: 800, outline: 'none', fontVariantNumeric: 'tabular-nums' }}
@@ -138,7 +138,7 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
               )}
             </div>
 
-            {/* \u2500\u2500 Sticky footer \u2014 Save always visible \u2500\u2500 */}
+            {/* ── Sticky footer — Save always visible ── */}
             <div style={{ flexShrink: 0, padding: '12px 20px', paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)', borderTop: '1px solid rgba(96,165,250,0.18)', background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)' }}>
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={saving}
                 style={{ width: '100%', padding: '16px', background: saving ? 'rgba(96,165,250,0.2)' : 'linear-gradient(135deg, #60a5fa, #3b82f6)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 20px rgba(96,165,250,0.35)', transition: 'all 0.16s ease' }}
