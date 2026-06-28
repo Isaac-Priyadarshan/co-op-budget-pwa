@@ -19,6 +19,8 @@ const METAL_TICKER: Record<Metal, string> = {
   Platinum: 'platinum_gram_inr',
 }
 
+const NAV_BAR_HEIGHT = 96
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -82,26 +84,26 @@ export function PreciousMetalAssetSheet({ open, onClose, onSave }: Props) {
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
           />
 
-          {/* Sheet — flex column: header pinned, body scrolls, footer pinned */}
           <motion.div key="pm-sh"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+              position: 'fixed',
+              bottom: NAV_BAR_HEIGHT,
+              left: 0, right: 0, zIndex: 50,
               background: 'linear-gradient(180deg,#0a0900 0%,#060500 100%)',
-              border: `1px solid ${meta.border}`, borderBottom: 'none',
-              borderRadius: '28px 28px 0 0',
+              border: `1px solid ${meta.border}`,
+              borderBottom: `1px solid rgba(251,191,36,0.08)`,
+              borderRadius: '28px 28px 20px 20px',
               display: 'flex', flexDirection: 'column',
-              maxHeight: '92dvh',
+              maxHeight: `calc(92dvh - ${NAV_BAR_HEIGHT}px)`,
               transition: 'border-color 0.3s ease',
             }}
           >
-            {/* ── Drag handle ── */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
               <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
             </div>
 
-            {/* ── Header ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, padding: '0 20px', flexShrink: 0 }}>
               <div style={{ width: 48, height: 48, borderRadius: 16, background: meta.bg, border: `1px solid ${meta.selBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0, transition: 'all 0.3s ease' }}>
                 {metal ? meta.emoji : '🏅'}
@@ -119,21 +121,14 @@ export function PreciousMetalAssetSheet({ open, onClose, onSave }: Props) {
               )}
             </div>
 
-            {/* ── Scrollable body ── */}
             <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px' }}>
 
-              {/* STEP 1 — Pick Metal (all 3 tiles always visible / scrollable) */}
               {step === 'pick' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 8 }}>
                   {METALS.map(m => (
                     <motion.button key={m.id} whileTap={{ scale: 0.97 }}
                       onClick={() => handleMetalSelect(m.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 16,
-                        padding: '18px 20px', borderRadius: 20,
-                        background: m.bg, border: `1px solid ${m.border}`,
-                        cursor: 'pointer', width: '100%', textAlign: 'left',
-                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '18px 20px', borderRadius: 20, background: m.bg, border: `1px solid ${m.border}`, cursor: 'pointer', width: '100%', textAlign: 'left' }}
                     >
                       <span style={{ fontSize: 32 }}>{m.emoji}</span>
                       <div style={{ flex: 1 }}>
@@ -146,29 +141,19 @@ export function PreciousMetalAssetSheet({ open, onClose, onSave }: Props) {
                 </div>
               )}
 
-              {/* STEP 2 — Entry Form */}
               {step === 'form' && metal && (
                 <>
-                  {/* Form pills */}
                   <div style={{ marginBottom: 18 }}>
                     <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Form</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {FORMS.map(f => (
                         <motion.button key={f} whileTap={{ scale: 0.92 }} onClick={() => setForm(f)}
-                          style={{
-                            padding: '9px 16px', borderRadius: 100, fontSize: 13,
-                            fontWeight: form === f ? 700 : 400,
-                            background: form === f ? meta.bg : 'rgba(255,255,255,0.04)',
-                            border:     form === f ? `1px solid ${meta.selBorder}` : '1px solid rgba(255,255,255,0.09)',
-                            color:      form === f ? meta.accent : 'rgba(255,255,255,0.45)',
-                            cursor: 'pointer', transition: 'all 0.14s ease',
-                          }}
+                          style={{ padding: '9px 16px', borderRadius: 100, fontSize: 13, fontWeight: form === f ? 700 : 400, background: form === f ? meta.bg : 'rgba(255,255,255,0.04)', border: form === f ? `1px solid ${meta.selBorder}` : '1px solid rgba(255,255,255,0.09)', color: form === f ? meta.accent : 'rgba(255,255,255,0.45)', cursor: 'pointer', transition: 'all 0.14s ease' }}
                         >{f}</motion.button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Weight + Buy Rate */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
                     <label>
                       <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Weight (grams)</p>
@@ -212,15 +197,8 @@ export function PreciousMetalAssetSheet({ open, onClose, onSave }: Props) {
               )}
             </div>
 
-            {/* ── Sticky footer — Save button always visible ── */}
             {step === 'form' && metal && (
-              <div style={{
-                flexShrink: 0,
-                padding: '12px 20px',
-                paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
-                borderTop: `1px solid ${meta.border}`,
-                background: 'linear-gradient(180deg,#0a0900 0%,#060500 100%)',
-              }}>
+              <div style={{ flexShrink: 0, padding: '12px 20px 16px', borderTop: `1px solid ${meta.border}`, background: 'linear-gradient(180deg,#0a0900 0%,#060500 100%)' }}>
                 <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={saving}
                   style={{ width: '100%', padding: '16px', background: saving ? meta.bg : meta.gradient, border: 'none', borderRadius: 16, color: saving ? meta.accent : '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : `0 4px 20px ${meta.glow}`, transition: 'all 0.16s ease' }}
                 >{saving ? 'Saving…' : `Save ${metal} Asset`}</motion.button>

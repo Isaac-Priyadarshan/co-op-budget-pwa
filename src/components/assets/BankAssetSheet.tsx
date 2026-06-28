@@ -5,6 +5,8 @@ import type { NewAsset } from '../../lib/db'
 const ACCOUNT_TYPES = ['Savings', 'Current', 'FD', 'RD', 'NRE', 'NRO'] as const
 type AccountType = typeof ACCOUNT_TYPES[number]
 
+const NAV_BAR_HEIGHT = 96
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -57,25 +59,25 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
           />
 
-          {/* Sheet — flex column: header pinned • body scrolls • footer pinned */}
           <motion.div key="bank-sh"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+              position: 'fixed',
+              bottom: NAV_BAR_HEIGHT,
+              left: 0, right: 0, zIndex: 50,
               background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)',
-              border: '1px solid rgba(96,165,250,0.22)', borderBottom: 'none',
-              borderRadius: '28px 28px 0 0',
+              border: '1px solid rgba(96,165,250,0.22)',
+              borderBottom: '1px solid rgba(96,165,250,0.10)',
+              borderRadius: '28px 28px 20px 20px',
               display: 'flex', flexDirection: 'column',
-              maxHeight: '92dvh',
+              maxHeight: `calc(92dvh - ${NAV_BAR_HEIGHT}px)`,
             }}
           >
-            {/* Handle */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
               <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
             </div>
 
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 26, padding: '0 20px', flexShrink: 0 }}>
               <div style={{ width: 48, height: 48, borderRadius: 16, flexShrink: 0, background: 'rgba(96,165,250,0.18)', border: '1px solid rgba(96,165,250,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🏦</div>
               <div>
@@ -84,10 +86,8 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
               </div>
             </div>
 
-            {/* ── Scrollable body ── */}
             <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 8px' }}>
 
-              {/* Bank Name */}
               <label style={{ display: 'block', marginBottom: 16 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Bank Name</p>
                 <input type="text" placeholder="e.g. State Bank of India, HDFC Bank"
@@ -96,7 +96,6 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
                 />
               </label>
 
-              {/* Account Type */}
               <div style={{ marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Account Type</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -115,7 +114,6 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
                 </div>
               </div>
 
-              {/* Estimated Value */}
               <label style={{ display: 'block', marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Estimated Value (&#x20b9;)</p>
                 <input type="number" inputMode="decimal" placeholder="0.00"
@@ -124,7 +122,6 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
                 />
               </label>
 
-              {/* Notes */}
               <label style={{ display: 'block', marginBottom: 20 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Notes (optional)</p>
                 <input type="text" placeholder="Branch, account ending, any detail"
@@ -138,11 +135,10 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
               )}
             </div>
 
-            {/* ── Sticky footer — Save always visible ── */}
-            <div style={{ flexShrink: 0, padding: '12px 20px', paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)', borderTop: '1px solid rgba(96,165,250,0.18)', background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)' }}>
+            <div style={{ flexShrink: 0, padding: '12px 20px 16px', borderTop: '1px solid rgba(96,165,250,0.18)', background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)' }}>
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={saving}
                 style={{ width: '100%', padding: '16px', background: saving ? 'rgba(96,165,250,0.2)' : 'linear-gradient(135deg, #60a5fa, #3b82f6)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 20px rgba(96,165,250,0.35)', transition: 'all 0.16s ease' }}
-              >{saving ? 'Saving\u2026' : 'Save Bank Asset'}</motion.button>
+              >{saving ? 'Saving…' : 'Save Bank Asset'}</motion.button>
             </div>
           </motion.div>
         </>

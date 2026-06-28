@@ -16,6 +16,8 @@ const PROPERTY_TYPES = [
 ] as const
 type PropertyType = typeof PROPERTY_TYPES[number]
 
+const NAV_BAR_HEIGHT = 96
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -45,7 +47,7 @@ export function RealEstateAssetSheet({ open, onClose, onSave }: Props) {
     if (!value || Number(value) <= 0)  { setErr('Enter a valid value');        return }
     try {
       setSaving(true); setErr('')
-      const label = `${assetName.trim()} – ${propertyType}`
+      const label = `${assetName.trim()} \u2013 ${propertyType}`
       await onSave({
         label,
         category: 'Real Estate',
@@ -72,55 +74,43 @@ export function RealEstateAssetSheet({ open, onClose, onSave }: Props) {
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
             key="re-bd"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={handleClose}
-            style={{
-              position: 'fixed', inset: 0,
-              background: 'rgba(0,0,0,0.75)',
-              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-              zIndex: 40,
-            }}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
           />
 
-          {/* Sheet — flex column: header pinned, body scrolls, footer pinned */}
           <motion.div
             key="re-sh"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+              position: 'fixed',
+              bottom: NAV_BAR_HEIGHT,
+              left: 0, right: 0, zIndex: 50,
               background: 'linear-gradient(180deg, #0f0a05 0%, #080604 100%)',
-              border: `1px solid ${accentBorder}`, borderBottom: 'none',
-              borderRadius: '28px 28px 0 0',
+              border: `1px solid ${accentBorder}`,
+              borderBottom: `1px solid rgba(251,146,60,0.10)`,
+              borderRadius: '28px 28px 20px 20px',
               display: 'flex', flexDirection: 'column',
-              maxHeight: '92dvh',
+              maxHeight: `calc(92dvh - ${NAV_BAR_HEIGHT}px)`,
             }}
           >
-            {/* Handle */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
               <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
             </div>
 
-            {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4, padding: '0 20px', flexShrink: 0 }}>
-              <div style={{
-                width: 48, height: 48, borderRadius: 16, flexShrink: 0,
-                background: accentBg, border: `1px solid ${accentSelBorder}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
-              }}>🏠</div>
+              <div style={{ width: 48, height: 48, borderRadius: 16, flexShrink: 0, background: accentBg, border: `1px solid ${accentSelBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🏠</div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase', color: accent, margin: '0 0 2px' }}>Asset</p>
                 <h2 style={{ fontSize: 22, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.02em', margin: 0 }}>Add Real Estate</h2>
               </div>
             </div>
 
-            {/* ── Scrollable body ── */}
             <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 20px 8px' }}>
 
-              {/* Asset Name */}
               <label style={{ display: 'block', marginBottom: 18 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Asset Name</p>
                 <input
@@ -130,7 +120,6 @@ export function RealEstateAssetSheet({ open, onClose, onSave }: Props) {
                 />
               </label>
 
-              {/* Property Type pills */}
               <div style={{ marginBottom: 18 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Property Type</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -149,7 +138,6 @@ export function RealEstateAssetSheet({ open, onClose, onSave }: Props) {
                 </div>
               </div>
 
-              {/* Current Value */}
               <label style={{ display: 'block', marginBottom: 18 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Current Market Value (₹)</p>
                 <input
@@ -159,7 +147,6 @@ export function RealEstateAssetSheet({ open, onClose, onSave }: Props) {
                 />
               </label>
 
-              {/* Notes */}
               <label style={{ display: 'block', marginBottom: 20 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Notes (optional)</p>
                 <input
@@ -174,27 +161,9 @@ export function RealEstateAssetSheet({ open, onClose, onSave }: Props) {
               )}
             </div>
 
-            {/* ── Sticky footer — Save button always visible ── */}
-            <div style={{
-              flexShrink: 0,
-              padding: '12px 20px',
-              paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
-              borderTop: `1px solid ${accentBorder}`,
-              background: 'linear-gradient(180deg, #0f0a05 0%, #080604 100%)',
-            }}>
+            <div style={{ flexShrink: 0, padding: '12px 20px 16px', borderTop: `1px solid ${accentBorder}`, background: 'linear-gradient(180deg, #0f0a05 0%, #080604 100%)' }}>
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={saving}
-                style={{
-                  width: '100%', padding: '16px',
-                  background: saving
-                    ? accentBg
-                    : `linear-gradient(135deg, ${accent}, #ea580c)`,
-                  border: 'none', borderRadius: 16,
-                  color: saving ? accent : '#fff',
-                  fontSize: 16, fontWeight: 800,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  boxShadow: saving ? 'none' : `0 4px 20px ${accentGlow}`,
-                  transition: 'all 0.16s ease',
-                }}
+                style={{ width: '100%', padding: '16px', background: saving ? accentBg : `linear-gradient(135deg, ${accent}, #ea580c)`, border: 'none', borderRadius: 16, color: saving ? accent : '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : `0 4px 20px ${accentGlow}`, transition: 'all 0.16s ease' }}
               >{saving ? 'Saving…' : 'Save Real Estate Asset'}</motion.button>
             </div>
           </motion.div>
