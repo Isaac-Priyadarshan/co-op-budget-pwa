@@ -437,6 +437,7 @@ export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
       emi_amount:    entry.emi_amount    ?? null,
       interest_rate: entry.interest_rate ?? null,
       lender:        entry.lender,
+      owner:         'Both',   // hardcoded default — owner field is not user-facing
       closed:        false,
       start_date:    entry.start_date    ?? null,
       end_date:      entry.end_date      ?? null,
