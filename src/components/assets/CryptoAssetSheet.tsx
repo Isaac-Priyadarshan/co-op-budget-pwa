@@ -4,8 +4,6 @@ import type { NewAsset } from '../../lib/db'
 
 interface CryptoResult { id: string; symbol: string; name: string; thumb: string }
 
-const NAV_BAR_HEIGHT = 96
-
 interface Props {
   open: boolean
   onClose: () => void
@@ -57,8 +55,8 @@ export function CryptoAssetSheet({ open, onClose, onSave }: Props) {
   const handleSelect = (c: CryptoResult) => { setSelected(c); setQuery(c.name); setResults([]) }
 
   const handleSubmit = async () => {
-    if (!selected)                          { setErr('Search and select a coin');    return }
-    if (!qty || Number(qty) <= 0)           { setErr('Enter quantity of coins');     return }
+    if (!selected)                          { setErr('Search and select a coin');      return }
+    if (!qty || Number(qty) <= 0)           { setErr('Enter quantity of coins');       return }
     if (!buyPrice || Number(buyPrice) <= 0) { setErr('Enter buy price per coin (₹)'); return }
     const coins = parseFloat(qty)
     const price = parseFloat(buyPrice)
@@ -95,14 +93,14 @@ export function CryptoAssetSheet({ open, onClose, onSave }: Props) {
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
               position: 'fixed',
-              bottom: NAV_BAR_HEIGHT,
+              bottom: 'var(--nav-h, 100px)',
               left: 0, right: 0, zIndex: 50,
               background: 'linear-gradient(180deg,#0f0700 0%,#080400 100%)',
               border: `1px solid ${accentBorder}`,
-              borderBottom: `1px solid rgba(251,146,60,0.10)`,
+              borderBottom: 'none',
               borderRadius: '28px 28px 20px 20px',
               display: 'flex', flexDirection: 'column',
-              maxHeight: `calc(92dvh - ${NAV_BAR_HEIGHT}px)`,
+              maxHeight: 'calc(92dvh - var(--nav-h, 100px))',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
@@ -193,7 +191,7 @@ export function CryptoAssetSheet({ open, onClose, onSave }: Props) {
 
             <div style={{ flexShrink: 0, padding: '12px 20px 16px', borderTop: `1px solid ${accentBorder}`, background: 'linear-gradient(180deg,#0f0700 0%,#080400 100%)' }}>
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={saving}
-                style={{ width: '100%', padding: '16px', background: saving ? accentBg : `linear-gradient(135deg,#f97316,#c2410c)`, border: 'none', borderRadius: 16, color: saving ? accent : '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : `0 4px 20px ${accentGlow}`, transition: 'all 0.16s ease' }}
+                style={{ width: '100%', padding: '16px', background: saving ? accentBg : 'linear-gradient(135deg,#f97316,#c2410c)', border: 'none', borderRadius: 16, color: saving ? accent : '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : `0 4px 20px ${accentGlow}`, transition: 'all 0.16s ease' }}
               >{saving ? 'Saving…' : 'Save Crypto Holding'}</motion.button>
             </div>
           </motion.div>

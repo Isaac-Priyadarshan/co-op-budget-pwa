@@ -19,8 +19,6 @@ const METAL_TICKER: Record<Metal, string> = {
   Platinum: 'platinum_gram_inr',
 }
 
-const NAV_BAR_HEIGHT = 96
-
 interface Props {
   open: boolean
   onClose: () => void
@@ -50,10 +48,10 @@ export function PreciousMetalAssetSheet({ open, onClose, onSave }: Props) {
   const handleMetalSelect = (m: Metal) => { setMetal(m); setStep('form') }
 
   const handleSubmit = async () => {
-    if (!metal)                             { setErr('Select a metal');              return }
-    if (!form)                              { setErr('Select a form');               return }
-    if (!grams || Number(grams) <= 0)       { setErr('Enter weight in grams');       return }
-    if (!buyRate || Number(buyRate) <= 0)   { setErr('Enter buy rate per gram (₹)'); return }
+    if (!metal)                           { setErr('Select a metal');              return }
+    if (!form)                            { setErr('Select a form');               return }
+    if (!grams || Number(grams) <= 0)     { setErr('Enter weight in grams');       return }
+    if (!buyRate || Number(buyRate) <= 0) { setErr('Enter buy rate per gram (₹)'); return }
     const g = parseFloat(grams)
     const r = parseFloat(buyRate)
     const value = parseFloat((g * r).toFixed(2))
@@ -89,14 +87,14 @@ export function PreciousMetalAssetSheet({ open, onClose, onSave }: Props) {
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
               position: 'fixed',
-              bottom: NAV_BAR_HEIGHT,
+              bottom: 'var(--nav-h, 100px)',
               left: 0, right: 0, zIndex: 50,
               background: 'linear-gradient(180deg,#0a0900 0%,#060500 100%)',
               border: `1px solid ${meta.border}`,
-              borderBottom: `1px solid rgba(251,191,36,0.08)`,
+              borderBottom: 'none',
               borderRadius: '28px 28px 20px 20px',
               display: 'flex', flexDirection: 'column',
-              maxHeight: `calc(92dvh - ${NAV_BAR_HEIGHT}px)`,
+              maxHeight: 'calc(92dvh - var(--nav-h, 100px))',
               transition: 'border-color 0.3s ease',
             }}
           >
@@ -188,7 +186,7 @@ export function PreciousMetalAssetSheet({ open, onClose, onSave }: Props) {
                     />
                   </label>
 
-                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginBottom: 8, lineHeight: 1.5 }}>📡 Daily midnight sync pulls live {metal.toLowerCase()} price in INR and updates your value + P&L.</p>
+                  <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginBottom: 8, lineHeight: 1.5 }}>📡 Daily midnight sync pulls live {metal.toLowerCase()} price in INR and updates your value + P&amp;L.</p>
 
                   {err && (
                     <p style={{ fontSize: 13, color: '#fca5a5', marginBottom: 8, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)' }}>{err}</p>
