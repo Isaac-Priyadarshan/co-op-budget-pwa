@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 export const ASSET_GROUPS = [
   { id: 'Bank',           label: 'Bank',           emoji: '🏦', color: 'rgba(96,165,250,0.18)',  border: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
   { id: 'Stock',          label: 'Stock',          emoji: '📈', color: 'rgba(52,211,153,0.18)',  border: 'rgba(52,211,153,0.35)',  text: '#6ee7b7' },
-  { id: 'Fund',           label: 'Fund',           emoji: '💰', color: 'rgba(251,191,36,0.18)',  border: 'rgba(251,191,36,0.35)',  text: '#fcd34d' },
+  { id: 'Mutual Fund',    label: 'Mutual Fund',    emoji: '💰', color: 'rgba(251,191,36,0.18)',  border: 'rgba(251,191,36,0.35)',  text: '#fcd34d' },
   { id: 'Crypto',         label: 'Crypto',         emoji: '🪙', color: 'rgba(167,139,250,0.18)', border: 'rgba(167,139,250,0.35)', text: '#c4b5fd' },
   { id: 'Real Estate',    label: 'Real Estate',    emoji: '🏠', color: 'rgba(251,146,60,0.18)',  border: 'rgba(251,146,60,0.35)',  text: '#fdba74' },
   { id: 'Precious Metal', label: 'Precious Metal', emoji: '🥇', color: 'rgba(250,204,21,0.18)',  border: 'rgba(250,204,21,0.35)',  text: '#fde047' },
