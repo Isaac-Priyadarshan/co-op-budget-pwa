@@ -1,18 +1,15 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRecurring } from '../../hooks/useRecurring'
-import { toggleRecurring, deleteRecurring } from '../../lib/db'
-import RecurringSheet from '../../components/sheets/RecurringSheet'
+import type { RecurringEntry } from '../../lib/db'
+import RecurringSheet from '../../components/shared/RecurringSheet'
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
-  '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+  '\u20b9' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
 const FREQ_LABEL: Record<string, string> = {
-  daily: 'Daily',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-  yearly: 'Yearly',
+  daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly',
 }
 
 const FREQ_COLOR: Record<string, string> = {
@@ -30,45 +27,37 @@ function formatNextDue(dateStr: string | null): string {
 
 type Filter = 'active' | 'past' | 'all'
 
-// ─── component ──────────────────────────────────────────────────────────────
+// ─── component ────────────────────────────────────────────────────────────────
 export default function RecurringPaymentScreen() {
-  const { recurring, loading, reload } = useRecurring()
-  const [filter, setFilter] = useState<Filter>('active')
+  // hook returns: items, loading, error, add, toggle, remove, totalMonthly, refresh
+  const { items, loading, toggle, remove, totalMonthly, refresh } = useRecurring()
+
+  const [filter, setFilter]     = useState<Filter>('active')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // ── derived stats ──────────────────────────────────────────────────────────
-  const activeList   = useMemo(() => recurring.filter(r => r.active), [recurring])
-  const inactiveList = useMemo(() => recurring.filter(r => !r.active), [recurring])
+  const activeList   = useMemo(() => items.filter((r: RecurringEntry) => r.active),  [items])
+  const inactiveList = useMemo(() => items.filter((r: RecurringEntry) => !r.active), [items])
 
-  const monthlyCommitment = useMemo(() => {
-    return activeList.reduce((sum, r) => {
-      if (r.frequency === 'monthly')  return sum + r.amount
-      if (r.frequency === 'yearly')   return sum + r.amount / 12
-      if (r.frequency === 'weekly')   return sum + r.amount * 4.33
-      if (r.frequency === 'daily')    return sum + r.amount * 30
-      return sum
-    }, 0)
-  }, [activeList])
-
-  const displayed = useMemo(() => {
+  const displayed = useMemo<RecurringEntry[]>(() => {
     if (filter === 'active') return activeList
     if (filter === 'past')   return inactiveList
-    return recurring
-  }, [filter, activeList, inactiveList, recurring])
+    return items
+  }, [filter, activeList, inactiveList, items])
 
   // ── actions ────────────────────────────────────────────────────────────────
   async function handleToggle(id: string, current: boolean) {
     setTogglingId(id)
-    try { await toggleRecurring(id, !current); await reload() }
+    try   { await toggle(id, !current) }
     catch (e) { console.error(e) }
     finally   { setTogglingId(null) }
   }
 
   async function handleDelete(id: string) {
     setDeletingId(id)
-    try { await deleteRecurring(id); await reload() }
+    try   { await remove(id) }
     catch (e) { console.error(e) }
     finally   { setDeletingId(null) }
   }
@@ -76,7 +65,6 @@ export default function RecurringPaymentScreen() {
   // ── render ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-black overflow-hidden">
-      {/* ── scrollable content ── */}
       <div className="flex-1 overflow-y-auto overscroll-none px-4 pt-5 pb-6 space-y-4">
 
         {/* ── SUMMARY CARD ── */}
@@ -91,45 +79,41 @@ export default function RecurringPaymentScreen() {
             backdropFilter: 'blur(16px)',
           }}
         >
-          {/* Monthly commitment — prominent */}
           <p className="text-xs text-white/40 uppercase tracking-widest mb-1">Monthly Commitment</p>
           {loading ? (
             <div className="h-9 w-40 rounded-lg bg-white/10 animate-pulse mb-3" />
           ) : (
             <p className="text-3xl font-bold text-amber-400 mb-3 tabular-nums">
-              {fmt(Math.round(monthlyCommitment))}
+              {fmt(Math.round(totalMonthly))}
             </p>
           )}
 
-          {/* Divider */}
           <div className="h-px bg-white/10 mb-3" />
 
-          {/* Active + Past counts */}
-          <div className="flex items-center gap-0">
+          <div className="flex items-center">
             <div className="flex-1 text-center">
               <p className="text-2xl font-semibold text-emerald-400 tabular-nums">
-                {loading ? '—' : activeList.length}
+                {loading ? '\u2014' : activeList.length}
               </p>
               <p className="text-xs text-white/40 mt-0.5">Active</p>
             </div>
             <div className="w-px h-8 bg-white/10" />
             <div className="flex-1 text-center">
               <p className="text-2xl font-semibold text-white/50 tabular-nums">
-                {loading ? '—' : inactiveList.length}
+                {loading ? '\u2014' : inactiveList.length}
               </p>
               <p className="text-xs text-white/40 mt-0.5">Paused</p>
             </div>
           </div>
         </motion.div>
 
-        {/* ── ACTION BAR: + button + filter pills ── */}
+        {/* ── ACTION BAR ── */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
           className="flex items-center gap-3"
         >
-          {/* + button */}
           <button
             onClick={() => setSheetOpen(true)}
             className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform"
@@ -144,7 +128,6 @@ export default function RecurringPaymentScreen() {
             </svg>
           </button>
 
-          {/* Filter pills */}
           <div className="flex items-center gap-2">
             {(['active', 'past', 'all'] as Filter[]).map(f => (
               <button
@@ -176,11 +159,11 @@ export default function RecurringPaymentScreen() {
             animate={{ opacity: 1 }}
             className="flex flex-col items-center justify-center py-16 text-center"
           >
-            <span className="text-4xl mb-3">🔄</span>
+            <span className="text-4xl mb-3">\ud83d\udd04</span>
             <p className="text-white/40 text-sm">
-              {filter === 'active' ? 'No active recurring payments' :
-               filter === 'past'   ? 'No paused payments' :
-               'No recurring payments yet'}
+              {filter === 'active' ? 'No active recurring payments'
+               : filter === 'past' ? 'No paused payments'
+               : 'No recurring payments yet'}
             </p>
             {filter !== 'all' && (
               <button
@@ -194,7 +177,7 @@ export default function RecurringPaymentScreen() {
         ) : (
           <AnimatePresence mode="popLayout">
             <div className="space-y-3">
-              {displayed.map((item, idx) => (
+              {displayed.map((item: RecurringEntry, idx: number) => (
                 <motion.div
                   key={item.id}
                   layout
@@ -204,72 +187,55 @@ export default function RecurringPaymentScreen() {
                   transition={{ delay: idx * 0.04, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                   className="rounded-2xl p-4"
                   style={{
-                    background: item.active
-                      ? 'rgba(255,255,255,0.05)'
-                      : 'rgba(255,255,255,0.025)',
-                    border: item.active
-                      ? '1px solid rgba(255,255,255,0.1)'
-                      : '1px solid rgba(255,255,255,0.06)',
+                    background: item.active ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.025)',
+                    border:     item.active ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.06)',
                   }}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    {/* Left: label + badges */}
                     <div className="flex-1 min-w-0">
                       <p className={`font-semibold text-base truncate ${item.active ? 'text-white' : 'text-white/40'}`}>
                         {item.label}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        {/* Frequency badge */}
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FREQ_COLOR[item.frequency] ?? 'bg-white/10 text-white/40'}`}>
                           {FREQ_LABEL[item.frequency] ?? item.frequency}
                         </span>
-                        {/* Next due */}
                         {item.next_due && (
-                          <span className="text-xs text-white/35">
-                            Due {formatNextDue(item.next_due)}
-                          </span>
+                          <span className="text-xs text-white/35">Due {formatNextDue(item.next_due)}</span>
                         )}
-                        {/* Paused badge */}
                         {!item.active && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-white/8 text-white/30 border border-white/10">
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-white/[0.08] text-white/30 border border-white/10">
                             Paused
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Right: amount + actions */}
                     <div className="flex flex-col items-end gap-2 flex-shrink-0">
                       <p className={`text-lg font-bold tabular-nums ${item.active ? 'text-emerald-400' : 'text-white/30'}`}>
                         {fmt(item.amount)}
                       </p>
 
                       <div className="flex items-center gap-2">
-                        {/* Toggle pause/resume */}
+                        {/* Pause / Resume */}
                         <button
                           onClick={() => handleToggle(item.id, item.active)}
                           disabled={togglingId === item.id}
                           className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
                           style={{
-                            background: item.active
-                              ? 'rgba(251,191,36,0.15)'
-                              : 'rgba(110,231,183,0.15)',
-                            border: item.active
-                              ? '1px solid rgba(251,191,36,0.3)'
-                              : '1px solid rgba(110,231,183,0.3)',
+                            background: item.active ? 'rgba(251,191,36,0.15)' : 'rgba(110,231,183,0.15)',
+                            border:     item.active ? '1px solid rgba(251,191,36,0.3)' : '1px solid rgba(110,231,183,0.3)',
                           }}
                           aria-label={item.active ? 'Pause' : 'Resume'}
                         >
                           {togglingId === item.id ? (
                             <div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white/70 animate-spin" />
                           ) : item.active ? (
-                            /* pause icon */
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(251,191,36,0.9)">
                               <rect x="6" y="4" width="4" height="16" rx="1"/>
                               <rect x="14" y="4" width="4" height="16" rx="1"/>
                             </svg>
                           ) : (
-                            /* play icon */
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(110,231,183,0.9)">
                               <polygon points="5,3 19,12 5,21"/>
                             </svg>
@@ -281,10 +247,7 @@ export default function RecurringPaymentScreen() {
                           onClick={() => handleDelete(item.id)}
                           disabled={deletingId === item.id}
                           className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-                          style={{
-                            background: 'rgba(239,68,68,0.12)',
-                            border: '1px solid rgba(239,68,68,0.25)',
-                          }}
+                          style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}
                           aria-label="Delete"
                         >
                           {deletingId === item.id ? (
@@ -299,7 +262,6 @@ export default function RecurringPaymentScreen() {
                     </div>
                   </div>
 
-                  {/* Notes row */}
                   {item.notes && (
                     <p className="mt-2 text-xs text-white/30 truncate">{item.notes}</p>
                   )}
@@ -314,7 +276,7 @@ export default function RecurringPaymentScreen() {
       <RecurringSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        onSaved={async () => { setSheetOpen(false); await reload() }}
+        onSaved={async () => { setSheetOpen(false); await refresh() }}
       />
     </div>
   )
