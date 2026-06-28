@@ -2,11 +2,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 export const ASSET_GROUPS = [
   { id: 'Bank',           label: 'Bank',           emoji: '\ud83c\udfe6', color: 'rgba(96,165,250,0.18)',  border: 'rgba(96,165,250,0.35)',  text: '#93c5fd' },
+  { id: 'Precious Metal', label: 'Precious Metal', emoji: '\ud83e\udd47', color: 'rgba(250,204,21,0.18)',  border: 'rgba(250,204,21,0.35)',  text: '#fde047' },
   { id: 'Stock',          label: 'Stock',          emoji: '\ud83d\udcc8', color: 'rgba(52,211,153,0.18)',  border: 'rgba(52,211,153,0.35)',  text: '#6ee7b7' },
   { id: 'Mutual Fund',    label: 'Mutual Fund',    emoji: '\ud83d\udcb0', color: 'rgba(251,191,36,0.18)',  border: 'rgba(251,191,36,0.35)',  text: '#fcd34d' },
   { id: 'Crypto',         label: 'Crypto',         emoji: '\ud83e\ude99', color: 'rgba(167,139,250,0.18)', border: 'rgba(167,139,250,0.35)', text: '#c4b5fd' },
   { id: 'Real Estate',    label: 'Real Estate',    emoji: '\ud83c\udfe0', color: 'rgba(251,146,60,0.18)',  border: 'rgba(251,146,60,0.35)',  text: '#fdba74' },
-  { id: 'Precious Metal', label: 'Precious Metal', emoji: '\ud83e\udd47', color: 'rgba(250,204,21,0.18)',  border: 'rgba(250,204,21,0.35)',  text: '#fde047' },
 ] as const
 
 export type AssetGroupId = typeof ASSET_GROUPS[number]['id']
