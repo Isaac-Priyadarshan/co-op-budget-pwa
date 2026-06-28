@@ -3,279 +3,326 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRecurring } from '../../hooks/useRecurring'
 import type { RecurringEntry } from '../../lib/db'
 import { RecurringSheet } from '../../components/shared/RecurringSheet'
-
-const fmt = (n: number) =>
-  '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+import { formatINR } from '../../utils/format'
 
 const FREQ_LABEL: Record<string, string> = {
   daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly',
 }
 
-const FREQ_COLOR: Record<string, string> = {
-  daily:   'bg-blue-500/20 text-blue-300',
-  weekly:  'bg-purple-500/20 text-purple-300',
-  monthly: 'bg-amber-500/20 text-amber-300',
-  yearly:  'bg-emerald-500/20 text-emerald-300',
+const FREQ_COLOR: Record<string, { bg: string; text: string }> = {
+  daily:   { bg: 'rgba(96,165,250,0.15)',  text: '#93c5fd' },
+  weekly:  { bg: 'rgba(167,139,250,0.15)', text: '#c4b5fd' },
+  monthly: { bg: 'rgba(251,191,36,0.15)',  text: '#fcd34d' },
+  yearly:  { bg: 'rgba(52,211,153,0.15)',  text: '#6ee7b7' },
 }
 
 function formatNextDue(dateStr: string | null): string {
   if (!dateStr) return ''
   const d = new Date(dateStr)
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
 }
 
-type Filter = 'active' | 'past' | 'all'
+type Filter = 'active' | 'paused' | 'all'
 
 export function RecurringPaymentScreen() {
-  const { items, loading, toggle, remove, totalMonthly, refresh } = useRecurring()
-
-  // default filter is 'active'
+  const { items, loading, error, toggle, remove, totalMonthly, refresh } = useRecurring()
   const [filter, setFilter]         = useState<Filter>('active')
   const [sheetOpen, setSheetOpen]   = useState(false)
-  const [togglingId, setTogglingId] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [working, setWorking]       = useState<string | null>(null)
 
   const activeList   = useMemo(() => items.filter((r: RecurringEntry) =>  r.active), [items])
   const inactiveList = useMemo(() => items.filter((r: RecurringEntry) => !r.active), [items])
 
-  const displayed = useMemo<RecurringEntry[]>(() => {
+  const filtered = useMemo<RecurringEntry[]>(() => {
     if (filter === 'active') return activeList
-    if (filter === 'past')   return inactiveList
+    if (filter === 'paused') return inactiveList
     return items
   }, [filter, activeList, inactiveList, items])
 
-  async function handleToggle(id: string, current: boolean) {
-    setTogglingId(id)
+  const handleToggle = async (id: string, current: boolean) => {
+    setWorking(id)
     try   { await toggle(id, !current) }
     catch (e) { console.error(e) }
-    finally   { setTogglingId(null) }
+    finally   { setWorking(null) }
   }
 
-  async function handleDelete(id: string) {
-    setDeletingId(id)
+  const handleDelete = async (id: string) => {
+    setWorking(id)
     try   { await remove(id) }
     catch (e) { console.error(e) }
-    finally   { setDeletingId(null) }
+    finally   { setWorking(null) }
   }
 
   return (
-    <div className="flex flex-col h-full bg-black overflow-hidden">
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-6" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 20px)' }}>
+    <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', padding: '20px 20px 32px', gap: 18 }}>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
+      >
 
-        {/* ── SUMMARY CARD ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="rounded-2xl p-5 mb-4"
-          style={{
-            background: 'linear-gradient(135deg, rgba(251,191,36,0.13) 0%, rgba(20,20,20,0.95) 100%)',
-            border: '1px solid rgba(251,191,36,0.2)',
-          }}
-        >
-          {/* Monthly commitment */}
-          <p className="text-xs text-white/40 uppercase tracking-widest mb-1">Monthly Commitment</p>
-          {loading ? (
-            <div className="h-10 w-44 rounded-xl bg-white/10 animate-pulse mb-4" />
-          ) : (
-            <p className="text-4xl font-bold text-amber-400 mb-4 tabular-nums leading-none">
-              {fmt(Math.round(totalMonthly))}
+        {/* ── Summary Card ── */}
+        <div style={{
+          borderRadius: 24,
+          padding: '22px 24px',
+          background: 'linear-gradient(135deg, rgba(251,191,36,0.10) 0%, rgba(52,211,153,0.07) 100%)',
+          border: '1px solid rgba(251,191,36,0.22)',
+          boxShadow: '0 4px 32px rgba(251,191,36,0.10), 0 1px 0 rgba(255,255,255,0.04) inset',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex',
+          alignItems: 'stretch',
+          gap: 0,
+        }}>
+          {/* Monthly Commitment */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <p style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: 'rgba(251,191,36,0.7)', margin: 0,
+            }}>Monthly Commitment</p>
+            <motion.p
+              key={totalMonthly}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+              style={{
+                fontSize: 22, fontWeight: 800, color: '#fcd34d',
+                fontVariantNumeric: 'tabular-nums', margin: 0,
+                textShadow: '0 0 20px rgba(251,191,36,0.5)',
+              }}
+            >{formatINR(Math.round(totalMonthly))}</motion.p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: 0 }}>
+              {activeList.length} active payment{activeList.length !== 1 ? 's' : ''}
             </p>
-          )}
+          </div>
 
           {/* Divider */}
-          <div className="h-px bg-white/10 mb-4" />
+          <div style={{
+            width: 1,
+            background: 'rgba(255,255,255,0.08)',
+            margin: '0 20px',
+            alignSelf: 'stretch',
+            flexShrink: 0,
+          }} />
 
-          {/* Active + Paused counts */}
-          <div className="flex items-center">
-            <div className="flex-1 flex flex-col items-center gap-1">
-              <p className="text-2xl font-semibold text-emerald-400 tabular-nums leading-none">
-                {loading ? '—' : activeList.length}
-              </p>
-              <p className="text-xs text-white/40">Active</p>
-            </div>
-            <div className="w-px h-10 bg-white/10" />
-            <div className="flex-1 flex flex-col items-center gap-1">
-              <p className="text-2xl font-semibold text-white/40 tabular-nums leading-none">
-                {loading ? '—' : inactiveList.length}
-              </p>
-              <p className="text-xs text-white/40">Paused</p>
-            </div>
+          {/* Active / Paused counts */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <p style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
+              textTransform: 'uppercase', color: 'rgba(110,231,183,0.7)', margin: 0,
+            }}>Active / Paused</p>
+            <motion.p
+              key={`${activeList.length}-${inactiveList.length}`}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}
+              style={{
+                fontSize: 22, fontWeight: 800, color: '#6ee7b7',
+                fontVariantNumeric: 'tabular-nums', margin: 0,
+                textShadow: '0 0 20px rgba(52,211,153,0.4)',
+              }}
+            >{activeList.length} / {inactiveList.length}</motion.p>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', margin: 0 }}>payments</p>
           </div>
-        </motion.div>
+        </div>
 
-        {/* ── ACTION BAR ── */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="flex items-center gap-3 mb-4"
-        >
-          {/* + button */}
-          <button
+        {/* ── Action Bar ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Add button */}
+          <motion.button
+            whileTap={{ scale: 0.88 }}
             onClick={() => setSheetOpen(true)}
-            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:scale-90 transition-transform"
             style={{
-              background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-              boxShadow: '0 0 16px rgba(251,191,36,0.35)',
+              width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+              background: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 4px 16px rgba(251,191,36,0.45)',
             }}
             aria-label="Add recurring payment"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M12 5v14M5 12h14" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-          </button>
+          </motion.button>
 
           {/* Filter pills */}
-          <div className="flex items-center gap-2">
-            {(['active', 'past', 'all'] as Filter[]).map(f => (
-              <button
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['active', 'paused', 'all'] as Filter[]).map(f => (
+              <motion.button
                 key={f}
+                whileTap={{ scale: 0.93 }}
                 onClick={() => setFilter(f)}
-                className="px-3.5 py-1.5 rounded-full text-xs font-medium transition-all active:scale-95"
-                style={
-                  filter === f
-                    ? { background: 'rgba(251,191,36,0.2)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.4)' }
-                    : { background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)' }
-                }
-              >
-                {f === 'active' ? 'Active' : f === 'past' ? 'Paused' : 'All'}
-              </button>
+                style={{
+                  padding: '8px 16px', borderRadius: 100,
+                  border: filter === f ? '1px solid rgba(251,191,36,0.55)' : '1px solid rgba(255,255,255,0.09)',
+                  background: filter === f ? 'rgba(251,191,36,0.16)' : 'rgba(255,255,255,0.04)',
+                  color: filter === f ? '#fcd34d' : 'rgba(255,255,255,0.4)',
+                  fontSize: 13, fontWeight: filter === f ? 700 : 400,
+                  cursor: 'pointer', textTransform: 'capitalize',
+                  transition: 'all 0.14s ease',
+                }}
+              >{f}</motion.button>
             ))}
           </div>
-        </motion.div>
+        </div>
 
-        {/* ── LIST ── */}
-        {loading ? (
-          <div className="space-y-3">
+        {/* ── Loading skeletons ── */}
+        {loading && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-20 rounded-2xl bg-white/5 animate-pulse" />
+              <div key={i} style={{
+                height: 110, borderRadius: 20,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+              }} />
             ))}
           </div>
-        ) : displayed.length === 0 ? (
+        )}
+
+        {/* ── Error ── */}
+        {error && (
+          <div style={{
+            padding: 16, borderRadius: 16,
+            background: 'rgba(248,113,113,0.1)',
+            color: '#fca5a5', fontSize: 14,
+          }}>{String(error)}</div>
+        )}
+
+        {/* ── Empty state ── */}
+        {!loading && !error && filtered.length === 0 && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center py-20 text-center"
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+            style={{
+              textAlign: 'center', padding: '52px 20px',
+              borderRadius: 24,
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
           >
-            {/* literal emoji — no escape codes */}
-            <span className="text-5xl mb-4" role="img" aria-label="refresh">🔄</span>
-            <p className="text-white/40 text-sm">
-              {filter === 'active'
-                ? 'No active recurring payments'
-                : filter === 'past'
-                ? 'No paused payments'
-                : 'No recurring payments yet'}
+            <p style={{ fontSize: 40, marginBottom: 14 }}>🔄</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>
+              {filter === 'active' ? 'No active recurring payments'
+               : filter === 'paused' ? 'No paused payments'
+               : 'No recurring payments yet'}
             </p>
-            {filter !== 'all' && (
-              <button
-                onClick={() => setFilter('all')}
-                className="mt-3 text-amber-400/70 text-xs underline underline-offset-2"
-              >
-                View all
-              </button>
-            )}
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.28)' }}>Tap + above to add a recurring payment</p>
           </motion.div>
-        ) : (
-          <AnimatePresence mode="popLayout">
-            <div className="space-y-3">
-              {displayed.map((item: RecurringEntry, idx: number) => (
+        )}
+
+        {/* ── List ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <AnimatePresence initial={false}>
+            {filtered.map((item: RecurringEntry) => {
+              const fc = FREQ_COLOR[item.frequency] ?? { bg: 'rgba(255,255,255,0.08)', text: 'rgba(255,255,255,0.5)' }
+              return (
                 <motion.div
                   key={item.id}
                   layout
-                  initial={{ opacity: 0, y: 16 }}
+                  initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: idx * 0.04, duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  className="rounded-2xl p-4"
+                  exit={{ opacity: 0, x: -40, scale: 0.95 }}
+                  transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
                   style={{
-                    background: item.active ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.025)',
-                    border:     item.active ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 22,
+                    padding: '18px 18px 14px',
+                    background: item.active
+                      ? 'rgba(251,191,36,0.05)'
+                      : 'rgba(255,255,255,0.02)',
+                    border: item.active
+                      ? '1px solid rgba(251,191,36,0.18)'
+                      : '1px solid rgba(255,255,255,0.07)',
+                    boxShadow: item.active ? '0 2px 16px rgba(251,191,36,0.06)' : 'none',
                   }}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    {/* Left */}
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-semibold text-base truncate ${item.active ? 'text-white' : 'text-white/40'}`}>
-                        {item.label}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2 flex-wrap">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FREQ_COLOR[item.frequency] ?? 'bg-white/10 text-white/40'}`}>
+                  {/* Row 1: label + amount */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <p style={{
+                          fontSize: 15, fontWeight: 700, margin: 0,
+                          color: item.active ? '#f5f7ff' : 'rgba(255,255,255,0.38)',
+                        }}>{item.label}</p>
+                        {!item.active && (
+                          <span style={{
+                            fontSize: 10, padding: '2px 8px', borderRadius: 100,
+                            background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.35)', fontWeight: 700,
+                          }}>PAUSED</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        {/* Frequency badge */}
+                        <span style={{
+                          fontSize: 11, padding: '2px 10px', borderRadius: 100, fontWeight: 600,
+                          background: fc.bg, color: fc.text,
+                        }}>
                           {FREQ_LABEL[item.frequency] ?? item.frequency}
                         </span>
+                        {/* Next due */}
                         {item.next_due && (
-                          <span className="text-xs text-white/35">
+                          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
                             Due {formatNextDue(item.next_due)}
                           </span>
                         )}
-                        {!item.active && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-white/[0.08] text-white/30 border border-white/10">
-                            Paused
-                          </span>
-                        )}
                       </div>
                     </div>
 
-                    {/* Right */}
-                    <div className="flex flex-col items-end gap-2.5 flex-shrink-0">
-                      <p className={`text-lg font-bold tabular-nums ${item.active ? 'text-emerald-400' : 'text-white/30'}`}>
-                        {fmt(item.amount)}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        {/* Pause / Resume */}
-                        <button
-                          onClick={() => handleToggle(item.id, item.active)}
-                          disabled={togglingId === item.id}
-                          className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-                          style={{
-                            background: item.active ? 'rgba(251,191,36,0.15)' : 'rgba(110,231,183,0.15)',
-                            border:     item.active ? '1px solid rgba(251,191,36,0.3)' : '1px solid rgba(110,231,183,0.3)',
-                          }}
-                          aria-label={item.active ? 'Pause' : 'Resume'}
-                        >
-                          {togglingId === item.id ? (
-                            <div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white/70 animate-spin" />
-                          ) : item.active ? (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(251,191,36,0.9)">
-                              <rect x="6" y="4" width="4" height="16" rx="1"/>
-                              <rect x="14" y="4" width="4" height="16" rx="1"/>
-                            </svg>
-                          ) : (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="rgba(110,231,183,0.9)">
-                              <polygon points="5,3 19,12 5,21"/>
-                            </svg>
-                          )}
-                        </button>
-
-                        {/* Delete */}
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          disabled={deletingId === item.id}
-                          className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-                          style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}
-                          aria-label="Delete"
-                        >
-                          {deletingId === item.id ? (
-                            <div className="w-3 h-3 rounded-full border-2 border-red-400/30 border-t-red-400 animate-spin" />
-                          ) : (
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(239,68,68,0.8)" strokeWidth="2" strokeLinecap="round">
-                              <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
-                            </svg>
-                          )}
-                        </button>
-                      </div>
+                    {/* Amount */}
+                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 14 }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: '0 0 2px' }}>Amount</p>
+                      <p style={{
+                        fontSize: 18, fontWeight: 800, margin: 0,
+                        color: item.active ? '#6ee7b7' : 'rgba(255,255,255,0.25)',
+                        fontVariantNumeric: 'tabular-nums',
+                      }}>{formatINR(item.amount)}</p>
                     </div>
                   </div>
 
+                  {/* Notes */}
                   {item.notes && (
-                    <p className="mt-2 text-xs text-white/30 truncate">{item.notes}</p>
+                    <p style={{
+                      fontSize: 12, color: 'rgba(255,255,255,0.3)',
+                      margin: '0 0 12px', whiteSpace: 'nowrap',
+                      overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>{item.notes}</p>
                   )}
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    {/* Pause / Resume */}
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleToggle(item.id, item.active)}
+                      disabled={working === item.id}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: 13,
+                        background: item.active ? 'rgba(251,191,36,0.10)' : 'rgba(110,231,183,0.10)',
+                        border: item.active ? '1px solid rgba(251,191,36,0.28)' : '1px solid rgba(110,231,183,0.28)',
+                        color: item.active ? '#fcd34d' : '#6ee7b7',
+                        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >
+                      {working === item.id ? '…' : item.active ? '⏸ Pause' : '▶ Resume'}
+                    </motion.button>
+
+                    {/* Delete */}
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => handleDelete(item.id)}
+                      disabled={working === item.id}
+                      style={{
+                        padding: '10px 16px', borderRadius: 13,
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.18)',
+                        color: 'rgba(252,165,165,0.6)',
+                        fontSize: 13, cursor: 'pointer',
+                      }}
+                    >Delete</motion.button>
+                  </div>
                 </motion.div>
-              ))}
-            </div>
+              )
+            })}
           </AnimatePresence>
-        )}
-      </div>
+        </div>
+
+      </motion.div>
 
       <RecurringSheet
         open={sheetOpen}
