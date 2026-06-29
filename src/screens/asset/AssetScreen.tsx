@@ -13,11 +13,23 @@ import { formatINR, formatShortDate } from '../../utils/format'
 import { parseBankNotes, compoundWithTopUps } from '../../utils/bankCalc'
 import type { BankDeposit } from '../../utils/bankCalc'
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-/** "2024-06-15" → "15 Jun 2024" */
+// ─── helpers ───────────────────────────────────────────────────────────────────
 function fmtStartDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+/**
+ * Split a bank label like "HDFC Bank – Savings" into
+ * { bankName: "HDFC Bank", accountType: "Savings" }
+ */
+function splitBankLabel(label: string): { bankName: string; accountType: string } {
+  const idx = label.lastIndexOf(' – ')
+  if (idx === -1) return { bankName: label, accountType: '' }
+  return {
+    bankName:    label.slice(0, idx).trim(),
+    accountType: label.slice(idx + 3).trim(),
+  }
 }
 
 // ─── P&L badge ────────────────────────────────────────────────────────────────
@@ -44,7 +56,7 @@ function PnlBadge({ asset }: {
   )
 }
 
-// ─── Global summary card ──────────────────────────────────────────────────────
+// ─── Global summary card ──────────────────────────────────────────────────────────────
 function SummaryCard({ totalValue, assetCount, loading }: {
   totalValue: number; assetCount: number; loading: boolean
 }) {
@@ -80,7 +92,7 @@ function SummaryCard({ totalValue, assetCount, loading }: {
   )
 }
 
-// ─── Per-group summary card ───────────────────────────────────────────────────
+// ─── Per-group summary card ─────────────────────────────────────────────────────────
 type AssetItem = {
   id: string; label: string; category: string; value: number; notes: string | null
   created_at: string; current_price: number | null; quantity: number | null
@@ -144,7 +156,7 @@ function GroupSummaryCard({ group, items }: {
   )
 }
 
-// ─── Group Card (grid) ────────────────────────────────────────────────────────
+// ─── Group Card (grid) ──────────────────────────────────────────────────────────────
 function GroupCard({ group, total, count, loading, onPress }: {
   group: typeof ASSET_GROUPS[number]; total: number; count: number; loading: boolean; onPress: () => void
 }) {
@@ -178,7 +190,7 @@ function GroupCard({ group, total, count, loading, onPress }: {
   )
 }
 
-// ─── Bank asset card — compact + expandable ───────────────────────────────────
+// ─── Bank asset card ──────────────────────────────────────────────────────────────────
 function BankAssetCard({
   asset, allBankItems, onDelete, onTopUp, working,
 }: {
@@ -190,7 +202,10 @@ function BankAssetCard({
 }) {
   const [expanded, setExpanded] = useState(false)
 
-  const { rate, startDate } = parseBankNotes(asset.notes)
+  const { rate, startDate, userNote } = parseBankNotes(asset.notes)
+
+  // Split "HDFC Bank – Savings" → { bankName, accountType }
+  const { bankName, accountType } = splitBankLabel(asset.label)
 
   const siblingDeposits = useMemo((): BankDeposit[] => {
     if (!rate) return []
@@ -235,18 +250,60 @@ function BankAssetCard({
         {/* Emoji */}
         <span style={{ fontSize: 22, flexShrink: 0 }}>🏦</span>
 
-        {/* Name + rate pill (no account type pill) */}
+        {/* Name block */}
         <div style={{ flex: 1, minWidth: 0 }}>
+
+          {/* Row 1: Bank name */}
           <p style={{
             fontSize: 14, fontWeight: 700, color: '#f5f7ff',
-            margin: '0 0 4px', whiteSpace: 'nowrap',
+            margin: '0 0 3px', whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
-            {asset.label}
+            {bankName}
           </p>
-          {rate && (
+
+          {/* Row 2: Account type  ·  user note (if any) */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            flexWrap: 'nowrap', overflow: 'hidden',
+          }}>
+            {accountType ? (
+              <span style={{
+                fontSize: 11.5, fontWeight: 500,
+                color: 'rgba(147,197,253,0.70)',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}>
+                {accountType}
+              </span>
+            ) : null}
+
+            {accountType && userNote ? (
+              <span style={{
+                fontSize: 11, color: 'rgba(148,163,184,0.40)',
+                flexShrink: 0,
+              }}>·</span>
+            ) : null}
+
+            {userNote ? (
+              <span style={{
+                fontSize: 11.5,
+                fontStyle: 'italic',
+                color: 'rgba(148,163,184,0.55)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                minWidth: 0,
+              }}>
+                {userNote}
+              </span>
+            ) : null}
+          </div>
+
+          {/* Row 3: Interest rate pill */}
+          {rate ? (
             <span style={{
               display: 'inline-block',
+              marginTop: 5,
               fontSize: 11, fontWeight: 700,
               color: '#93c5fd',
               background: 'rgba(96,165,250,0.15)',
@@ -256,12 +313,11 @@ function BankAssetCard({
             }}>
               {rate.toFixed(2)}% p.a.
             </span>
-          )}
+          ) : null}
         </div>
 
         {/* Values + start date */}
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          {/* Invested → Appreciated on same line */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>
               {formatINR(totalPrincipal)}
@@ -270,12 +326,11 @@ function BankAssetCard({
               <>
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>→</span>
                 <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>
-                  ≈ {formatINR(appreciated)}
+                  ≈ {formatINR(appreciated)}
                 </span>
               </>
             )}
           </div>
-          {/* Start date: day Mon Year — bottom-right */}
           {startDate && (
             <p style={{
               fontSize: 10, color: 'rgba(255,255,255,0.28)',
@@ -338,7 +393,7 @@ function BankAssetCard({
   )
 }
 
-// ─── Generic asset card (non-bank) ────────────────────────────────────────────
+// ─── Generic asset card (non-bank) ──────────────────────────────────────────────────────
 function GenericAssetCard({ asset, group, onDelete, working }: {
   asset: AssetItem
   group: typeof ASSET_GROUPS[number]
@@ -390,7 +445,7 @@ function GenericAssetCard({ asset, group, onDelete, working }: {
   )
 }
 
-// ─── Per-group detail view ────────────────────────────────────────────────────
+// ─── Per-group detail view ──────────────────────────────────────────────────────────────
 function GroupDetailView({
   group, items, loading, onBack, onAddPress, onDelete, onTopUp, working,
 }: {
@@ -491,7 +546,7 @@ function GroupDetailView({
   )
 }
 
-// ─── Main screen ──────────────────────────────────────────────────────────────
+// ─── Main screen ────────────────────────────────────────────────────────────────────
 export function AssetScreen() {
   const { assets, loading, error, add, remove, totalValue } = useAssets()
 
