@@ -10,6 +10,8 @@ const inputStyle = {
   boxSizing: 'border-box' as const,
 }
 
+function today() { return new Date().toISOString().substring(0, 10) }
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -21,12 +23,12 @@ interface Props {
 
 export function BankTopUpSheet({ open, onClose, onSave, bankLabel, rate }: Props) {
   const [amount,  setAmount]  = useState('')
-  const [date,    setDate]    = useState('')
+  const [date,    setDate]    = useState(today)
   const [notes,   setNotes]   = useState('')
   const [saving,  setSaving]  = useState(false)
   const [err,     setErr]     = useState('')
 
-  const reset = () => { setAmount(''); setDate(''); setNotes(''); setErr(''); setSaving(false) }
+  const reset = () => { setAmount(''); setDate(today()); setNotes(''); setErr(''); setSaving(false) }
 
   useEffect(() => { if (!open) reset() }, [open])
 
@@ -39,14 +41,13 @@ export function BankTopUpSheet({ open, onClose, onSave, bankLabel, rate }: Props
     try {
       setSaving(true); setErr('')
 
-      // Pack rate + topup-date + optional note into notes field
       const metaParts = [`${rate.toFixed(2)}%`, `From ${date}`, 'top-up']
       const notesStr  = notes.trim()
         ? [...metaParts, notes.trim()].join(' · ')
         : metaParts.join(' · ')
 
       await onSave({
-        label:    bankLabel,   // same label as root so grouping works
+        label:    bankLabel,
         category: 'Bank',
         value:    parseFloat(Number(amount).toFixed(2)),
         owner:    'Both',
@@ -127,7 +128,7 @@ export function BankTopUpSheet({ open, onClose, onSave, bankLabel, rate }: Props
                 />
               </label>
 
-              {/* Date */}
+              {/* Date — pre-filled with today */}
               <label style={{ display: 'block', marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
                   Top-Up Date

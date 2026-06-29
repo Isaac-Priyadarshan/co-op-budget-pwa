@@ -13,6 +13,8 @@ const inputStyle = {
   boxSizing: 'border-box' as const,
 }
 
+function today() { return new Date().toISOString().substring(0, 10) }
+
 interface Props {
   open: boolean
   onClose: () => void
@@ -24,14 +26,14 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
   const [accountType,  setAccountType]  = useState<AccountType | ''>('')
   const [value,        setValue]        = useState('')
   const [interestRate, setInterestRate] = useState('')
-  const [startDate,    setStartDate]    = useState('')
+  const [startDate,    setStartDate]    = useState(today)
   const [notes,        setNotes]        = useState('')
   const [saving,       setSaving]       = useState(false)
   const [err,          setErr]          = useState('')
 
   const reset = () => {
     setBankName(''); setAccountType(''); setValue('')
-    setInterestRate(''); setStartDate(''); setNotes('')
+    setInterestRate(''); setStartDate(today()); setNotes('')
     setErr(''); setSaving(false)
   }
 
@@ -40,16 +42,15 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
   const handleClose = () => { reset(); onClose() }
 
   const handleSubmit = async () => {
-    if (!bankName.trim())                        { setErr('Enter the bank name');         return }
-    if (!accountType)                            { setErr('Select an account type');      return }
-    if (!value || Number(value) <= 0)            { setErr('Enter a valid invested value'); return }
-    if (!interestRate || Number(interestRate) <= 0) { setErr('Enter the interest rate');  return }
-    if (!startDate)                              { setErr('Select a start date');          return }
+    if (!bankName.trim())                           { setErr('Enter the bank name');          return }
+    if (!accountType)                               { setErr('Select an account type');       return }
+    if (!value || Number(value) <= 0)               { setErr('Enter a valid invested value'); return }
+    if (!interestRate || Number(interestRate) <= 0) { setErr('Enter the interest rate');      return }
+    if (!startDate)                                 { setErr('Select a start date');          return }
 
     try {
       setSaving(true); setErr('')
 
-      // Pack interest rate + start date (+ optional user notes) into the notes field
       const metaParts = [`${Number(interestRate).toFixed(2)}%`, `From ${startDate}`]
       const notesStr  = notes.trim()
         ? [...metaParts, notes.trim()].join(' · ')
@@ -181,7 +182,7 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
                 />
               </label>
 
-              {/* 5. Start Date */}
+              {/* 5. Start Date — pre-filled with today */}
               <label style={{ display: 'block', marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
                   Start Date
@@ -190,10 +191,7 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
                   type="date"
                   value={startDate}
                   onChange={e => setStartDate(e.target.value)}
-                  style={{
-                    ...inputStyle,
-                    colorScheme: 'dark',
-                  }}
+                  style={{ ...inputStyle, colorScheme: 'dark' }}
                 />
               </label>
 
