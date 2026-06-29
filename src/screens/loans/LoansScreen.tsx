@@ -166,7 +166,7 @@ export function LoansScreen() {
                       {loan.lender && (
                         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{loan.lender}</span>
                       )}
-                      {loan.interest_rate && (
+                      {loan.interest_rate != null && loan.interest_rate > 0 && (
                         <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 100, fontWeight: 600, background: 'rgba(251,191,36,0.12)', color: '#fcd34d' }}>{loan.interest_rate}% p.a.</span>
                       )}
                     </div>
@@ -179,10 +179,10 @@ export function LoansScreen() {
 
                 {/* Row 2 — EMI + Dates */}
                 <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-                  {loan.emi && (
+                  {loan.emi_amount != null && loan.emi_amount > 0 && (
                     <div style={{ flex: 1, minWidth: 80 }}>
                       <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', margin: '0 0 2px' }}>EMI / mo</p>
-                      <p style={{ fontSize: 14, fontWeight: 700, color: '#a5b4fc', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatINR(loan.emi)}</p>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: '#a5b4fc', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatINR(loan.emi_amount)}</p>
                     </div>
                   )}
                   {loan.start_date && (
@@ -198,11 +198,6 @@ export function LoansScreen() {
                     </div>
                   )}
                 </div>
-
-                {/* Notes */}
-                {loan.notes && (
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', margin: '0 0 12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loan.notes}</p>
-                )}
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8 }}>
