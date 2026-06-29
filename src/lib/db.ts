@@ -268,7 +268,6 @@ export interface AssetEntry {
   owner: 'Isaac' | 'Jenifa' | 'Both'
   notes: string | null
   created_at: string
-  // market columns (nullable — only present on live-tracked assets)
   ticker:        string | null
   quantity:      number | null
   buy_price:     number | null
@@ -282,10 +281,14 @@ export interface NewAsset {
   value: number
   owner: 'Isaac' | 'Jenifa' | 'Both'
   notes?: string | null
-  // optional market fields
   ticker?:    string | null
   quantity?:  number | null
   buy_price?: number | null
+}
+
+export interface AssetPatch {
+  label?: string
+  notes?: string | null
 }
 
 export async function fetchAssets(): Promise<AssetEntry[]> {
@@ -310,6 +313,17 @@ export async function insertAsset(entry: NewAsset): Promise<AssetEntry> {
   if (entry.buy_price != null) payload.buy_price = entry.buy_price
 
   const { data, error } = await supabase.from('assets').insert(payload).select().single()
+  if (error) throw new Error(error.message)
+  return data as AssetEntry
+}
+
+export async function updateAsset(id: string, patch: AssetPatch): Promise<AssetEntry> {
+  const { data, error } = await supabase
+    .from('assets')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
   if (error) throw new Error(error.message)
   return data as AssetEntry
 }

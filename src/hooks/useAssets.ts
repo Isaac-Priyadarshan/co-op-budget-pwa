@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchAssets, insertAsset, deleteAsset } from '../lib/db'
-import type { AssetEntry, NewAsset } from '../lib/db'
+import { fetchAssets, insertAsset, deleteAsset, updateAsset } from '../lib/db'
+import type { AssetEntry, NewAsset, AssetPatch } from '../lib/db'
 
 export function useAssets() {
   const [assets, setAssets] = useState<AssetEntry[]>([])
@@ -25,7 +25,13 @@ export function useAssets() {
     setAssets(prev => prev.filter(a => a.id !== id))
   }, [])
 
+  const update = useCallback(async (id: string, patch: AssetPatch) => {
+    const updated = await updateAsset(id, patch)
+    setAssets(prev => prev.map(a => a.id === id ? { ...a, ...updated } : a))
+    return updated
+  }, [])
+
   const totalValue = assets.reduce((s, a) => s + a.value, 0)
 
-  return { assets, loading, error, add, remove, totalValue, refresh: load }
+  return { assets, loading, error, add, remove, update, totalValue, refresh: load }
 }
