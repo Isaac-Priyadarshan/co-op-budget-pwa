@@ -9,6 +9,7 @@ import { MutualFundAssetSheet }    from '../../components/assets/MutualFundAsset
 import { CryptoAssetSheet }        from '../../components/assets/CryptoAssetSheet'
 import { PreciousMetalAssetSheet } from '../../components/assets/PreciousMetalAssetSheet'
 import { BankTopUpSheet }          from '../../components/assets/BankTopUpSheet'
+import { ConfirmSheet }            from '../../components/shared/ConfirmSheet'
 import { formatINR, formatShortDate } from '../../utils/format'
 import { parseBankNotes, compoundWithTopUps } from '../../utils/bankCalc'
 import type { BankDeposit } from '../../utils/bankCalc'
@@ -309,7 +310,7 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
   onSave: (ids: string[], newLabel: string, newNotes: (oldNotes: string | null) => string) => Promise<void>
 }) {
   const { bankName: initName, accountType: initType } = splitBankLabel(asset?.label ?? '')
-  const { rate, startDate, userNote: initNote } = parseBankNotes(asset?.notes ?? null)
+  const { userNote: initNote } = parseBankNotes(asset?.notes ?? null)
 
   const [bankName,    setBankName]    = useState(initName)
   const [accountType, setAccountType] = useState<AccountType | ''>(initType as AccountType | '')
@@ -317,7 +318,6 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
   const [saving,      setSaving]      = useState(false)
   const [err,         setErr]         = useState('')
 
-  // Reset when sheet opens
   const prevOpen = useRef(false)
   if (open && !prevOpen.current) {
     const { bankName: n, accountType: t } = splitBankLabel(asset?.label ?? '')
@@ -443,7 +443,7 @@ function BankAssetCard({
   allBankItems: AssetItem[]
   reorderMode: boolean
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
-  onDelete: (id: string) => void
+  onDelete: (id: string, label: string) => void
   onTopUp: (asset: AssetItem) => void
   onLog: (asset: AssetItem) => void
   onEdit: (asset: AssetItem) => void
@@ -477,7 +477,6 @@ function BankAssetCard({
 
   const sep = <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>·</span>
 
-  // Icon button style
   const iconBtn = (color: string, bg: string, border: string) => ({
     width: 34, height: 34, borderRadius: 10,
     background: bg, border: `1px solid ${border}`,
@@ -502,8 +501,6 @@ function BankAssetCard({
       onClick={() => { if (!reorderMode) setExpanded(e => !e) }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
-
-        {/* Drag handle (reorder mode) or emoji */}
         {reorderMode ? (
           <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>
             ☰
@@ -512,7 +509,6 @@ function BankAssetCard({
           <span style={{ fontSize: 22, flexShrink: 0 }}>🏦</span>
         )}
 
-        {/* Name block */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{
             fontSize: 14, fontWeight: 700,
@@ -535,7 +531,6 @@ function BankAssetCard({
           ) : null}
         </div>
 
-        {/* Values */}
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalPrincipal)}</span>
@@ -554,7 +549,6 @@ function BankAssetCard({
         </div>
       </div>
 
-      {/* Expandable action strip */}
       <AnimatePresence initial={false}>
         {expanded && !reorderMode && (
           <motion.div
@@ -612,9 +606,9 @@ function BankAssetCard({
                 </svg>
               </motion.button>
 
-              {/* Delete */}
+              {/* Delete — now routes through confirm */}
               <motion.button whileTap={{ scale: 0.9 }}
-                onClick={() => onDelete(asset.id)}
+                onClick={() => { setExpanded(false); onDelete(asset.id, asset.label) }}
                 disabled={working === asset.id}
                 style={iconBtn('#f87171', 'rgba(248,113,113,0.12)', 'rgba(248,113,113,0.28)')}
                 title="Delete"
@@ -641,7 +635,7 @@ function BankAssetCard({
 function GenericAssetCard({ asset, group, onDelete, working }: {
   asset: AssetItem
   group: typeof ASSET_GROUPS[number]
-  onDelete: (id: string) => void
+  onDelete: (id: string, label: string) => void
   working: string | null
 }) {
   return (
@@ -678,7 +672,7 @@ function GenericAssetCard({ asset, group, onDelete, working }: {
           </p>
         )}
         <button
-          onClick={() => onDelete(asset.id)}
+          onClick={() => onDelete(asset.id, asset.label)}
           disabled={working === asset.id}
           style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
         >
@@ -702,7 +696,7 @@ function GroupDetailView({
   onToggleReorder: () => void
   onBack: () => void
   onAddPress: () => void
-  onDelete: (id: string) => void
+  onDelete: (id: string, label: string) => void
   onTopUp: (asset: AssetItem) => void
   onLog: (asset: AssetItem) => void
   onEdit: (asset: AssetItem) => void
@@ -715,7 +709,6 @@ function GroupDetailView({
     ? items.filter(a => !(a.notes?.includes('top-up') ?? false))
     : items
 
-  // Apply reorder
   const displayItems = isBank && reorderedIds.length > 0
     ? [...rootItems].sort((a, b) => {
         const ai = reorderedIds.indexOf(a.id)
@@ -752,7 +745,6 @@ function GroupDetailView({
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Reorder toggle (bank only) */}
           {isBank && (
             <motion.button whileTap={{ scale: 0.88 }} onClick={onToggleReorder}
               style={{
@@ -773,7 +765,6 @@ function GroupDetailView({
             </motion.button>
           )}
 
-          {/* Add button (hidden during reorder) */}
           {!reorderMode && (
             <motion.button whileTap={{ scale: 0.88 }} onClick={onAddPress}
               style={{ width: 36, height: 36, borderRadius: 12, background: group.color, border: `1px solid ${group.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 2px 12px ${group.color}` }}
@@ -785,7 +776,6 @@ function GroupDetailView({
             </motion.button>
           )}
 
-          {/* Done button in reorder mode */}
           {reorderMode && (
             <motion.button whileTap={{ scale: 0.88 }} onClick={onToggleReorder}
               style={{
@@ -884,7 +874,10 @@ export function AssetScreen() {
   const [logAsset,   setLogAsset]   = useState<AssetItem | null>(null)
   const [editAsset,  setEditAsset]  = useState<AssetItem | null>(null)
 
-  // Persisted bank order
+  // ── Confirm delete state ──
+  const [confirmId,    setConfirmId]    = useState<string | null>(null)
+  const [confirmLabel, setConfirmLabel] = useState('')
+
   const [bankOrder, setBankOrder] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(BANK_ORDER_KEY) ?? '[]') } catch { return [] }
   })
@@ -896,7 +889,6 @@ export function AssetScreen() {
 
   const handleReorder = useCallback((fromIdx: number, toIdx: number) => {
     setBankOrder(prev => {
-      // Build current ordered list of root bank IDs
       const bankItems = assets.filter(a => a.category === 'Bank' && !(a.notes?.includes('top-up')))
       const orderedIds = prev.length > 0
         ? [...bankItems].sort((a, b) => { const ai = prev.indexOf(a.id); const bi = prev.indexOf(b.id); return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi) }).map(a => a.id)
@@ -914,6 +906,12 @@ export function AssetScreen() {
     const { rate } = parseBankNotes(topUpAsset.notes)
     return rate ?? 0
   }, [topUpAsset])
+
+  // Intercept delete — show confirm sheet instead of deleting immediately
+  const requestDelete = useCallback((id: string, label: string) => {
+    setConfirmLabel(label)
+    setConfirmId(id)
+  }, [])
 
   const handleDelete = async (id: string) => {
     setWorking(id)
@@ -950,6 +948,9 @@ export function AssetScreen() {
   , [assets, selectedGroup])
 
   const activeGroupMeta = ASSET_GROUPS.find(g => g.id === selectedGroup)
+
+  // suppress unused warning
+  void saveOrder
 
   return (
     <div style={{ padding: '20px 20px 0', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 'calc(var(--nav-h, 100px) + 24px)' }}>
@@ -989,7 +990,7 @@ export function AssetScreen() {
                 onToggleReorder={() => setReorderMode(r => !r)}
                 onBack={() => { setSelectedGroup(null); setReorderMode(false) }}
                 onAddPress={() => setSheetGroup(selectedGroup)}
-                onDelete={handleDelete}
+                onDelete={requestDelete}
                 onTopUp={(asset) => setTopUpAsset(asset)}
                 onLog={(asset) => setLogAsset(asset)}
                 onEdit={(asset) => setEditAsset(asset)}
@@ -1034,6 +1035,24 @@ export function AssetScreen() {
         allBankItems={groupItems}
         onClose={() => setEditAsset(null)}
         onSave={handleEditSave}
+      />
+
+      {/* Confirm delete */}
+      <ConfirmSheet
+        open={confirmId !== null}
+        title="Delete Asset?"
+        message={confirmLabel ? `"${confirmLabel}" will be permanently removed.` : 'This asset will be permanently removed.'}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          const id = confirmId!
+          setConfirmId(null)
+          setConfirmLabel('')
+          handleDelete(id)
+        }}
+        onCancel={() => {
+          setConfirmId(null)
+          setConfirmLabel('')
+        }}
       />
     </div>
   )
