@@ -2,12 +2,17 @@ import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Variants } from 'framer-motion'
 
-// ─── Types ────────────────────────────────────────────────────────────────────────────────
+// ─── Types ─────────────────────────────────────────────────────────────────────
 type ResetMode =
-  | 'erase_history'
+  | 'erase_budget'
   | 'erase_categories'
-  | 'erase_wallet_credit'
-  | 'clear_budget'
+  | 'erase_transactions'
+  | 'erase_borrowed'
+  | 'erase_lent'
+  | 'erase_loans'
+  | 'erase_recurring'
+  | 'erase_assets'
+  | 'erase_wallets'
   | 'full_wipe'
 
 interface Props {
@@ -15,14 +20,16 @@ interface Props {
   onClose: () => void
 }
 
-// ─── Supabase service-role config ───────────────────────────────────────────────────────
+// ─── Supabase service-role config ──────────────────────────────────────────────
 const SB_URL  = import.meta.env.VITE_SUPABASE_URL as string
 const SB_SKEY = import.meta.env.VITE_SUPABASE_SERVICE_KEY as string
 
-// ─── Core helpers ──────────────────────────────────────────────────────────────────
+// ─── Core helpers ──────────────────────────────────────────────────────────────
 function authHeaders() {
   if (!SB_URL || !SB_SKEY)
-    throw new Error('Service key not configured. Add VITE_SUPABASE_SERVICE_KEY to .env.local and Vercel.')
+    throw new Error(
+      'Service key not configured. Add VITE_SUPABASE_SERVICE_KEY to .env.local and Vercel.'
+    )
   return {
     apikey:         SB_SKEY,
     Authorization:  `Bearer ${SB_SKEY}`,
@@ -39,7 +46,11 @@ async function sbDelete(table: string, filter: string): Promise<void> {
   if (!res.ok) throw new Error(`[${table}] HTTP ${res.status}: ${await res.text()}`)
 }
 
-async function sbPatch(table: string, filter: string, body: Record<string, null>): Promise<void> {
+async function sbPatch(
+  table: string,
+  filter: string,
+  body: Record<string, null>
+): Promise<void> {
   const res = await fetch(`${SB_URL}/rest/v1/${table}?${filter}`, {
     method:  'PATCH',
     headers: authHeaders(),
@@ -48,86 +59,119 @@ async function sbPatch(table: string, filter: string, body: Record<string, null>
   if (!res.ok) throw new Error(`[${table} PATCH] HTTP ${res.status}: ${await res.text()}`)
 }
 
-// ─── Filters ───────────────────────────────────────────────────────────────────────────
-const ALL_UUID   = 'id=neq.00000000-0000-0000-0000-000000000000'
-// user_preferences has user_name (text) as PK — no id column exists
-const ALL_UPREFS = 'user_name=in.(Isaac,Jenifa)'
-// transactions: null out wallet_id for rows that actually have one
-const HAS_WALLET = 'wallet_id=not.is.null'
-// lent: null out source_wallet_id FK before wallets are deleted
+// ─── Filters ───────────────────────────────────────────────────────────────────
+const ALL_UUID        = 'id=neq.00000000-0000-0000-0000-000000000000'
+const ALL_UPREFS      = 'user_name=in.(Isaac,Jenifa)'
+const HAS_WALLET      = 'wallet_id=not.is.null'
 const LENT_HAS_WALLET = 'source_wallet_id=not.is.null'
+const BORR_HAS_WALLET = 'source_wallet_id=not.is.null'
 
-// ─── 1. Erase History ──────────────────────────────────────────────────────────────────
-async function eraseHistory(): Promise<void> {
-  await sbDelete('transactions', ALL_UUID)
-}
+// ─── Selective erase functions ─────────────────────────────────────────────────
 
-// ─── 2. Erase Categories ─────────────────────────────────────────────────────────────────
-async function eraseCategories(): Promise<void> {
-  await sbDelete('subcategories', ALL_UUID)  // FK child first
-  await sbDelete('categories',    ALL_UUID)  // FK parent second
-  await sbDelete('budgets',       ALL_UUID)  // budgets reference category labels
-}
-
-// ─── 3. Erase Wallet & Credit Card ─────────────────────────────────────────────────────
-async function eraseWalletCredit(): Promise<void> {
-  // Null all FK references pointing at wallets before deleting wallets
-  await sbPatch('user_preferences', ALL_UPREFS,    { default_wallet_id: null })
-  await sbPatch('transactions',     HAS_WALLET,    { wallet_id: null })
-  await sbPatch('lent',             LENT_HAS_WALLET, { source_wallet_id: null })
-  // Now safe to delete wallets
-  await sbDelete('wallets', ALL_UUID)
-}
-
-// ─── 4. Clear Budget ────────────────────────────────────────────────────────────────────
-async function clearBudget(): Promise<void> {
+async function eraseBudget(): Promise<void> {
   await sbDelete('budgets', ALL_UUID)
 }
 
-// ─── 5. Full Wipeout ───────────────────────────────────────────────────────────────────
-// DELETION ORDER (FK-safe):
-//   Phase A — null all FK columns that point at wallets
-//   Phase B — delete FK child tables first, wallets last among inter-linked tables
-//   Phase C — delete remaining standalone tables
-//   Phase D — delete user_preferences last (text PK, no id)
+async function eraseCategories(): Promise<void> {
+  // Null category_id FK on transactions before deleting subcategories/categories
+  await sbPatch('transactions', 'category_id=not.is.null', { category_id: null })
+  await sbDelete('subcategories', ALL_UUID)
+  await sbDelete('categories',    ALL_UUID)
+  await sbDelete('budgets',       ALL_UUID)
+}
+
+async function eraseTransactions(): Promise<void> {
+  await sbDelete('transactions', ALL_UUID)
+}
+
+async function eraseBorrowed(): Promise<void> {
+  await sbDelete('borrowed', ALL_UUID)
+}
+
+async function eraseLent(): Promise<void> {
+  await sbDelete('lent', ALL_UUID)
+}
+
+async function eraseLoans(): Promise<void> {
+  await sbDelete('loans', ALL_UUID)
+}
+
+async function eraseRecurring(): Promise<void> {
+  await sbDelete('recurring_payments', ALL_UUID)
+}
+
+async function eraseAssets(): Promise<void> {
+  await sbDelete('assets', ALL_UUID)
+}
+
+async function eraseWallets(): Promise<void> {
+  // Null all FK references pointing at wallets first
+  await sbPatch('user_preferences', ALL_UPREFS,      { default_wallet_id: null })
+  await sbPatch('transactions',     HAS_WALLET,      { wallet_id: null })
+  await sbPatch('lent',             LENT_HAS_WALLET, { source_wallet_id: null })
+  await sbPatch('borrowed',         BORR_HAS_WALLET, { source_wallet_id: null })
+  await sbDelete('wallets', ALL_UUID)
+}
+
+// ─── Full Wipeout ──────────────────────────────────────────────────────────────
 async function fullWipeOut(): Promise<void> {
   const errors: string[] = []
   const safe = async (fn: () => Promise<void>) => {
     try { await fn() } catch (e) { errors.push(e instanceof Error ? e.message : String(e)) }
   }
 
-  // ── Phase A: Null every FK that references wallets ─────────────────────────
+  // Phase A: Null every FK that references wallets or categories
   await safe(() => sbPatch('user_preferences', ALL_UPREFS,      { default_wallet_id: null }))
   await safe(() => sbPatch('transactions',     HAS_WALLET,      { wallet_id: null }))
+  await safe(() => sbPatch('transactions',     'category_id=not.is.null', { category_id: null }))
   await safe(() => sbPatch('lent',             LENT_HAS_WALLET, { source_wallet_id: null }))
+  await safe(() => sbPatch('borrowed',         BORR_HAS_WALLET, { source_wallet_id: null }))
 
-  // ── Phase B: Delete FK children before their parents ───────────────────────
-  // lent & borrowed must go BEFORE wallets (source_wallet_id FK)
+  // Phase B: FK children before parents
   await safe(() => sbDelete('lent',               ALL_UUID))
   await safe(() => sbDelete('borrowed',           ALL_UUID))
-  // transactions must go before wallets (wallet_id FK already nulled, but safer)
   await safe(() => sbDelete('transactions',       ALL_UUID))
-  // subcategories before categories
   await safe(() => sbDelete('subcategories',      ALL_UUID))
   await safe(() => sbDelete('categories',         ALL_UUID))
   await safe(() => sbDelete('budgets',            ALL_UUID))
-  // wallets — now safe, all FKs pointing at it are gone/nulled
   await safe(() => sbDelete('wallets',            ALL_UUID))
 
-  // ── Phase C: Standalone tables (no cross-references) ───────────────────────
+  // Phase C: Standalone tables
   await safe(() => sbDelete('loans',              ALL_UUID))
   await safe(() => sbDelete('recurring_payments', ALL_UUID))
   await safe(() => sbDelete('assets',             ALL_UUID))
 
-  // ── Phase D: user_preferences last (text PK) ───────────────────────────────
-  await safe(() => sbDelete('user_preferences',   ALL_UPREFS))
+  // Phase D: user_preferences last (text PK)
+  await safe(() => sbDelete('user_preferences', ALL_UPREFS))
+
+  // Clear all local storage keys used by the app
+  try {
+    const appKeys = [
+      'co-op-active-user',
+      'co-op-user-prefs',
+      'co-op-wallets-cache',
+      'co-op-transactions-cache',
+      'co-op-categories-cache',
+    ]
+    appKeys.forEach(k => localStorage.removeItem(k))
+  } catch (_) { /* silently skip if localStorage unavailable */ }
 
   if (errors.length > 0)
     throw new Error(`Some tables failed to wipe:\n${errors.join('\n')}`)
 }
 
-// ─── Mode config ─────────────────────────────────────────────────────────────────────────────
-const SAFE_MODES: ResetMode[] = ['erase_history','erase_categories','erase_wallet_credit','clear_budget']
+// ─── Mode config ───────────────────────────────────────────────────────────────
+const SELECTIVE_MODES: ResetMode[] = [
+  'erase_budget',
+  'erase_categories',
+  'erase_transactions',
+  'erase_borrowed',
+  'erase_lent',
+  'erase_loans',
+  'erase_recurring',
+  'erase_assets',
+  'erase_wallets',
+]
 
 const MODES: {
   key:          ResetMode
@@ -144,69 +188,111 @@ const MODES: {
   activeBorder: string
 }[] = [
   {
-    key: 'erase_history', icon: '🧹', label: 'Erase History',
-    subtitle: 'Removes all transaction records',
+    key: 'erase_budget', icon: '💰', label: 'Erase Budget',
+    subtitle: 'Resets all monthly budget allocations',
     danger: false,
-    rowBg: 'rgba(99,102,241,0.07)',        rowBorder: 'rgba(99,102,241,0.20)',
-    iconBg: 'rgba(99,102,241,0.18)',       iconBorder: 'rgba(99,102,241,0.32)',
-    labelColor: '#c7d2fe',
-    activeBg: 'rgba(99,102,241,0.12)',     activeBorder: 'rgba(99,102,241,0.50)',
+    rowBg: 'rgba(34,197,94,0.07)',       rowBorder: 'rgba(34,197,94,0.20)',
+    iconBg: 'rgba(34,197,94,0.18)',      iconBorder: 'rgba(34,197,94,0.32)',
+    labelColor: '#bbf7d0',
+    activeBg: 'rgba(34,197,94,0.12)',    activeBorder: 'rgba(34,197,94,0.50)',
   },
   {
     key: 'erase_categories', icon: '🗂️', label: 'Erase Categories',
-    subtitle: 'Clears all categories, subcategories & budgets',
+    subtitle: 'Clears all categories, subcategories & linked budgets',
     danger: false,
-    rowBg: 'rgba(20,184,166,0.07)',        rowBorder: 'rgba(20,184,166,0.20)',
-    iconBg: 'rgba(20,184,166,0.18)',       iconBorder: 'rgba(20,184,166,0.32)',
+    rowBg: 'rgba(20,184,166,0.07)',      rowBorder: 'rgba(20,184,166,0.20)',
+    iconBg: 'rgba(20,184,166,0.18)',     iconBorder: 'rgba(20,184,166,0.32)',
     labelColor: '#99f6e4',
-    activeBg: 'rgba(20,184,166,0.12)',     activeBorder: 'rgba(20,184,166,0.50)',
+    activeBg: 'rgba(20,184,166,0.12)',   activeBorder: 'rgba(20,184,166,0.50)',
   },
   {
-    key: 'erase_wallet_credit', icon: '👛', label: 'Erase Wallets & Cards',
+    key: 'erase_transactions', icon: '🧹', label: 'Erase Transactions',
+    subtitle: 'Removes all income, expense & transfer records',
+    danger: false,
+    rowBg: 'rgba(99,102,241,0.07)',      rowBorder: 'rgba(99,102,241,0.20)',
+    iconBg: 'rgba(99,102,241,0.18)',     iconBorder: 'rgba(99,102,241,0.32)',
+    labelColor: '#c7d2fe',
+    activeBg: 'rgba(99,102,241,0.12)',   activeBorder: 'rgba(99,102,241,0.50)',
+  },
+  {
+    key: 'erase_borrowed', icon: '📥', label: 'Erase Borrowed',
+    subtitle: 'Clears all money-borrowed records',
+    danger: false,
+    rowBg: 'rgba(249,115,22,0.07)',      rowBorder: 'rgba(249,115,22,0.20)',
+    iconBg: 'rgba(249,115,22,0.18)',     iconBorder: 'rgba(249,115,22,0.32)',
+    labelColor: '#fed7aa',
+    activeBg: 'rgba(249,115,22,0.12)',   activeBorder: 'rgba(249,115,22,0.50)',
+  },
+  {
+    key: 'erase_lent', icon: '📤', label: 'Erase Lent',
+    subtitle: 'Clears all money-lent records',
+    danger: false,
+    rowBg: 'rgba(168,85,247,0.07)',      rowBorder: 'rgba(168,85,247,0.20)',
+    iconBg: 'rgba(168,85,247,0.18)',     iconBorder: 'rgba(168,85,247,0.32)',
+    labelColor: '#e9d5ff',
+    activeBg: 'rgba(168,85,247,0.12)',   activeBorder: 'rgba(168,85,247,0.50)',
+  },
+  {
+    key: 'erase_loans', icon: '🏦', label: 'Erase Loans',
+    subtitle: 'Removes all loan entries (home, car, personal etc.)',
+    danger: false,
+    rowBg: 'rgba(14,165,233,0.07)',      rowBorder: 'rgba(14,165,233,0.20)',
+    iconBg: 'rgba(14,165,233,0.18)',     iconBorder: 'rgba(14,165,233,0.32)',
+    labelColor: '#bae6fd',
+    activeBg: 'rgba(14,165,233,0.12)',   activeBorder: 'rgba(14,165,233,0.50)',
+  },
+  {
+    key: 'erase_recurring', icon: '🔁', label: 'Erase Recurring',
+    subtitle: 'Deletes all recurring payment schedules',
+    danger: false,
+    rowBg: 'rgba(236,72,153,0.07)',      rowBorder: 'rgba(236,72,153,0.20)',
+    iconBg: 'rgba(236,72,153,0.18)',     iconBorder: 'rgba(236,72,153,0.32)',
+    labelColor: '#fbcfe8',
+    activeBg: 'rgba(236,72,153,0.12)',   activeBorder: 'rgba(236,72,153,0.50)',
+  },
+  {
+    key: 'erase_assets', icon: '📊', label: 'Erase Assets',
+    subtitle: 'Removes all stocks, mutual funds, gold & property records',
+    danger: false,
+    rowBg: 'rgba(234,179,8,0.07)',       rowBorder: 'rgba(234,179,8,0.20)',
+    iconBg: 'rgba(234,179,8,0.18)',      iconBorder: 'rgba(234,179,8,0.32)',
+    labelColor: '#fef08a',
+    activeBg: 'rgba(234,179,8,0.12)',    activeBorder: 'rgba(234,179,8,0.50)',
+  },
+  {
+    key: 'erase_wallets', icon: '👛', label: 'Erase Wallets & Cards',
     subtitle: 'Permanently deletes all wallets and credit cards',
     danger: false,
-    rowBg: 'rgba(251,191,36,0.07)',        rowBorder: 'rgba(251,191,36,0.20)',
-    iconBg: 'rgba(251,191,36,0.18)',       iconBorder: 'rgba(251,191,36,0.32)',
+    rowBg: 'rgba(251,191,36,0.07)',      rowBorder: 'rgba(251,191,36,0.20)',
+    iconBg: 'rgba(251,191,36,0.18)',     iconBorder: 'rgba(251,191,36,0.32)',
     labelColor: '#fde68a',
-    activeBg: 'rgba(251,191,36,0.12)',     activeBorder: 'rgba(251,191,36,0.50)',
-  },
-  {
-    key: 'clear_budget', icon: '💰', label: 'Clear Budget',
-    subtitle: 'Resets all monthly budget allocations',
-    danger: false,
-    rowBg: 'rgba(34,197,94,0.07)',         rowBorder: 'rgba(34,197,94,0.20)',
-    iconBg: 'rgba(34,197,94,0.18)',        iconBorder: 'rgba(34,197,94,0.32)',
-    labelColor: '#bbf7d0',
-    activeBg: 'rgba(34,197,94,0.12)',      activeBorder: 'rgba(34,197,94,0.50)',
+    activeBg: 'rgba(251,191,36,0.12)',   activeBorder: 'rgba(251,191,36,0.50)',
   },
   {
     key: 'full_wipe', icon: '💥', label: 'Full Wipeout',
     subtitle: 'Destroys every record, category, wallet, budget, loan, asset — everything',
     danger: true,
-    rowBg: 'rgba(244,63,94,0.10)',         rowBorder: 'rgba(244,63,94,0.35)',
-    iconBg: 'rgba(244,63,94,0.22)',        iconBorder: 'rgba(244,63,94,0.45)',
+    rowBg: 'rgba(244,63,94,0.10)',       rowBorder: 'rgba(244,63,94,0.35)',
+    iconBg: 'rgba(244,63,94,0.22)',      iconBorder: 'rgba(244,63,94,0.45)',
     labelColor: '#fda4af',
-    activeBg: 'rgba(244,63,94,0.14)',      activeBorder: 'rgba(244,63,94,0.60)',
+    activeBg: 'rgba(244,63,94,0.14)',    activeBorder: 'rgba(244,63,94,0.60)',
   },
 ]
 
-const CONFIRM_LABELS: Record<ResetMode, string> = {
-  erase_history:       'Type DELETE to confirm',
-  erase_categories:    'Type DELETE to confirm',
-  erase_wallet_credit: 'Type DELETE to confirm',
-  clear_budget:        'Type DELETE to confirm',
-  full_wipe:           'Type WIPEOUT to confirm',
-}
-
 const CONFIRM_KEYWORDS: Record<ResetMode, string> = {
-  erase_history:       'DELETE',
-  erase_categories:    'DELETE',
-  erase_wallet_credit: 'DELETE',
-  clear_budget:        'DELETE',
-  full_wipe:           'WIPEOUT',
+  erase_budget:       'DELETE',
+  erase_categories:   'DELETE',
+  erase_transactions: 'DELETE',
+  erase_borrowed:     'DELETE',
+  erase_lent:         'DELETE',
+  erase_loans:        'DELETE',
+  erase_recurring:    'DELETE',
+  erase_assets:       'DELETE',
+  erase_wallets:      'DELETE',
+  full_wipe:          'WIPEOUT',
 }
 
-// ─── Animation variants ────────────────────────────────────────────────────────────────────
+// ─── Animation variants ────────────────────────────────────────────────────────
 const EASE = [0.16, 1, 0.3, 1] as const
 
 const sheetVariants: Variants = {
@@ -225,11 +311,11 @@ const rowVariants: Variants = {
   hidden:  { opacity: 0, y: 12 },
   visible: (i: number) => ({
     opacity: 1, y: 0,
-    transition: { delay: i * 0.06, type: 'spring', stiffness: 320, damping: 28 },
+    transition: { delay: i * 0.045, type: 'spring', stiffness: 320, damping: 28 },
   }),
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────────────────────
+// ─── Component ─────────────────────────────────────────────────────────────────
 export default function ResetDataSheet({ open, onClose }: Props) {
   const [selected,  setSelected]  = useState<ResetMode | null>(null)
   const [step,      setStep]      = useState<'select' | 'confirm' | 'running' | 'done' | 'error'>('select')
@@ -259,11 +345,16 @@ export default function ResetDataSheet({ open, onClose }: Props) {
     setErrMsg('')
     try {
       switch (selected) {
-        case 'erase_history':       await eraseHistory();      break
-        case 'erase_categories':    await eraseCategories();   break
-        case 'erase_wallet_credit': await eraseWalletCredit(); break
-        case 'clear_budget':        await clearBudget();       break
-        case 'full_wipe':           await fullWipeOut();       break
+        case 'erase_budget':       await eraseBudget();       break
+        case 'erase_categories':   await eraseCategories();   break
+        case 'erase_transactions': await eraseTransactions(); break
+        case 'erase_borrowed':     await eraseBorrowed();     break
+        case 'erase_lent':         await eraseLent();         break
+        case 'erase_loans':        await eraseLoans();        break
+        case 'erase_recurring':    await eraseRecurring();    break
+        case 'erase_assets':       await eraseAssets();       break
+        case 'erase_wallets':      await eraseWallets();      break
+        case 'full_wipe':          await fullWipeOut();       break
       }
       setStep('done')
     } catch (e) {
@@ -277,14 +368,14 @@ export default function ResetDataSheet({ open, onClose }: Props) {
   const isReady    = confirmTx.trim().toUpperCase() === keyword
   const isFullWipe = selected === 'full_wipe'
 
-  const safeModes   = MODES.filter(m => SAFE_MODES.includes(m.key))
-  const dangerModes = MODES.filter(m => m.danger)
+  const selectiveModes = MODES.filter(m => SELECTIVE_MODES.includes(m.key))
+  const dangerModes    = MODES.filter(m => m.danger)
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          {/* ── Backdrop overlay ───────────────────────────────────────────────── */}
+          {/* Backdrop */}
           <motion.div
             key="overlay"
             className="fixed inset-0 z-40"
@@ -298,7 +389,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
             onClick={handleClose}
           />
 
-          {/* ── Sheet ────────────────────────────────────────────────────────────────── */}
+          {/* Sheet */}
           <motion.div
             key="sheet"
             className="fixed bottom-0 left-0 right-0 z-50 flex flex-col"
@@ -314,7 +405,6 @@ export default function ResetDataSheet({ open, onClose }: Props) {
             variants={sheetVariants}
             initial="hidden" animate="visible" exit="exit"
           >
-
             {/* Drag handle */}
             <div style={{
               display: 'flex', justifyContent: 'center',
@@ -328,17 +418,16 @@ export default function ResetDataSheet({ open, onClose }: Props) {
 
             {/* Scrollable body */}
             <div style={{ overflowY: 'auto', flex: 1, WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
-
               <AnimatePresence mode="wait">
 
-                {/* ═════════════ STEP: SELECT ═════════════════════════════════════ */}
+                {/* ══ STEP: SELECT ══════════════════════════════════════════════ */}
                 {step === 'select' && (
                   <motion.div
                     key="select"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0, transition: { duration: 0.22 } }}
                     exit={{    opacity: 0, y: -6,  transition: { duration: 0.15 } }}
-                    style={{ padding: '10px 18px 36px' }}
+                    style={{ padding: '10px 18px 40px' }}
                   >
                     {/* Header */}
                     <div style={{ marginBottom: 22 }}>
@@ -356,7 +445,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                       </p>
                     </div>
 
-                    {/* Section label: Selective Erase */}
+                    {/* Section label */}
                     <p style={{
                       fontSize: 10, fontWeight: 700, letterSpacing: '0.12em',
                       textTransform: 'uppercase',
@@ -366,9 +455,9 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                       Selective Erase
                     </p>
 
-                    {/* Safe option rows */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 22 }}>
-                      {safeModes.map((m, i) => (
+                    {/* Selective erase rows */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginBottom: 26 }}>
+                      {selectiveModes.map((m, i) => (
                         <motion.button
                           key={m.key}
                           custom={i}
@@ -447,7 +536,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                     {dangerModes.map((m, i) => (
                       <motion.button
                         key={m.key}
-                        custom={safeModes.length + i}
+                        custom={selectiveModes.length + i}
                         variants={rowVariants}
                         initial="hidden"
                         animate="visible"
@@ -494,11 +583,10 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                         </svg>
                       </motion.button>
                     ))}
-
                   </motion.div>
                 )}
 
-                {/* ═════════════ STEP: CONFIRM ════════════════════════════════════ */}
+                {/* ══ STEP: CONFIRM ════════════════════════════════════════════ */}
                 {step === 'confirm' && mode && (
                   <motion.div
                     key="confirm"
@@ -562,8 +650,8 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                         margin: 0, lineHeight: 1.6,
                       }}>
                         {isFullWipe
-                          ? 'All transactions, categories, wallets, credit cards, budgets, loans, recurring payments, lent/borrowed records, and assets will be permanently deleted. There is no undo.'
-                          : `${mode.subtitle}. Once deleted, this data cannot be recovered.`
+                          ? 'All transactions, categories, wallets, credit cards, budgets, loans, recurring payments, lent/borrowed records, and assets will be permanently deleted from the app and the database. There is no undo.'
+                          : `${mode.subtitle}. Once deleted, this data cannot be recovered from the app or the database.`
                         }
                       </p>
                     </div>
@@ -574,7 +662,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                       color: 'rgba(148,163,184,0.80)',
                       margin: '0 0 8px 2px',
                     }}>
-                      {CONFIRM_LABELS[selected!]}
+                      {isFullWipe ? 'Type WIPEOUT to confirm' : 'Type DELETE to confirm'}
                     </p>
 
                     {/* Keyword input */}
@@ -640,7 +728,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                   </motion.div>
                 )}
 
-                {/* ═════════════ STEP: RUNNING ═══════════════════════════════════ */}
+                {/* ══ STEP: RUNNING ════════════════════════════════════════════ */}
                 {step === 'running' && (
                   <motion.div
                     key="running"
@@ -664,7 +752,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                       fontSize: 14, fontWeight: 600,
                       color: 'rgba(148,163,184,0.85)', margin: 0,
                     }}>
-                      {isFullWipe ? 'Wiping everything…' : 'Erasing data…'}
+                      {isFullWipe ? 'Wiping everything…' : `Erasing ${mode?.label ?? 'data'}…`}
                     </p>
                     <p style={{
                       fontSize: 12, color: 'rgba(148,163,184,0.38)', margin: 0,
@@ -674,7 +762,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                   </motion.div>
                 )}
 
-                {/* ═════════════ STEP: DONE ═══════════════════════════════════════ */}
+                {/* ══ STEP: DONE ═══════════════════════════════════════════════ */}
                 {step === 'done' && (
                   <motion.div
                     key="done"
@@ -719,7 +807,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                   </motion.div>
                 )}
 
-                {/* ═════════════ STEP: ERROR ══════════════════════════════════════ */}
+                {/* ══ STEP: ERROR ══════════════════════════════════════════════ */}
                 {step === 'error' && (
                   <motion.div
                     key="error"
@@ -781,7 +869,7 @@ export default function ResetDataSheet({ open, onClose }: Props) {
                 )}
 
               </AnimatePresence>
-            </div>{/* end scrollable body */}
+            </div>
           </motion.div>
         </>
       )}
