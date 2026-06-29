@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { WalletEntry, NewWallet } from '../../lib/db'
+import { ConfirmSheet } from './ConfirmSheet'
 
 // Bottom nav is ~112px tall. All fixed sheets must clear it.
 const NAV_CLEARANCE = 'calc(env(safe-area-inset-bottom) + 120px)'
@@ -102,7 +103,6 @@ interface WalletAddProps { open: boolean; onClose: () => void; onSave: (w: NewWa
 
 function WalletAddSheet({ open, onClose, onSave }: WalletAddProps) {
   const [name, setName] = useState('')
-  // Default to '0' so user can save a zero-balance wallet without typing
   const [balance, setBalance] = useState('0')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -112,7 +112,6 @@ function WalletAddSheet({ open, onClose, onSave }: WalletAddProps) {
 
   const handleSave = async () => {
     if (!name.trim()) { setErr('Enter a wallet name'); return }
-    // FIX: use trim check instead of falsy — allows '0' to pass
     if (balance.trim() === '' || isNaN(Number(balance))) { setErr('Enter a valid balance'); return }
     try {
       setSaving(true); setErr('')
@@ -165,6 +164,7 @@ function WalletEditSheet({ open, item, onClose, onUpdate, onDelete }: WalletEdit
   const [balance, setBalance] = useState(String(item.balance))
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [err, setErr] = useState('')
 
   useEffect(() => { setName(item.label); setBalance(String(item.balance)); setErr('') }, [item.id])
@@ -173,7 +173,6 @@ function WalletEditSheet({ open, item, onClose, onUpdate, onDelete }: WalletEdit
 
   const handleUpdate = async () => {
     if (!name.trim()) { setErr('Enter a wallet name'); return }
-    // FIX: use trim check instead of falsy — allows '0' to pass
     if (balance.trim() === '' || isNaN(Number(balance))) { setErr('Enter a valid balance'); return }
     try {
       setSaving(true); setErr('')
@@ -184,47 +183,56 @@ function WalletEditSheet({ open, item, onClose, onUpdate, onDelete }: WalletEdit
   }
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${item.label}"?`)) return
     try { setDeleting(true); await onDelete(item.id); onClose() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Failed to delete') }
     finally { setDeleting(false) }
   }
 
   return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div key="web" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={handleClose}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 40 }}
-          />
-          <motion.div key="wes" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50, background: 'linear-gradient(180deg,#0d0f1c,#08091a)', border: '1px solid rgba(52,211,153,0.28)', borderBottom: 'none', borderRadius: '28px 28px 0 0', padding: `0 20px ${NAV_CLEARANCE}`, maxHeight: '88dvh', overflowY: 'auto' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 8px' }}><div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} /></div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.02em' }}>Edit Wallet</h2>
-              <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>✕</button>
-            </div>
-            <label style={{ display: 'block', marginBottom: 16 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.7)', marginBottom: 8 }}>Wallet Name</p>
-              <input type="text" inputMode="text" value={name} onChange={e => setName(e.target.value)} style={inp} />
-            </label>
-            <label style={{ display: 'block', marginBottom: 28 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.7)', marginBottom: 8 }}>Balance (₹)</p>
-              <input type="number" inputMode="decimal" value={balance} onChange={e => setBalance(e.target.value)} style={{ ...amt, fontSize: 26 }} />
-            </label>
-            {err && <p style={{ fontSize: 13, color: '#fca5a5', marginBottom: 16, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)' }}>{err}</p>}
-            <button onClick={handleUpdate} disabled={saving}
-              style={{ width: '100%', padding: '16px', background: saving ? 'rgba(52,211,153,0.25)' : 'linear-gradient(135deg,#34d399,#059669)', border: 'none', borderRadius: 16, color: '#000', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', marginBottom: 12, boxShadow: saving ? 'none' : '0 4px 20px rgba(52,211,153,0.3)' }}
-            >{saving ? 'Updating…' : 'Update Wallet'}</button>
-            <button onClick={handleDelete} disabled={deleting}
-              style={{ width: '100%', padding: '14px', background: 'none', border: '1px solid rgba(248,113,113,0.28)', borderRadius: 16, color: deleting ? 'rgba(248,113,113,0.4)' : '#fca5a5', fontSize: 15, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer' }}
-            >{deleting ? 'Deleting…' : 'Delete Wallet'}</button>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+    <>
+      <AnimatePresence>
+        {open && (
+          <>
+            <motion.div key="web" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={handleClose}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 40 }}
+            />
+            <motion.div key="wes" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+              style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50, background: 'linear-gradient(180deg,#0d0f1c,#08091a)', border: '1px solid rgba(52,211,153,0.28)', borderBottom: 'none', borderRadius: '28px 28px 0 0', padding: `0 20px ${NAV_CLEARANCE}`, maxHeight: '88dvh', overflowY: 'auto' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 8px' }}><div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} /></div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#f5f7ff', letterSpacing: '-0.02em' }}>Edit Wallet</h2>
+                <button onClick={handleClose} style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>✕</button>
+              </div>
+              <label style={{ display: 'block', marginBottom: 16 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.7)', marginBottom: 8 }}>Wallet Name</p>
+                <input type="text" inputMode="text" value={name} onChange={e => setName(e.target.value)} style={inp} />
+              </label>
+              <label style={{ display: 'block', marginBottom: 28 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(52,211,153,0.7)', marginBottom: 8 }}>Balance (₹)</p>
+                <input type="number" inputMode="decimal" value={balance} onChange={e => setBalance(e.target.value)} style={{ ...amt, fontSize: 26 }} />
+              </label>
+              {err && <p style={{ fontSize: 13, color: '#fca5a5', marginBottom: 16, padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)' }}>{err}</p>}
+              <button onClick={handleUpdate} disabled={saving}
+                style={{ width: '100%', padding: '16px', background: saving ? 'rgba(52,211,153,0.25)' : 'linear-gradient(135deg,#34d399,#059669)', border: 'none', borderRadius: 16, color: '#000', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', marginBottom: 12, boxShadow: saving ? 'none' : '0 4px 20px rgba(52,211,153,0.3)' }}
+              >{saving ? 'Updating…' : 'Update Wallet'}</button>
+              <button onClick={() => setConfirmOpen(true)} disabled={deleting}
+                style={{ width: '100%', padding: '14px', background: 'none', border: '1px solid rgba(248,113,113,0.28)', borderRadius: 16, color: deleting ? 'rgba(248,113,113,0.4)' : '#fca5a5', fontSize: 15, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer' }}
+              >{deleting ? 'Deleting…' : 'Delete Wallet'}</button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+      <ConfirmSheet
+        open={confirmOpen}
+        title="Delete Wallet?"
+        message={`"${item.label}" will be permanently removed.`}
+        confirmLabel="Delete"
+        onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </>
   )
 }
 
@@ -234,7 +242,6 @@ interface CreditAddProps { open: boolean; onClose: () => void; onSave: (w: NewWa
 function CreditCardAddSheet({ open, onClose, onSave }: CreditAddProps) {
   const [name, setName] = useState('')
   const [limit, setLimit] = useState('')
-  // Default to '0' — a brand new card with no existing dues
   const [outstanding, setOutstanding] = useState('0')
   const [billDate, setBillDate] = useState<number | null>(null)
   const [dueDate, setDueDate] = useState<number | null>(null)
@@ -247,9 +254,7 @@ function CreditCardAddSheet({ open, onClose, onSave }: CreditAddProps) {
 
   const handleSave = async () => {
     if (!name.trim()) { setErr('Enter a card name'); return }
-    // Limit must be > 0 — a card with ₹0 limit is not valid
     if (limit.trim() === '' || isNaN(Number(limit)) || Number(limit) <= 0) { setErr('Enter a valid credit limit (must be greater than ₹0)'); return }
-    // FIX: outstanding CAN be 0 — new card with no dues
     if (outstanding.trim() === '' || isNaN(Number(outstanding))) { setErr('Enter a valid outstanding balance (0 is allowed)'); return }
     if (!billDate) { setErr('Select a billing date'); return }
     if (!dueDate) { setErr('Select a due date'); return }
@@ -342,6 +347,7 @@ function CreditCardEditSheet({ open, item, onClose, onUpdate, onDelete }: Credit
   const [dayPicker, setDayPicker] = useState<'bill' | 'due' | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [err, setErr] = useState('')
 
   useEffect(() => {
@@ -357,9 +363,7 @@ function CreditCardEditSheet({ open, item, onClose, onUpdate, onDelete }: Credit
 
   const handleUpdate = async () => {
     if (!name.trim()) { setErr('Enter a card name'); return }
-    // Limit must be > 0
     if (limit.trim() === '' || isNaN(Number(limit)) || Number(limit) <= 0) { setErr('Enter a valid credit limit (must be greater than ₹0)'); return }
-    // FIX: outstanding CAN be 0 — card fully paid off
     if (outstanding.trim() === '' || isNaN(Number(outstanding))) { setErr('Enter valid outstanding balance (0 is allowed)'); return }
     if (!billDate) { setErr('Select a billing date'); return }
     if (!dueDate) { setErr('Select a due date'); return }
@@ -372,7 +376,6 @@ function CreditCardEditSheet({ open, item, onClose, onUpdate, onDelete }: Credit
   }
 
   const handleDelete = async () => {
-    if (!window.confirm(`Delete "${item.label}"?`)) return
     try { setDeleting(true); await onDelete(item.id); onClose() }
     catch (e) { setErr(e instanceof Error ? e.message : 'Failed to delete') }
     finally { setDeleting(false) }
@@ -434,7 +437,7 @@ function CreditCardEditSheet({ open, item, onClose, onUpdate, onDelete }: Credit
               <button onClick={handleUpdate} disabled={saving}
                 style={{ width: '100%', padding: '16px', background: saving ? 'rgba(248,113,113,0.25)' : 'linear-gradient(135deg,#f87171,#ef4444)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', marginBottom: 12, boxShadow: saving ? 'none' : '0 4px 20px rgba(248,113,113,0.3)' }}
               >{saving ? 'Updating…' : 'Update Card'}</button>
-              <button onClick={handleDelete} disabled={deleting}
+              <button onClick={() => setConfirmOpen(true)} disabled={deleting}
                 style={{ width: '100%', padding: '14px', background: 'none', border: '1px solid rgba(248,113,113,0.28)', borderRadius: 16, color: deleting ? 'rgba(248,113,113,0.4)' : '#fca5a5', fontSize: 15, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer' }}
               >{deleting ? 'Deleting…' : 'Delete Card'}</button>
             </motion.div>
@@ -446,6 +449,14 @@ function CreditCardEditSheet({ open, item, onClose, onUpdate, onDelete }: Credit
           <DayPickerSheet value={dayPicker === 'bill' ? billDate : dueDate} onChange={d => dayPicker === 'bill' ? setBillDate(d) : setDueDate(d)} onClose={() => setDayPicker(null)} />
         )}
       </AnimatePresence>
+      <ConfirmSheet
+        open={confirmOpen}
+        title="Delete Credit Card?"
+        message={`"${item.label}" will be permanently removed.`}
+        confirmLabel="Delete"
+        onConfirm={() => { setConfirmOpen(false); handleDelete() }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </>
   )
 }

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRecurring } from '../../hooks/useRecurring'
 import type { RecurringEntry, NewRecurring } from '../../lib/db'
 import { RecurringSheet } from '../../components/shared/RecurringSheet'
+import { ConfirmSheet } from '../../components/shared/ConfirmSheet'
 import { formatINR } from '../../utils/format'
 
 const FREQ_LABEL: Record<string, string> = {
@@ -26,9 +27,11 @@ type Filter = 'active' | 'paused' | 'all'
 
 export function RecurringPaymentScreen() {
   const { items, loading, error, add, toggle, remove, totalMonthly, refresh } = useRecurring()
-  const [filter, setFilter]       = useState<Filter>('active')
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [working, setWorking]     = useState<string | null>(null)
+  const [filter, setFilter]         = useState<Filter>('active')
+  const [sheetOpen, setSheetOpen]   = useState(false)
+  const [working, setWorking]       = useState<string | null>(null)
+  const [confirmId, setConfirmId]   = useState<string | null>(null)
+  const [confirmLabel, setConfirmLabel] = useState('')
 
   const activeList   = useMemo(() => items.filter((r: RecurringEntry) =>  r.active), [items])
   const inactiveList = useMemo(() => items.filter((r: RecurringEntry) => !r.active), [items])
@@ -39,7 +42,6 @@ export function RecurringPaymentScreen() {
     return items
   }, [filter, activeList, inactiveList, items])
 
-  // ── save: call add() with the payload the sheet hands us
   const handleSave = async (entry: NewRecurring) => {
     await add(entry)
     setSheetOpen(false)
@@ -57,6 +59,11 @@ export function RecurringPaymentScreen() {
     try   { await remove(id) }
     catch (e) { console.error(e) }
     finally   { setWorking(null) }
+  }
+
+  const openConfirm = (item: RecurringEntry) => {
+    setConfirmLabel(item.label)
+    setConfirmId(item.id)
   }
 
   return (
@@ -218,7 +225,7 @@ export function RecurringPaymentScreen() {
                     </motion.button>
                     <motion.button
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() => openConfirm(item)}
                       disabled={working === item.id}
                       style={{ padding: '10px 16px', borderRadius: 13, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', color: 'rgba(252,165,165,0.6)', fontSize: 13, cursor: 'pointer' }}
                     >Delete</motion.button>
@@ -231,11 +238,21 @@ export function RecurringPaymentScreen() {
 
       </motion.div>
 
-      {/* Sheet — onSave correctly receives and persists the entry */}
+      {/* Sheet */}
       <RecurringSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         onSave={handleSave}
+      />
+
+      {/* Confirm delete */}
+      <ConfirmSheet
+        open={confirmId !== null}
+        title="Delete Payment?"
+        message={confirmLabel ? `"${confirmLabel}" will be permanently removed.` : 'This payment will be permanently removed.'}
+        confirmLabel="Delete"
+        onConfirm={() => { const id = confirmId!; setConfirmId(null); setConfirmLabel(''); handleDelete(id) }}
+        onCancel={() => { setConfirmId(null); setConfirmLabel('') }}
       />
     </div>
   )
