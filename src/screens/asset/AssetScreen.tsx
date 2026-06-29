@@ -13,16 +13,12 @@ import { formatINR, formatShortDate } from '../../utils/format'
 import { parseBankNotes, compoundWithTopUps } from '../../utils/bankCalc'
 import type { BankDeposit } from '../../utils/bankCalc'
 
-// ─── helpers ───────────────────────────────────────────────────────────────────
+// ─── helpers ──────────────────────────────────────────────────────────────────
 function fmtStartDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-/**
- * Split a bank label like "HDFC Bank – Savings" into
- * { bankName: "HDFC Bank", accountType: "Savings" }
- */
 function splitBankLabel(label: string): { bankName: string; accountType: string } {
   const idx = label.lastIndexOf(' – ')
   if (idx === -1) return { bankName: label, accountType: '' }
@@ -56,7 +52,7 @@ function PnlBadge({ asset }: {
   )
 }
 
-// ─── Global summary card ──────────────────────────────────────────────────────────────
+// ─── Global summary card ──────────────────────────────────────────────────────
 function SummaryCard({ totalValue, assetCount, loading }: {
   totalValue: number; assetCount: number; loading: boolean
 }) {
@@ -92,7 +88,7 @@ function SummaryCard({ totalValue, assetCount, loading }: {
   )
 }
 
-// ─── Per-group summary card ─────────────────────────────────────────────────────────
+// ─── Per-group summary card ───────────────────────────────────────────────────
 type AssetItem = {
   id: string; label: string; category: string; value: number; notes: string | null
   created_at: string; current_price: number | null; quantity: number | null
@@ -156,7 +152,7 @@ function GroupSummaryCard({ group, items }: {
   )
 }
 
-// ─── Group Card (grid) ──────────────────────────────────────────────────────────────
+// ─── Group Card (grid) ────────────────────────────────────────────────────────
 function GroupCard({ group, total, count, loading, onPress }: {
   group: typeof ASSET_GROUPS[number]; total: number; count: number; loading: boolean; onPress: () => void
 }) {
@@ -190,7 +186,7 @@ function GroupCard({ group, total, count, loading, onPress }: {
   )
 }
 
-// ─── Bank asset card ──────────────────────────────────────────────────────────────────
+// ─── Bank asset card ──────────────────────────────────────────────────────────
 function BankAssetCard({
   asset, allBankItems, onDelete, onTopUp, working,
 }: {
@@ -203,8 +199,6 @@ function BankAssetCard({
   const [expanded, setExpanded] = useState(false)
 
   const { rate, startDate, userNote } = parseBankNotes(asset.notes)
-
-  // Split "HDFC Bank – Savings" → { bankName, accountType }
   const { bankName, accountType } = splitBankLabel(asset.label)
 
   const siblingDeposits = useMemo((): BankDeposit[] => {
@@ -222,12 +216,14 @@ function BankAssetCard({
     siblingDeposits.length > 0 ? compoundWithTopUps(siblingDeposits) : null
   , [siblingDeposits])
 
-  // Skip top-up rows — folded into root card
   if (asset.notes?.includes('top-up')) return null
 
   const totalPrincipal = allBankItems
     .filter(a => a.label === asset.label)
     .reduce((s, a) => s + a.value, 0)
+
+  // Build the single headline string segments
+  const sep = <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>·</span>
 
   return (
     <motion.div
@@ -247,63 +243,27 @@ function BankAssetCard({
       {/* ── Main compact row ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
 
-        {/* Emoji */}
         <span style={{ fontSize: 22, flexShrink: 0 }}>🏦</span>
 
         {/* Name block */}
         <div style={{ flex: 1, minWidth: 0 }}>
 
-          {/* Row 1: Bank name */}
+          {/* Single line: Bank Name · Account Type · Note */}
           <p style={{
-            fontSize: 14, fontWeight: 700, color: '#f5f7ff',
-            margin: '0 0 3px', whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis',
+            fontSize: 14, fontWeight: 700,
+            margin: '0 0 5px',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            display: 'flex', alignItems: 'baseline', gap: 0,
           }}>
-            {bankName}
+            <span style={{ color: '#f5f7ff' }}>{bankName}</span>
+            {accountType ? <>{sep}<span style={{ fontWeight: 500, fontSize: 13, color: 'rgba(147,197,253,0.75)' }}>{accountType}</span></> : null}
+            {userNote    ? <>{sep}<span style={{ fontWeight: 400, fontSize: 12, fontStyle: 'italic', color: 'rgba(148,163,184,0.55)' }}>{userNote}</span></> : null}
           </p>
 
-          {/* Row 2: Account type  ·  user note (if any) */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            flexWrap: 'nowrap', overflow: 'hidden',
-          }}>
-            {accountType ? (
-              <span style={{
-                fontSize: 11.5, fontWeight: 500,
-                color: 'rgba(147,197,253,0.70)',
-                whiteSpace: 'nowrap', flexShrink: 0,
-              }}>
-                {accountType}
-              </span>
-            ) : null}
-
-            {accountType && userNote ? (
-              <span style={{
-                fontSize: 11, color: 'rgba(148,163,184,0.40)',
-                flexShrink: 0,
-              }}>·</span>
-            ) : null}
-
-            {userNote ? (
-              <span style={{
-                fontSize: 11.5,
-                fontStyle: 'italic',
-                color: 'rgba(148,163,184,0.55)',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                minWidth: 0,
-              }}>
-                {userNote}
-              </span>
-            ) : null}
-          </div>
-
-          {/* Row 3: Interest rate pill */}
+          {/* Rate pill */}
           {rate ? (
             <span style={{
               display: 'inline-block',
-              marginTop: 5,
               fontSize: 11, fontWeight: 700,
               color: '#93c5fd',
               background: 'rgba(96,165,250,0.15)',
@@ -393,7 +353,7 @@ function BankAssetCard({
   )
 }
 
-// ─── Generic asset card (non-bank) ──────────────────────────────────────────────────────
+// ─── Generic asset card (non-bank) ────────────────────────────────────────────
 function GenericAssetCard({ asset, group, onDelete, working }: {
   asset: AssetItem
   group: typeof ASSET_GROUPS[number]
@@ -445,7 +405,7 @@ function GenericAssetCard({ asset, group, onDelete, working }: {
   )
 }
 
-// ─── Per-group detail view ──────────────────────────────────────────────────────────────
+// ─── Per-group detail view ────────────────────────────────────────────────────
 function GroupDetailView({
   group, items, loading, onBack, onAddPress, onDelete, onTopUp, working,
 }: {
@@ -546,7 +506,7 @@ function GroupDetailView({
   )
 }
 
-// ─── Main screen ────────────────────────────────────────────────────────────────────
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export function AssetScreen() {
   const { assets, loading, error, add, remove, totalValue } = useAssets()
 
