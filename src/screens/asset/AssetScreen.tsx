@@ -1114,8 +1114,6 @@ export function AssetScreen() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 32 }}>
-      <SummaryCard totalValue={totalValue} assetCount={rootAssetCount} loading={loading} />
-
       <AnimatePresence mode="wait">
         {activeGroup === null ? (
           <motion.div
@@ -1124,26 +1122,32 @@ export function AssetScreen() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
           >
-            {ASSET_GROUPS.map(g => {
-              const items = groupedAssets[g.id] ?? []
-              const rootCount = (g.id === 'Bank' || g.id === 'Stock') ? items.filter(a => !isTopUp(a.notes)).length : items.length
-              const total = items.filter(a => !isTopUp(a.notes)).reduce((s, a) => {
-                if (a.current_price != null && a.quantity != null) return s + a.current_price * a.quantity
-                return s + a.value
-              }, 0)
-              return (
-                <GroupCard
-                  key={g.id}
-                  group={g}
-                  total={total}
-                  count={rootCount}
-                  loading={loading}
-                  onPress={() => { setActiveGroup(g.id as AssetGroupId); setReorderMode(false); setReorderedIds([]) }}
-                />
-              )
-            })}
+            {/* SummaryCard only visible on the grid (home) view */}
+            <SummaryCard totalValue={totalValue} assetCount={rootAssetCount} loading={loading} />
+
+            {/* Group grid with horizontal inset to avoid edge-to-edge stretch */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 2px' }}>
+              {ASSET_GROUPS.map(g => {
+                const items = groupedAssets[g.id] ?? []
+                const rootCount = (g.id === 'Bank' || g.id === 'Stock') ? items.filter(a => !isTopUp(a.notes)).length : items.length
+                const total = items.filter(a => !isTopUp(a.notes)).reduce((s, a) => {
+                  if (a.current_price != null && a.quantity != null) return s + a.current_price * a.quantity
+                  return s + a.value
+                }, 0)
+                return (
+                  <GroupCard
+                    key={g.id}
+                    group={g}
+                    total={total}
+                    count={rootCount}
+                    loading={loading}
+                    onPress={() => { setActiveGroup(g.id as AssetGroupId); setReorderMode(false); setReorderedIds([]) }}
+                  />
+                )
+              })}
+            </div>
           </motion.div>
         ) : group ? (
           <GroupDetailView
