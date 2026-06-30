@@ -113,16 +113,13 @@ function GroupSummaryCard({ group, items }: {
 }) {
   const isBank = group.id === 'Bank'
 
-  // For bank: separate root entries from top-ups
   const rootItems   = isBank ? items.filter(a => !isTopUp(a.notes)) : items
   const totalInvested = rootItems.reduce((s, a) => s + a.value, 0)
     + (isBank ? items.filter(a => isTopUp(a.notes)).reduce((s, a) => s + a.value, 0) : 0)
 
-  // Bank net worth = compound appreciated value across all deposits (root + top-ups)
   const bankNetWorth = useMemo(() => {
     if (!isBank) return null
     const deposits: BankDeposit[] = []
-    // Group by root label
     const rootLabels = [...new Set(rootItems.map(a => a.label))]
     for (const label of rootLabels) {
       const siblings = items.filter(a => a.label === label)
@@ -178,6 +175,7 @@ function GroupSummaryCard({ group, items }: {
         </div>
       </div>
 
+      {/* Pills row — Live badge REMOVED, only count + P&L */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}` }}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -187,12 +185,6 @@ function GroupSummaryCard({ group, items }: {
           <span style={{ fontSize: 12, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums' }}>{assetCount}</span>
           <span style={{ fontSize: 10, color: group.text, opacity: 0.65, fontWeight: 600 }}>{assetCount === 1 ? 'asset' : 'assets'}</span>
         </div>
-        {!isBank && hasLive && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}` }}>
-            <span style={{ fontSize: 9, color: group.text, opacity: 0.6, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Live</span>
-            <span style={{ fontSize: 12, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatINR(liveValue)}</span>
-          </div>
-        )}
         {!isBank && hasLive && Math.abs(pnlAbs) >= 0.01 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: pnlGain ? 'rgba(52,211,153,0.18)' : 'rgba(248,113,113,0.18)', border: `1px solid ${pnlGain ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)'}` }}>
             <span style={{ fontSize: 12, fontWeight: 900, color: pnlGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>{pnlGain ? '\u25b2' : '\u25bc'} {formatINR(Math.abs(pnlAbs))}</span>
@@ -201,7 +193,7 @@ function GroupSummaryCard({ group, items }: {
         )}
         {isBank && bankNetWorth !== null && bankNetWorth > totalInvested && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: 'rgba(52,211,153,0.18)', border: '1px solid rgba(52,211,153,0.4)' }}>
-            <span style={{ fontSize: 12, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>▲ {formatINR(bankNetWorth - totalInvested)}</span>
+            <span style={{ fontSize: 12, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>\u25b2 {formatINR(bankNetWorth - totalInvested)}</span>
             <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', opacity: 0.8 }}>interest</span>
           </div>
         )}
@@ -347,7 +339,7 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
                 {appreciated !== null && (
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Appreciated Today</span>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>≈ {formatINR(appreciated)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>\u2248 {formatINR(appreciated)}</span>
                   </div>
                 )}
               </div>
@@ -563,8 +555,8 @@ function BankAssetCard({
             <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalPrincipal)}</span>
             {appreciated !== null && (
               <>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>→</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>≈ {formatINR(appreciated)}</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>\u2192</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>\u2248 {formatINR(appreciated)}</span>
               </>
             )}
           </div>
@@ -607,26 +599,66 @@ function GenericAssetCard({ asset, group, onDelete, working }: {
   onDelete: (id: string, label: string) => void
   working: string | null
 }) {
+  const hasLiveData   = asset.current_price != null && asset.quantity != null && asset.buy_price != null
+  const investedAmt   = hasLiveData ? asset.buy_price! * asset.quantity!     : null
+  const appreciatedAmt = hasLiveData ? asset.current_price! * asset.quantity! : null
+  const isGain        = appreciatedAmt != null && investedAmt != null && appreciatedAmt >= investedAmt
+
   return (
     <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -30, scale: 0.95 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 18, background: group.color, border: `1px solid ${group.border.replace('0.35', '0.18')}` }}
+      style={{ borderRadius: 18, background: group.color, border: `1px solid ${group.border.replace('0.35', '0.18')}`, overflow: 'hidden' }}
     >
-      <span style={{ fontSize: 22, flexShrink: 0 }}>{group.emoji}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.label}</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>{formatShortDate(asset.created_at)}{asset.notes ? ` \u00b7 ${asset.notes}` : ''}</p>
-          <PnlBadge asset={asset} />
+      {/* Main row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '13px 14px 10px' }}>
+        <span style={{ fontSize: 22, flexShrink: 0, marginTop: 2 }}>{group.emoji}</span>
+
+        {/* Left: name + subtitle */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+              {asset.label}
+            </p>
+            {/* Date — top right */}
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', whiteSpace: 'nowrap', flexShrink: 0, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
+              {formatShortDate(asset.created_at)}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {asset.notes && (
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>{asset.notes}</p>
+            )}
+            <PnlBadge asset={asset} />
+          </div>
         </div>
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <p style={{ fontSize: 15, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums', margin: '0 0 2px' }}>{formatINR(asset.value)}</p>
-        {asset.current_price && asset.last_synced && (
-          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', margin: '0 0 3px', fontVariantNumeric: 'tabular-nums' }}>Live: {formatINR(asset.current_price * (asset.quantity ?? 1))}</p>
-        )}
-        <button onClick={() => onDelete(asset.id, asset.label)} disabled={working === asset.id}
-          style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-        >{working === asset.id ? '\u2026' : 'delete'}</button>
+
+        {/* Right: invested + appreciated stacked */}
+        <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
+          {hasLiveData ? (
+            <>
+              {/* Invested amount */}
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontVariantNumeric: 'tabular-nums' }}>
+                {formatINR(investedAmt!)}
+              </span>
+              {/* Appreciated / current value */}
+              <span style={{
+                fontSize: 14, fontWeight: 900,
+                color: isGain ? '#34d399' : '#f87171',
+                fontVariantNumeric: 'tabular-nums',
+                textShadow: isGain ? '0 0 12px rgba(52,211,153,0.5)' : '0 0 12px rgba(248,113,113,0.4)',
+              }}>
+                {formatINR(appreciatedAmt!)}
+              </span>
+            </>
+          ) : (
+            /* No live data — show plain value */
+            <p style={{ fontSize: 15, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums', margin: 0 }}>
+              {formatINR(asset.value)}
+            </p>
+          )}
+          <button onClick={() => onDelete(asset.id, asset.label)} disabled={working === asset.id}
+            style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', marginTop: 1 }}
+          >{working === asset.id ? '\u2026' : 'delete'}</button>
+        </div>
       </div>
     </motion.div>
   )
@@ -829,7 +861,6 @@ export function AssetScreen() {
     )
   }
 
-  // Exclude top-ups from group stats counts and totals (top-up value already included via root card)
   const groupStats = useMemo(() =>
     Object.fromEntries(
       ASSET_GROUPS.map(g => {
@@ -849,7 +880,6 @@ export function AssetScreen() {
 
   const activeGroupMeta = ASSET_GROUPS.find(g => g.id === selectedGroup)
 
-  // Exclude top-ups from global asset count
   const displayAssetCount = useMemo(() =>
     assets.filter(a => !(a.category === 'Bank' && isTopUp(a.notes))).length
   , [assets])
