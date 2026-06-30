@@ -52,6 +52,23 @@ function parseStockTopUpNotes(notes: string | null): { qty: number | null; price
   }
 }
 
+// ─── SVG Arrow icons (replaces unicode ▲▼ which render as text on Android) ───
+function ArrowUp({ color, size = 9 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 10 10" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+      <polygon points="5,1 9,9 1,9" />
+    </svg>
+  )
+}
+
+function ArrowDown({ color, size = 9 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 10 10" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+      <polygon points="5,9 9,1 1,1" />
+    </svg>
+  )
+}
+
 // ─── P&L badge ────────────────────────────────────────────────────────────────
 function PnlBadge({ asset }: {
   asset: { value: number; current_price: number | null; quantity: number | null; buy_price: number | null }
@@ -70,8 +87,10 @@ function PnlBadge({ asset }: {
       color:      gain ? '#34d399'               : '#f87171',
       border:     `1px solid ${gain ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
       whiteSpace: 'nowrap' as const,
+      display: 'inline-flex', alignItems: 'center', gap: 4,
     }}>
-      {gain ? '\u25b2' : '\u25bc'} {Math.abs(pct).toFixed(1)}%
+      {gain ? <ArrowUp color="#34d399" /> : <ArrowDown color="#f87171" />}
+      {Math.abs(pct).toFixed(1)}%
     </span>
   )
 }
@@ -196,13 +215,15 @@ function GroupSummaryCard({ group, items }: {
         </div>
         {!isBank && hasLive && Math.abs(pnlAbs) >= 0.01 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: pnlGain ? 'rgba(52,211,153,0.18)' : 'rgba(248,113,113,0.18)', border: `1px solid ${pnlGain ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)'}` }}>
-            <span style={{ fontSize: 12, fontWeight: 900, color: pnlGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>{pnlGain ? '\u25b2' : '\u25bc'} {formatINR(Math.abs(pnlAbs))}</span>
+            {pnlGain ? <ArrowUp color="#34d399" /> : <ArrowDown color="#f87171" />}
+            <span style={{ fontSize: 12, fontWeight: 900, color: pnlGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>{formatINR(Math.abs(pnlAbs))}</span>
             <span style={{ fontSize: 10, fontWeight: 700, color: pnlGain ? '#34d399' : '#f87171', opacity: 0.8 }}>{Math.abs(pnlPct).toFixed(1)}%</span>
           </div>
         )}
         {isBank && bankNetWorth !== null && bankNetWorth > totalInvested && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: 'rgba(52,211,153,0.18)', border: '1px solid rgba(52,211,153,0.4)' }}>
-            <span style={{ fontSize: 12, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>\u25b2 {formatINR(bankNetWorth - totalInvested)}</span>
+            <ArrowUp color="#34d399" />
+            <span style={{ fontSize: 12, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{formatINR(bankNetWorth - totalInvested)}</span>
             <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', opacity: 0.8 }}>interest</span>
           </div>
         )}
@@ -649,7 +670,13 @@ function BankAssetCard({
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalPrincipal)}</span>
-            {appreciated !== null && (<><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>\u2192</span><span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>\u2248 {formatINR(appreciated)}</span></>)}
+            {appreciated !== null && (
+              <>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>\u2192</span>
+                <ArrowUp color="#34d399" size={8} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>\u2248 {formatINR(appreciated)}</span>
+              </>
+            )}
           </div>
           {startDate && <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', margin: '3px 0 0', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtStartDate(startDate)}</p>}
         </div>
@@ -733,12 +760,12 @@ function StockAssetCard({
 
         {/* Centre: stock name + inline qty/note, live price pill below */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Name row — mirrors bank: name · qty dimmed · note italic */}
+          {/* Name row */}
           <p style={{ fontSize: 14, fontWeight: 700, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'baseline' }}>
             <span style={{ color: '#f5f7ff' }}>{asset.label}</span>
             {totalQty > 0 ? <>{sep}<span style={{ fontWeight: 500, fontSize: 13, color: 'rgba(252,211,77,0.7)' }}>{totalQty} shares</span></> : null}
           </p>
-          {/* Live price pill (mirrors bank rate pill) — only when price exists */}
+          {/* Live price pill */}
           {asset.current_price != null
             ? <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#fcd34d', background: 'rgba(251,191,36,0.15)', padding: '2px 9px', borderRadius: 99, border: '1px solid rgba(251,191,36,0.35)', fontVariantNumeric: 'tabular-nums' }}>
                 {'\u20b9'}{asset.current_price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
@@ -747,7 +774,7 @@ function StockAssetCard({
           }
         </div>
 
-        {/* Right: invested (dimmed) → current value (bright, gain/loss colour) */}
+        {/* Right: invested → current value */}
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(252,211,77,0.7)', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalInvested)}</span>
@@ -760,7 +787,7 @@ function StockAssetCard({
               </>
             )}
           </div>
-          {/* P&L badge shown when current price is set */}
+          {/* P&L badge */}
           {currentVal !== null && (
             <div style={{ marginTop: 3, display: 'flex', justifyContent: 'flex-end' }}>
               <PnlBadge asset={{ ...asset, quantity: totalQty, value: totalInvested }} />
@@ -1163,7 +1190,7 @@ export function AssetScreen() {
             {/* SummaryCard only visible on the grid (home) view */}
             <SummaryCard totalValue={totalValue} assetCount={rootAssetCount} loading={loading} />
 
-            {/* Group grid with horizontal inset to avoid edge-to-edge stretch */}
+            {/* Group grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 2px' }}>
               {ASSET_GROUPS.map(g => {
                 const items = groupedAssets[g.id] ?? []
@@ -1244,8 +1271,7 @@ export function AssetScreen() {
         open={bankLogAsset !== null}
         asset={bankLogAsset}
         allBankItems={groupedAssets['Bank'] ?? []}
-        onClose={() => setBankLogAsset(null)
-      }
+        onClose={() => setBankLogAsset(null)}
       />
 
       <StockLogSheet
