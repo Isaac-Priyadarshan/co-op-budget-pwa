@@ -154,10 +154,152 @@ export function StockAssetSheet({ open, onClose, onSave }: Props) {
 
               {/* Search */}
               <div style={{ marginBottom: 16, position: 'relative' }}>
-                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Search Stock (NSE / BSE)</p>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+                  Search Stock (NSE / BSE)
+                </p>
                 <input
                   type="text"
                   placeholder="e.g. Reliance, HDFC Bank, Infosys…"
                   value={query}
                   onChange={e => handleQueryChange(e.target.value)}
-   
+                  style={inputStyle}
+                />
+                {/* Dropdown results */}
+                {results.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 60,
+                    background: '#001018',
+                    border: `1px solid ${accentBorder}`,
+                    borderRadius: 14, marginTop: 4,
+                    maxHeight: 200, overflowY: 'auto',
+                  }}>
+                    {results.map(s => (
+                      <button key={s.symbol} onClick={() => handleSelect(s)}
+                        style={{
+                          display: 'block', width: '100%', textAlign: 'left',
+                          padding: '10px 14px', background: 'transparent',
+                          border: 'none', borderBottom: `1px solid rgba(255,255,255,0.06)`,
+                          color: '#f5f7ff', cursor: 'pointer', fontSize: 14,
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, color: accent }}>{s.symbol}</span>
+                        <span style={{ marginLeft: 8, color: 'rgba(255,255,255,0.6)' }}>{s.name}</span>
+                        <span style={{ float: 'right', fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{s.exchange}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {searching && (
+                  <p style={{ fontSize: 12, color: accent, marginTop: 6 }}>Searching…</p>
+                )}
+              </div>
+
+              {/* Live price badge */}
+              {selected && (
+                <div style={{
+                  marginBottom: 16, padding: '10px 14px',
+                  background: accentBg, border: `1px solid ${accentBorder}`,
+                  borderRadius: 12, fontSize: 13, color: '#f5f7ff',
+                }}>
+                  {priceLoading
+                    ? <span style={{ color: accent }}>Fetching live price…</span>
+                    : currentPrice != null
+                      ? <span>Live price: <strong style={{ color: accent }}>₹{currentPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                      : <span style={{ color: 'rgba(255,255,255,0.4)' }}>Live price unavailable</span>
+                  }
+                </div>
+              )}
+
+              {/* Shares */}
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+                  Number of Shares
+                </p>
+                <input
+                  type="number"
+                  placeholder="e.g. 10"
+                  value={qty}
+                  onChange={e => setQty(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Buy price */}
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+                  Buy Price per Share (₹)
+                </p>
+                <input
+                  type="number"
+                  placeholder="e.g. 2450.00"
+                  value={buyPrice}
+                  onChange={e => setBuyPrice(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Total value preview */}
+              {qty && buyPrice && Number(qty) > 0 && Number(buyPrice) > 0 && (
+                <div style={{
+                  marginBottom: 16, padding: '10px 14px',
+                  background: 'rgba(34,211,238,0.05)', border: `1px solid ${accentBorder}`,
+                  borderRadius: 12, fontSize: 13,
+                }}>
+                  <span style={{ color: 'rgba(255,255,255,0.5)' }}>Total value: </span>
+                  <strong style={{ color: accent }}>
+                    ₹{(parseFloat(qty) * parseFloat(buyPrice)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </strong>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
+                  Notes (optional)
+                </p>
+                <input
+                  type="text"
+                  placeholder="e.g. Long-term hold"
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+
+              {/* Error */}
+              {err && (
+                <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12, textAlign: 'center' }}>{err}</p>
+              )}
+            </div>
+
+            {/* Footer actions */}
+            <div style={{ padding: '12px 20px 32px', display: 'flex', gap: 12, flexShrink: 0 }}>
+              <button onClick={onClose}
+                style={{
+                  flex: 1, padding: '15px 0', borderRadius: 16, fontSize: 15, fontWeight: 700,
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: 'rgba(255,255,255,0.7)', cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button onClick={handleSubmit} disabled={saving}
+                style={{
+                  flex: 2, padding: '15px 0', borderRadius: 16, fontSize: 15, fontWeight: 800,
+                  background: saving ? 'rgba(34,211,238,0.3)' : `linear-gradient(135deg, ${accent}, #0ea5e9)`,
+                  border: 'none', color: '#000', cursor: saving ? 'not-allowed' : 'pointer',
+                  boxShadow: saving ? 'none' : `0 4px 24px ${accentGlow}`,
+                  letterSpacing: '-0.01em',
+                }}
+              >
+                {saving ? 'Saving…' : 'Add Stock'}
+              </button>
+            </div>
+
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
