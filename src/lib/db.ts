@@ -281,9 +281,10 @@ export interface NewAsset {
   value: number
   owner: 'Isaac' | 'Jenifa' | 'Both'
   notes?: string | null
-  ticker?:    string | null
-  quantity?:  number | null
-  buy_price?: number | null
+  ticker?:         string | null
+  quantity?:       number | null
+  buy_price?:      number | null
+  current_price?:  number | null
 }
 
 export interface AssetPatch {
@@ -308,9 +309,10 @@ export async function insertAsset(entry: NewAsset): Promise<AssetEntry> {
     owner:    entry.owner,
     notes:    entry.notes ?? null,
   }
-  if (entry.ticker   != null) payload.ticker    = entry.ticker
-  if (entry.quantity != null) payload.quantity   = entry.quantity
-  if (entry.buy_price != null) payload.buy_price = entry.buy_price
+  if (entry.ticker        != null) payload.ticker         = entry.ticker
+  if (entry.quantity      != null) payload.quantity       = entry.quantity
+  if (entry.buy_price     != null) payload.buy_price      = entry.buy_price
+  if (entry.current_price != null) payload.current_price  = entry.current_price
 
   const { data, error } = await supabase.from('assets').insert(payload).select().single()
   if (error) throw new Error(error.message)
