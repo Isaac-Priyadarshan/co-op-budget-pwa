@@ -524,7 +524,6 @@ function StockLogSheet({ open, asset, allStockItems, onClose }: {
   const totalInvested  = siblings.reduce((s, a) => s + a.value, 0)
   const totalQty       = siblings.reduce((s, a) => {
     if (!isTopUp(a.notes)) {
-      // root entry: qty is asset.quantity
       return s + (a.quantity ?? 0)
     }
     const p = parseStockTopUpNotes(a.notes)
@@ -562,7 +561,7 @@ function StockLogSheet({ open, asset, allStockItems, onClose }: {
                       <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isTU ? '#fcd34d' : '#34d399', boxShadow: `0 0 8px ${isTU ? '#fcd34d' : '#34d399'}` }} />
                       <div style={{ flex: 1 }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: isTU ? '#fcd34d' : '#6ee7b7', margin: '0 0 2px' }}>
-                          {i === 0 ? '\ud83d\udfe2 Created' : '\ud83d� Top-up'}
+                          {i === 0 ? '\ud83d\udfe2 Created' : '\ud83d\udd35 Top-up'}
                         </p>
                         <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
                           {fmtStartDate(entry.created_at.substring(0, 10))}
@@ -694,7 +693,6 @@ function StockAssetCard({
 
   if (isTopUp(asset.notes)) return null
 
-  // Aggregate all siblings (root + top-ups) for totals
   const siblings = allStockItems.filter(a => a.label === asset.label)
   const totalInvested = siblings.reduce((s, a) => s + a.value, 0)
 
@@ -743,15 +741,12 @@ function StockAssetCard({
         {expanded && !reorderMode && (
           <motion.div key="sactions" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
             <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '8px 14px 10px', borderTop: '1px solid rgba(251,191,36,0.10)', background: 'rgba(251,191,36,0.04)' }}>
-              {/* Add */}
               <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onTopUp(asset) }} style={iconBtn('#fcd34d', 'rgba(251,191,36,0.14)', 'rgba(251,191,36,0.3)')} title="Add Stocks">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
               </motion.button>
-              {/* Transaction Log */}
               <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onLog(asset) }} style={iconBtn('#a5b4fc', 'rgba(99,102,241,0.14)', 'rgba(99,102,241,0.3)')} title="Transaction Log">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
               </motion.button>
-              {/* Delete */}
               <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onDelete(asset.id, asset.label) }} disabled={working === asset.id} style={iconBtn('#f87171', 'rgba(248,113,113,0.12)', 'rgba(248,113,113,0.28)')} title="Delete">
                 {working === asset.id ? <span style={{ fontSize: 11, color: '#f87171' }}>…</span> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>}
               </motion.button>
@@ -840,7 +835,12 @@ function GroupDetailView({
   const dragIdx = useRef<number | null>(null)
 
   return (
-    <motion.div key={'detail-' + group.id} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }} transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div
+      key={'detail-' + group.id}
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 40 }}
+      transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
       style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
     >
       {/* Top nav */}
@@ -848,16 +848,366 @@ function GroupDetailView({
         <motion.button whileTap={{ scale: 0.88 }} onClick={onBack}
           style={{ width: 36, height: 36, borderRadius: 12, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </motion.button>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <span style={{ fontSize: 20 }}>{group.emoji}</span>
           <p style={{ fontSize: 16, fontWeight: 700, color: '#f5f7ff', margin: 0, letterSpacing: '-0.01em' }}>{group.label}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {/* Reorder button — Bank and Stock */}
           {supportsReorder && (
-            <motion.button whileTap={{ scale: 0.88 }} onClick={onToggleReorder}
-              style={{ width: 36, height: 36, borderRadius: 12, background: reorderMode ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.07)', border: reorderMode ? '1px solid rgba(251,191,36,0.4)' : '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Reorder"
+            <motion.button
+              whileTap={{ scale: 0.88 }}
+              onClick={onToggleReorder}
+              title="Reorder"
+              style={{
+                width: 36, height: 36, borderRadius: 12,
+                background: reorderMode ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.07)',
+                border: reorderMode ? '1px solid rgba(251,191,36,0.4)' : '1px solid rgba(255,255,255,0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={reorderMode ? '#fcd34d' : 'rgba(255,255,255,0.75)'}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={reorderMode ? '#fcd34d' : 'rgba(255,255,255,0.75)'}
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </motion.button>
+          )}
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={onAddPress}
+            style={{
+              width: 36, height: 36, borderRadius: 12,
+              background: `linear-gradient(135deg, ${group.border}, ${group.color})`,
+              border: `1px solid ${group.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </motion.button>
+        </div>
+      </div>
+
+      {/* Summary card */}
+      <GroupSummaryCard group={group} items={items} />
+
+      {/* Asset list */}
+      <AnimatePresence mode="popLayout">
+        {loading ? (
+          <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
+          >
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ height: 68, borderRadius: 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} />
+            ))}
+          </motion.div>
+        ) : displayItems.length === 0 ? (
+          <motion.div key="empty" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            style={{ textAlign: 'center', padding: '40px 20px' }}
+          >
+            <p style={{ fontSize: 36, marginBottom: 12 }}>{group.emoji}</p>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'rgba(255,255,255,0.35)', margin: 0 }}>No {group.label} assets yet</p>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.2)', marginTop: 6 }}>Tap + to add your first entry</p>
+          </motion.div>
+        ) : (
+          <motion.div key="list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {displayItems.map((item, idx) => {
+              const dragProps: React.HTMLAttributes<HTMLDivElement> = reorderMode ? {
+                draggable: true,
+                onDragStart: () => { dragIdx.current = idx },
+                onDragOver: (e) => { e.preventDefault() },
+                onDrop: () => {
+                  if (dragIdx.current !== null && dragIdx.current !== idx) {
+                    onReorder(dragIdx.current, idx)
+                    dragIdx.current = null
+                  }
+                },
+              } : {}
+
+              if (isBank) {
+                return (
+                  <BankAssetCard
+                    key={item.id}
+                    asset={item}
+                    allBankItems={items}
+                    reorderMode={reorderMode}
+                    dragHandleProps={dragProps}
+                    onDelete={onDelete}
+                    onTopUp={onTopUp}
+                    onLog={onLog}
+                    onEdit={onEdit}
+                    working={working}
+                  />
+                )
+              }
+              if (isStock) {
+                return (
+                  <StockAssetCard
+                    key={item.id}
+                    asset={item}
+                    allStockItems={items}
+                    reorderMode={reorderMode}
+                    dragHandleProps={dragProps}
+                    onDelete={onDelete}
+                    onTopUp={onStockTopUp}
+                    onLog={onStockLog}
+                    working={working}
+                  />
+                )
+              }
+              return (
+                <GenericAssetCard
+                  key={item.id}
+                  asset={item}
+                  group={group}
+                  onDelete={onDelete}
+                  working={working}
+                />
+              )
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+// ─── Main AssetScreen ─────────────────────────────────────────────────────────
+export function AssetScreen() {
+  const { assets, loading, addAsset, updateAsset, deleteAsset, updateMultipleAssets } = useAssets()
+
+  const [activeGroup, setActiveGroup] = useState<AssetGroupId | null>(null)
+  const [addSheet,    setAddSheet]    = useState(false)
+  const [reorderMode, setReorderMode] = useState(false)
+  const [reorderedIds, setReorderedIds] = useState<string[]>([])
+
+  // Bank sub-sheets
+  const [bankLogAsset,  setBankLogAsset]  = useState<AssetItem | null>(null)
+  const [bankEditAsset, setBankEditAsset] = useState<AssetItem | null>(null)
+  const [bankTopUpAsset, setBankTopUpAsset] = useState<AssetItem | null>(null)
+
+  // Stock sub-sheets
+  const [stockTopUpAsset, setStockTopUpAsset] = useState<AssetItem | null>(null)
+  const [stockLogAsset,   setStockLogAsset]   = useState<AssetItem | null>(null)
+
+  // Confirm delete
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; label: string } | null>(null)
+  const [working, setWorking] = useState<string | null>(null)
+
+  const group = activeGroup ? ASSET_GROUPS.find(g => g.id === activeGroup) ?? null : null
+
+  const groupedAssets = useMemo(() => {
+    const map: Record<string, AssetItem[]> = {}
+    for (const g of ASSET_GROUPS) map[g.id] = []
+    for (const a of assets) {
+      const cat = a.category as AssetGroupId
+      if (map[cat]) map[cat].push(a as AssetItem)
+    }
+    return map
+  }, [assets])
+
+  const totalValue = useMemo(() => {
+    return assets
+      .filter(a => !isTopUp(a.notes))
+      .reduce((s, a) => {
+        if (a.current_price != null && a.quantity != null) return s + a.current_price * a.quantity
+        return s + a.value
+      }, 0)
+  }, [assets])
+
+  const rootAssetCount = useMemo(() => assets.filter(a => !isTopUp(a.notes)).length, [assets])
+
+  const handleDelete = useCallback(async (id: string, _label: string) => {
+    setWorking(id)
+    try {
+      await deleteAsset(id)
+    } finally {
+      setWorking(null)
+      setConfirmDelete(null)
+    }
+  }, [deleteAsset])
+
+  const handleBankSaveEdit = useCallback(async (
+    ids: string[],
+    newLabel: string,
+    newNotesFn: (oldNotes: string | null) => string,
+  ) => {
+    await updateMultipleAssets(ids, (old) => ({ label: newLabel, notes: newNotesFn(old.notes) }))
+  }, [updateMultipleAssets])
+
+  const handleReorder = useCallback((fromIdx: number, toIdx: number) => {
+    if (!group) return
+    const items = (groupedAssets[group.id] ?? []).filter(a => !isTopUp(a.notes))
+    const base = reorderedIds.length > 0
+      ? [...items].sort((a, b) => {
+          const ai = reorderedIds.indexOf(a.id); const bi = reorderedIds.indexOf(b.id)
+          if (ai === -1 && bi === -1) return 0
+          if (ai === -1) return 1; if (bi === -1) return -1
+          return ai - bi
+        })
+      : items
+    const next = [...base]
+    const [moved] = next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, moved)
+    setReorderedIds(next.map(a => a.id))
+  }, [group, groupedAssets, reorderedIds])
+
+  const handleSaveReorder = useCallback(async () => {
+    if (reorderedIds.length === 0) { setReorderMode(false); return }
+    await updateMultipleAssets(reorderedIds, (_old, idx) => ({ sort_order: idx }))
+    setReorderMode(false)
+  }, [reorderedIds, updateMultipleAssets])
+
+  const currentGroupItems = group ? (groupedAssets[group.id] ?? []) : []
+
+  const AddSheet = useMemo(() => {
+    if (!group) return null
+    const props = {
+      open: addSheet,
+      onClose: () => setAddSheet(false),
+      onSave: async (data: Omit<AssetItem, 'id' | 'created_at' | 'last_synced'>) => {
+        await addAsset({ ...data, category: group.id })
+        setAddSheet(false)
+      },
+    }
+    switch (group.id as AssetGroupId) {
+      case 'Bank':          return <BankAssetSheet          {...props} />
+      case 'RealEstate':    return <RealEstateAssetSheet    {...props} />
+      case 'Stock':         return <StockAssetSheet         {...props} />
+      case 'MutualFund':    return <MutualFundAssetSheet    {...props} />
+      case 'Crypto':        return <CryptoAssetSheet        {...props} />
+      case 'PreciousMetal': return <PreciousMetalAssetSheet {...props} />
+      default:              return null
+    }
+  }, [group, addSheet, addAsset])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 32 }}>
+      <SummaryCard totalValue={totalValue} assetCount={rootAssetCount} loading={loading} />
+
+      <AnimatePresence mode="wait">
+        {activeGroup === null ? (
+          <motion.div
+            key="grid"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}
+          >
+            {ASSET_GROUPS.map(g => {
+              const items = groupedAssets[g.id] ?? []
+              const rootCount = (g.id === 'Bank' || g.id === 'Stock') ? items.filter(a => !isTopUp(a.notes)).length : items.length
+              const total = items.filter(a => !isTopUp(a.notes)).reduce((s, a) => {
+                if (a.current_price != null && a.quantity != null) return s + a.current_price * a.quantity
+                return s + a.value
+              }, 0)
+              return (
+                <GroupCard
+                  key={g.id}
+                  group={g}
+                  total={total}
+                  count={rootCount}
+                  loading={loading}
+                  onPress={() => { setActiveGroup(g.id as AssetGroupId); setReorderMode(false); setReorderedIds([]) }}
+                />
+              )
+            })}
+          </motion.div>
+        ) : group ? (
+          <GroupDetailView
+            key={'detail-' + group.id}
+            group={group}
+            items={currentGroupItems}
+            loading={loading}
+            reorderMode={reorderMode}
+            onToggleReorder={() => {
+              if (reorderMode) { handleSaveReorder() } else { setReorderMode(true) }
+            }}
+            onBack={() => { setActiveGroup(null); setReorderMode(false); setReorderedIds([]) }}
+            onAddPress={() => setAddSheet(true)}
+            onDelete={(id, label) => setConfirmDelete({ id, label })}
+            onTopUp={(asset) => setBankTopUpAsset(asset)}
+            onStockTopUp={(asset) => setStockTopUpAsset(asset)}
+            onLog={(asset) => setBankLogAsset(asset)}
+            onStockLog={(asset) => setStockLogAsset(asset)}
+            onEdit={(asset) => setBankEditAsset(asset)}
+            working={working}
+            reorderedIds={reorderedIds}
+            onReorder={handleReorder}
+          />
+        ) : null}
+      </AnimatePresence>
+
+      {/* Add sheet */}
+      {AddSheet}
+
+      {/* Bank top-up sheet */}
+      <BankTopUpSheet
+        open={bankTopUpAsset !== null}
+        asset={bankTopUpAsset}
+        onClose={() => setBankTopUpAsset(null)}
+        onSave={async (data) => { await addAsset(data); setBankTopUpAsset(null) }}
+      />
+
+      {/* Stock top-up sheet */}
+      <StockTopUpSheet
+        open={stockTopUpAsset !== null}
+        stockLabel={stockTopUpAsset?.label ?? ''}
+        onClose={() => setStockTopUpAsset(null)}
+        onSave={async (data) => { await addAsset({ ...data, owner: null, current_price: null, quantity: null, buy_price: null, last_synced: null }); setStockTopUpAsset(null) }}
+      />
+
+      {/* Bank log sheet */}
+      <BankLogSheet
+        open={bankLogAsset !== null}
+        asset={bankLogAsset}
+        allBankItems={groupedAssets['Bank'] ?? []}
+        onClose={() => setBankLogAsset(null)}
+      />
+
+      {/* Stock log sheet */}
+      <StockLogSheet
+        open={stockLogAsset !== null}
+        asset={stockLogAsset}
+        allStockItems={groupedAssets['Stock'] ?? []}
+        onClose={() => setStockLogAsset(null)}
+      />
+
+      {/* Bank edit sheet */}
+      <BankEditSheet
+        open={bankEditAsset !== null}
+        asset={bankEditAsset}
+        allBankItems={groupedAssets['Bank'] ?? []}
+        onClose={() => setBankEditAsset(null)}
+        onSave={handleBankSaveEdit}
+      />
+
+      {/* Confirm delete */}
+      <ConfirmSheet
+        open={confirmDelete !== null}
+        title="Delete Asset"
+        message={`Remove "${confirmDelete?.label ?? ''}" permanently?`}
+        confirmLabel="Delete"
+        danger
+        onConfirm={() => confirmDelete && handleDelete(confirmDelete.id, confirmDelete.label)}
+        onCancel={() => setConfirmDelete(null)}
+      />
+    </div>
+  )
+}
