@@ -321,7 +321,7 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
           <motion.div key="blog-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }} style={sheetShell}>
             {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 18px', flexShrink: 0 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>\uD83D\uDCCB</div>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📋</div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#93c5fd', margin: '0 0 2px' }}>Transaction Log</p>
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{bankName}{accountType ? ` \u2013 ${accountType}` : ''}</h2>
@@ -408,7 +408,7 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
           <motion.div key="bedit-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }} style={sheetShell}>
             {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 20px', flexShrink: 0 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>\u270F\uFE0F</div>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✏️</div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#93c5fd', margin: '0 0 2px' }}>Edit Bank Asset</p>
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{asset.label}</h2>
@@ -471,9 +471,7 @@ function StockTopUpSheet({ open, stockLabel, onClose, onSave }: {
     try {
       setSaving(true); setErr('')
       await onSave({
-        label: stockLabel,
-        category: 'Stock',
-        value: q * p,
+        label: stockLabel, category: 'Stock', value: q * p,
         notes: `top-up \u00b7 qty:${q} \u00b7 price:${p}`,
       })
       onClose()
@@ -495,7 +493,7 @@ function StockTopUpSheet({ open, stockLabel, onClose, onSave }: {
           >
             {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 20px', flexShrink: 0 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>\uD83D\uDCC8</div>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📈</div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fcd34d', margin: '0 0 2px' }}>Add Stocks</p>
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{stockLabel}</h2>
@@ -541,8 +539,8 @@ function StockLogSheet({ open, asset, allStockItems, onClose }: {
     .filter(a => a.label === asset.label)
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
 
-  const totalInvested  = siblings.reduce((s, a) => s + a.value, 0)
-  const totalQty       = siblings.reduce((s, a) => {
+  const totalInvested = siblings.reduce((s, a) => s + a.value, 0)
+  const totalQty = siblings.reduce((s, a) => {
     if (!isTopUp(a.notes)) return s + (a.quantity ?? 0)
     const p = parseStockTopUpNotes(a.notes)
     return s + (p.qty ?? 0)
@@ -561,7 +559,7 @@ function StockLogSheet({ open, asset, allStockItems, onClose }: {
           >
             {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 18px', flexShrink: 0 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>\uD83D\uDCCB</div>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📋</div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fcd34d', margin: '0 0 2px' }}>Transaction Log</p>
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{asset.label}</h2>
@@ -586,84 +584,4 @@ function StockLogSheet({ open, asset, allStockItems, onClose }: {
                           {qty !== null && price !== null ? ` \u00b7 ${qty} shares @ ${formatINR(price)}` : ''}
                         </p>
                       </div>
-                      <p style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', margin: 0 }}>{formatINR(entry.value)}</p>
-                    </div>
-                  )
-                })}
-              </div>
-              <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Invested</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalInvested)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: currentVal !== null ? 8 : 0 }}>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Quantity</span>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{totalQty} shares</span>
-                </div>
-                {currentVal !== null && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Current Value</span>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: currentVal >= totalInvested ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>{formatINR(currentVal)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
-}
-
-function BankAssetCard({
-  asset, allBankItems, reorderMode, dragHandleProps,
-  onDelete, onTopUp, onLog, onEdit, working,
-}: {
-  asset: AssetItem; allBankItems: AssetItem[]; reorderMode: boolean
-  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
-  onDelete: (id: string, label: string) => void; onTopUp: (asset: AssetItem) => void
-  onLog: (asset: AssetItem) => void; onEdit: (asset: AssetItem) => void; working: string | null
-}) {
-  const [expanded, setExpanded] = useState(false)
-  const { rate, startDate, userNote } = parseBankNotes(asset.notes)
-  const { bankName, accountType } = splitBankLabel(asset.label)
-
-  const siblingDeposits = useMemo((): BankDeposit[] => {
-    if (!rate) return []
-    return allBankItems
-      .filter(a => a.label === asset.label)
-      .map(a => { const p = parseBankNotes(a.notes); return p.startDate ? { amount: a.value, startDate: p.startDate, rate: rate } : null })
-      .filter((d): d is BankDeposit => d !== null)
-  }, [allBankItems, asset.label, rate])
-
-  const appreciated = useMemo(() => siblingDeposits.length > 0 ? compoundWithTopUps(siblingDeposits) : null, [siblingDeposits])
-
-  if (isTopUp(asset.notes)) return null
-
-  const totalPrincipal = allBankItems.filter(a => a.label === asset.label).reduce((s, a) => s + a.value, 0)
-  const sep = <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>·</span>
-  const iconBtn = (color: string, bg: string, border: string) => ({ width: 34, height: 34, borderRadius: 10, background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color })
-
-  return (
-    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -30, scale: 0.95 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      style={{ borderRadius: 18, background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.16)', overflow: 'hidden', cursor: reorderMode ? 'grab' : 'pointer' }}
-      onClick={() => { if (!reorderMode) setExpanded(e => !e) }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
-        {reorderMode
-          ? <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>\u2630</div>
-          : <span style={{ fontSize: 22, flexShrink: 0 }}>\uD83C\uDFE6</span>
-        }
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 700, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'baseline' }}>
-            <span style={{ color: '#f5f7ff' }}>{bankName}</span>
-            {accountType ? <>{sep}<span style={{ fontWeight: 500, fontSize: 13, color: 'rgba(147,197,253,0.75)' }}>{accountType}</span></> : null}
-            {userNote    ? <>{sep}<span style={{ fontWeight: 400, fontSize: 12, fontStyle: 'italic', color: 'rgba(148,163,184,0.55)' }}>{userNote}</span></> : null}
-          </p>
-          {rate ? <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#93c5fd', background: 'rgba(96,165,250,0.15)', padding: '2px 9px', borderRadius: 99, border: '1px solid rgba(96,165,250,0.35)', fontVariantNumeric: 'tabular-nums' }}>{rate.toFixed(2)}% p.a.</span> : null}
-        </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalPrincipal)}</span>
-            {appreciated !== null && (
-              <
+                      <p style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabula
