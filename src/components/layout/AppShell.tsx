@@ -12,7 +12,7 @@ import { WalletCreditScreen } from '../../screens/wallet-credit/WalletCreditScre
 import LentScreen from '../../screens/lent/LentScreen'
 import { LoansScreen } from '../../screens/loans/LoansScreen'
 import { AccountOverviewScreen } from '../../screens/account-overview/AccountOverviewScreen'
-import { AssetScreen } from '../../screens/asset/AssetScreen'
+import AssetScreen from '../../screens/asset/AssetScreen'
 import { RecurringPaymentScreen } from '../../screens/recurring-payment/RecurringPaymentScreen'
 import { OverviewScreen } from '../../screens/overview/OverviewScreen'
 import { SettingsScreen } from '../../screens/settings/SettingsScreen'
