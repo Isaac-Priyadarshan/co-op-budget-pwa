@@ -18,7 +18,6 @@ import type { AssetEntry, AssetPatch, NewAsset } from '../../lib/db'
 const ACCOUNT_TYPES = ['Savings', 'Current', 'FD', 'RD', 'NRE', 'NRO'] as const
 type AccountType = typeof ACCOUNT_TYPES[number]
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
 function fmtStartDate(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -41,7 +40,6 @@ function isTopUp(notes: string | null): boolean {
   return notes?.includes('top-up') ?? false
 }
 
-// Parse stock top-up notes: "top-up · qty:10 · price:150.50"
 function parseStockTopUpNotes(notes: string | null): { qty: number | null; price: number | null } {
   if (!notes) return { qty: null, price: null }
   const qtyMatch   = notes.match(/qty:(\d+(?:\.\d+)?)/)
@@ -52,7 +50,6 @@ function parseStockTopUpNotes(notes: string | null): { qty: number | null; price
   }
 }
 
-// ─── SVG Arrow icons (replaces unicode ▲▼ which render as text on Android) ───
 function ArrowUp({ color, size = 9 }: { color: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill={color} style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
@@ -69,7 +66,6 @@ function ArrowDown({ color, size = 9 }: { color: string; size?: number }) {
   )
 }
 
-// ─── SVG right-arrow (replaces \u2192 which renders as text on Android) ───────
 function ArrowRight({ size = 10, color = 'rgba(255,255,255,0.25)' }: { size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
@@ -80,7 +76,6 @@ function ArrowRight({ size = 10, color = 'rgba(255,255,255,0.25)' }: { size?: nu
   )
 }
 
-// ─── P&L badge ────────────────────────────────────────────────────────────────
 function PnlBadge({ asset }: {
   asset: { value: number; current_price: number | null; quantity: number | null; buy_price: number | null }
 }) {
@@ -106,7 +101,6 @@ function PnlBadge({ asset }: {
   )
 }
 
-// ─── Global summary card ──────────────────────────────────────────────────────
 function SummaryCard({ totalValue, assetCount, loading }: {
   totalValue: number; assetCount: number; loading: boolean
 }) {
@@ -142,7 +136,6 @@ function SummaryCard({ totalValue, assetCount, loading }: {
   )
 }
 
-// ─── Per-group summary card ───────────────────────────────────────────────────
 type AssetItem = {
   id: string; label: string; category: string; value: number; notes: string | null
   created_at: string; current_price: number | null; quantity: number | null
@@ -243,7 +236,6 @@ function GroupSummaryCard({ group, items }: {
   )
 }
 
-// ─── Group Card (grid) ────────────────────────────────────────────────────────
 function GroupCard({ group, total, count, loading, onPress }: {
   group: typeof ASSET_GROUPS[number]; total: number; count: number; loading: boolean; onPress: () => void
 }) {
@@ -277,7 +269,6 @@ function GroupCard({ group, total, count, loading, onPress }: {
   )
 }
 
-// ─── shared sheet shell styles ────────────────────────────────────────────────
 const sheetShell = {
   position: 'fixed' as const,
   bottom: 0, left: 0, right: 0, zIndex: 50,
@@ -300,7 +291,6 @@ const dragHandle = (
   </div>
 )
 
-// ─── Bank Log Sheet ───────────────────────────────────────────────────────────
 function BankLogSheet({ open, asset, allBankItems, onClose }: {
   open: boolean; asset: AssetItem | null; allBankItems: AssetItem[]; onClose: () => void
 }) {
@@ -331,19 +321,19 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
           <motion.div key="blog-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }} style={sheetShell}>
             {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 18px', flexShrink: 0 }}>
-              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📋</div>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>\uD83D\uDCCB</div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#93c5fd', margin: '0 0 2px' }}>Transaction Log</p>
                 <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{bankName}{accountType ? ` \u2013 ${accountType}` : ''}</h2>
               </div>
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 20px' }}>
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any, padding: '0 20px 20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {siblings.map((entry, i) => (
                   <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: entry.isTopUp ? 'rgba(96,165,250,0.06)' : 'rgba(52,211,153,0.06)', border: `1px solid ${entry.isTopUp ? 'rgba(96,165,250,0.14)' : 'rgba(52,211,153,0.14)'}` }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: entry.isTopUp ? '#60a5fa' : '#34d399', boxShadow: `0 0 8px ${entry.isTopUp ? '#60a5fa' : '#34d399'}` }} />
                     <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: entry.isTopUp ? '#93c5fd' : '#6ee7b7', margin: '0 0 2px' }}>{i === 0 ? '\ud83d\udfe2 Created' : '\ud83d\udd35 Top-up'}</p>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: entry.isTopUp ? '#93c5fd' : '#6ee7b7', margin: '0 0 2px' }}>{i === 0 ? '\uD83D\uDFE2 Created' : '\uD83D\uDD35 Top-up'}</p>
                       <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{entry.startDate ? fmtStartDate(entry.startDate) : fmtStartDate(entry.created_at.substring(0, 10))}</p>
                     </div>
                     <p style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', margin: 0 }}>{formatINR(entry.value)}</p>
@@ -355,4 +345,325 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
                   <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Principal</span>
                   <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalPrincipal)}</span>
                 </div>
-                {appreciat
+                {appreciated !== null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Appreciated Today</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>{formatINR(appreciated)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
+  open: boolean; asset: AssetItem | null; allBankItems: AssetItem[]; onClose: () => void
+  onSave: (ids: string[], newLabel: string, newNotes: (oldNotes: string | null) => string) => Promise<void>
+}) {
+  const { bankName: initName, accountType: initType } = splitBankLabel(asset?.label ?? '')
+  const { userNote: initNote } = parseBankNotes(asset?.notes ?? null)
+  const [bankName,    setBankName]    = useState(initName)
+  const [accountType, setAccountType] = useState<AccountType | ''>(initType as AccountType | '')
+  const [note,        setNote]        = useState(initNote)
+  const [saving,      setSaving]      = useState(false)
+  const [err,         setErr]         = useState('')
+  const prevOpen = useRef(false)
+  if (open && !prevOpen.current) {
+    const { bankName: n, accountType: t } = splitBankLabel(asset?.label ?? '')
+    const { userNote: u } = parseBankNotes(asset?.notes ?? null)
+    if (bankName !== n)    setBankName(n)
+    if (accountType !== t) setAccountType(t as AccountType | '')
+    if (note !== u)        setNote(u)
+    setErr('')
+  }
+  prevOpen.current = open
+  if (!asset) return null
+  const siblings = allBankItems.filter(a => a.label === asset.label)
+  const handleSave = async () => {
+    if (!bankName.trim()) { setErr('Enter bank name'); return }
+    if (!accountType)     { setErr('Select account type'); return }
+    try {
+      setSaving(true); setErr('')
+      const newLabel = `${bankName.trim()} \u2013 ${accountType}`
+      await onSave(siblings.map(a => a.id), newLabel, (oldNotes) => {
+        const p = parseBankNotes(oldNotes)
+        return buildNotesStr(p.rate, p.startDate, oldNotes?.includes('top-up') ? (oldNotes ?? '') : note)
+      })
+      onClose()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to save') }
+    finally { setSaving(false) }
+  }
+  const inp = { width: '100%', padding: '13px 16px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 14, color: '#f5f7ff', fontSize: 15, outline: 'none', boxSizing: 'border-box' as const }
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div key="bedit-bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
+          />
+          <motion.div key="bedit-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }} style={sheetShell}>
+            {dragHandle}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 20px', flexShrink: 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>\u270F\uFE0F</div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#93c5fd', margin: '0 0 2px' }}>Edit Bank Asset</p>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{asset.label}</h2>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any, padding: '0 20px 8px' }}>
+              <label style={{ display: 'block', marginBottom: 18 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Bank Name</p>
+                <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} style={inp} placeholder="e.g. HDFC Bank" />
+              </label>
+              <div style={{ marginBottom: 18 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Account Type</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {ACCOUNT_TYPES.map(t => (
+                    <motion.button key={t} whileTap={{ scale: 0.92 }} onClick={() => setAccountType(t)}
+                      style={{ padding: '9px 18px', borderRadius: 100, fontSize: 13, fontWeight: accountType === t ? 700 : 400, background: accountType === t ? 'rgba(96,165,250,0.22)' : 'rgba(255,255,255,0.04)', border: accountType === t ? '1px solid rgba(96,165,250,0.55)' : '1px solid rgba(255,255,255,0.09)', color: accountType === t ? '#93c5fd' : 'rgba(255,255,255,0.45)', cursor: 'pointer' }}
+                    >{t}</motion.button>
+                  ))}
+                </div>
+              </div>
+              <label style={{ display: 'block', marginBottom: 20 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Note <span style={{ opacity: 0.5, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></p>
+                <input type="text" value={note} onChange={e => setNote(e.target.value)} style={inp} placeholder="Branch, account ending, any detail" />
+              </label>
+              {err && <p style={{ fontSize: 13, color: '#fca5a5', padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)', marginBottom: 8 }}>{err}</p>}
+            </div>
+            <div style={sheetFooter}>
+              <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
+                style={{ width: '100%', padding: '16px', background: saving ? 'rgba(96,165,250,0.2)' : 'linear-gradient(135deg, #60a5fa, #3b82f6)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 20px rgba(96,165,250,0.35)' }}
+              >{saving ? 'Saving\u2026' : 'Save Changes'}</motion.button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function StockTopUpSheet({ open, stockLabel, onClose, onSave }: {
+  open: boolean; stockLabel: string; onClose: () => void
+  onSave: (data: { label: string; category: string; value: number; notes: string }) => Promise<void>
+}) {
+  const [qty,     setQty]     = useState('')
+  const [price,   setPrice]   = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [err,     setErr]     = useState('')
+  const prevOpen = useRef(false)
+  if (open && !prevOpen.current) { setQty(''); setPrice(''); setErr('') }
+  prevOpen.current = open
+
+  const total = useMemo(() => {
+    const q = parseFloat(qty); const p = parseFloat(price)
+    return (!isNaN(q) && !isNaN(p) && q > 0 && p > 0) ? q * p : null
+  }, [qty, price])
+
+  const handleSave = async () => {
+    const q = parseFloat(qty); const p = parseFloat(price)
+    if (isNaN(q) || q <= 0)  { setErr('Enter a valid quantity'); return }
+    if (isNaN(p) || p <= 0)  { setErr('Enter a valid price'); return }
+    try {
+      setSaving(true); setErr('')
+      await onSave({
+        label: stockLabel,
+        category: 'Stock',
+        value: q * p,
+        notes: `top-up \u00b7 qty:${q} \u00b7 price:${p}`,
+      })
+      onClose()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to save') }
+    finally { setSaving(false) }
+  }
+
+  const inp = { width: '100%', padding: '13px 16px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 14, color: '#f5f7ff', fontSize: 16, outline: 'none', boxSizing: 'border-box' as const, fontVariantNumeric: 'tabular-nums' as const }
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div key="stu-bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
+          />
+          <motion.div key="stu-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            style={{ ...sheetShell, border: '1px solid rgba(251,191,36,0.28)' }}
+          >
+            {dragHandle}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 20px', flexShrink: 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>\uD83D\uDCC8</div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fcd34d', margin: '0 0 2px' }}>Add Stocks</p>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{stockLabel}</h2>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any, padding: '0 20px 8px' }}>
+              <label style={{ display: 'block', marginBottom: 18 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Quantity</p>
+                <input type="number" inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} style={inp} placeholder="e.g. 10" />
+              </label>
+              <label style={{ display: 'block', marginBottom: 20 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Price per Stock (&#8377;)</p>
+                <input type="number" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} style={inp} placeholder="e.g. 1500" />
+              </label>
+              {total !== null && (
+                <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Value</span>
+                    <span style={{ fontSize: 18, fontWeight: 900, color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>{formatINR(total)}</span>
+                  </div>
+                </div>
+              )}
+              {err && <p style={{ fontSize: 13, color: '#fca5a5', padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)', marginBottom: 8 }}>{err}</p>}
+            </div>
+            <div style={sheetFooter}>
+              <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
+                style={{ width: '100%', padding: '16px', background: saving ? 'rgba(251,191,36,0.2)' : 'linear-gradient(135deg, #fcd34d, #f59e0b)', border: 'none', borderRadius: 16, color: '#1a1000', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 20px rgba(251,191,36,0.35)' }}
+              >{saving ? 'Adding\u2026' : 'Add Stocks'}</motion.button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function StockLogSheet({ open, asset, allStockItems, onClose }: {
+  open: boolean; asset: AssetItem | null; allStockItems: AssetItem[]; onClose: () => void
+}) {
+  if (!asset) return null
+
+  const siblings = allStockItems
+    .filter(a => a.label === asset.label)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+  const totalInvested  = siblings.reduce((s, a) => s + a.value, 0)
+  const totalQty       = siblings.reduce((s, a) => {
+    if (!isTopUp(a.notes)) return s + (a.quantity ?? 0)
+    const p = parseStockTopUpNotes(a.notes)
+    return s + (p.qty ?? 0)
+  }, 0)
+  const currentVal = asset.current_price != null ? asset.current_price * totalQty : null
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div key="slog-bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
+          />
+          <motion.div key="slog-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            style={{ ...sheetShell, border: '1px solid rgba(251,191,36,0.28)' }}
+          >
+            {dragHandle}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 18px', flexShrink: 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>\uD83D\uDCCB</div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fcd34d', margin: '0 0 2px' }}>Transaction Log</p>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{asset.label}</h2>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' as any, padding: '0 20px 20px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {siblings.map((entry, i) => {
+                  const isTU = isTopUp(entry.notes)
+                  const p    = isTU ? parseStockTopUpNotes(entry.notes) : null
+                  const qty  = isTU ? (p?.qty ?? null) : (entry.quantity ?? null)
+                  const price = isTU ? (p?.price ?? null) : (entry.buy_price ?? null)
+                  return (
+                    <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: isTU ? 'rgba(251,191,36,0.06)' : 'rgba(52,211,153,0.06)', border: `1px solid ${isTU ? 'rgba(251,191,36,0.16)' : 'rgba(52,211,153,0.14)'}` }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isTU ? '#fcd34d' : '#34d399', boxShadow: `0 0 8px ${isTU ? '#fcd34d' : '#34d399'}` }} />
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: isTU ? '#fcd34d' : '#6ee7b7', margin: '0 0 2px' }}>
+                          {i === 0 ? '\uD83D\uDFE2 Created' : '\uD83D\uDD35 Top-up'}
+                        </p>
+                        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                          {fmtStartDate(entry.created_at.substring(0, 10))}
+                          {qty !== null && price !== null ? ` \u00b7 ${qty} shares @ ${formatINR(price)}` : ''}
+                        </p>
+                      </div>
+                      <p style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', margin: 0 }}>{formatINR(entry.value)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Invested</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalInvested)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: currentVal !== null ? 8 : 0 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Quantity</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{totalQty} shares</span>
+                </div>
+                {currentVal !== null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Current Value</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: currentVal >= totalInvested ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>{formatINR(currentVal)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+function BankAssetCard({
+  asset, allBankItems, reorderMode, dragHandleProps,
+  onDelete, onTopUp, onLog, onEdit, working,
+}: {
+  asset: AssetItem; allBankItems: AssetItem[]; reorderMode: boolean
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
+  onDelete: (id: string, label: string) => void; onTopUp: (asset: AssetItem) => void
+  onLog: (asset: AssetItem) => void; onEdit: (asset: AssetItem) => void; working: string | null
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const { rate, startDate, userNote } = parseBankNotes(asset.notes)
+  const { bankName, accountType } = splitBankLabel(asset.label)
+
+  const siblingDeposits = useMemo((): BankDeposit[] => {
+    if (!rate) return []
+    return allBankItems
+      .filter(a => a.label === asset.label)
+      .map(a => { const p = parseBankNotes(a.notes); return p.startDate ? { amount: a.value, startDate: p.startDate, rate: rate } : null })
+      .filter((d): d is BankDeposit => d !== null)
+  }, [allBankItems, asset.label, rate])
+
+  const appreciated = useMemo(() => siblingDeposits.length > 0 ? compoundWithTopUps(siblingDeposits) : null, [siblingDeposits])
+
+  if (isTopUp(asset.notes)) return null
+
+  const totalPrincipal = allBankItems.filter(a => a.label === asset.label).reduce((s, a) => s + a.value, 0)
+  const sep = <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>·</span>
+  const iconBtn = (color: string, bg: string, border: string) => ({ width: 34, height: 34, borderRadius: 10, background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color })
+
+  return (
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -30, scale: 0.95 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      style={{ borderRadius: 18, background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.16)', overflow: 'hidden', cursor: reorderMode ? 'grab' : 'pointer' }}
+      onClick={() => { if (!reorderMode) setExpanded(e => !e) }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
+        {reorderMode
+          ? <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>\u2630</div>
+          : <span style={{ fontSize: 22, flexShrink: 0 }}>\uD83C\uDFE6</span>
+        }
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'baseline' }}>
+            <span style={{ color: '#f5f7ff' }}>{bankName}</span>
+            {accountType ? <>{sep}<span style={{ fontWeight: 500, fontSize: 13, color: 'rgba(147,197,253,0.75)' }}>{accountType}</span></> : null}
+            {userNote    ? <>{sep}<span style={{ fontWeight: 400, fontSize: 12, fontStyle: 'italic', color: 'rgba(148,163,184,0.55)' }}>{userNote}</span></> : null}
+          </p>
+          {rate ? <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#93c5fd', background: 'rgba(96,165,250,0.15)', padding: '2px 9px', borderRadius: 99, border: '1px solid rgba(96,165,250,0.35)', fontVariantNumeric: 'tabular-nums' }}>{rate.toFixed(2)}% p.a.</span> : null}
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalPrincipal)}</span>
+            {appreciated !== null && (
+              <
