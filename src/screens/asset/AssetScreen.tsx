@@ -24,7 +24,7 @@ function fmtStartDate(iso: string): string {
 }
 
 function splitBankLabel(label: string): { bankName: string; accountType: string } {
-  const idx = label.lastIndexOf(' – ')
+  const idx = label.lastIndexOf(' \u2013 ')
   if (idx === -1) return { bankName: label, accountType: '' }
   return { bankName: label.slice(0, idx).trim(), accountType: label.slice(idx + 3).trim() }
 }
@@ -33,7 +33,11 @@ function buildNotesStr(rate: number | null, startDate: string | null, userNote: 
   const metaParts: string[] = []
   if (rate != null) metaParts.push(`${rate.toFixed(2)}%`)
   if (startDate)    metaParts.push(`From ${startDate}`)
-  return userNote.trim() ? [...metaParts, userNote.trim()].join(' · ') : metaParts.join(' · ')
+  return userNote.trim() ? [...metaParts, userNote.trim()].join(' \u00b7 ') : metaParts.join(' \u00b7 ')
+}
+
+function isTopUp(notes: string | null): boolean {
+  return notes?.includes('top-up') ?? false
 }
 
 // ─── P&L badge ────────────────────────────────────────────────────────────────
@@ -55,7 +59,7 @@ function PnlBadge({ asset }: {
       border:     `1px solid ${gain ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`,
       whiteSpace: 'nowrap' as const,
     }}>
-      {gain ? '▲' : '▼'} {Math.abs(pct).toFixed(1)}%
+      {gain ? '\u25b2' : '\u25bc'} {Math.abs(pct).toFixed(1)}%
     </span>
   )
 }
@@ -77,19 +81,19 @@ function SummaryCard({ totalValue, assetCount, loading }: {
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0 }}>Asset Value</p>
           <motion.p key={totalValue} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
             style={{ fontSize: 16, fontWeight: 800, color: '#6ee7b7', fontVariantNumeric: 'tabular-nums', margin: 0 }}
-          >{loading ? '—' : formatINR(totalValue)}</motion.p>
+          >{loading ? '\u2014' : formatINR(totalValue)}</motion.p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '0 16px' }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0 }}>Net Worth</p>
           <motion.p key={totalValue + '-nw'} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.04 }}
             style={{ fontSize: 24, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums', margin: 0, textShadow: '0 0 24px rgba(52,211,153,0.55)', letterSpacing: '-0.02em' }}
-          >{loading ? '—' : formatINR(totalValue)}</motion.p>
+          >{loading ? '\u2014' : formatINR(totalValue)}</motion.p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(110,231,183,0.6)', margin: 0, textAlign: 'right' }}>Assets</p>
           <motion.p key={assetCount} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.08 }}
             style={{ fontSize: 24, fontWeight: 900, color: '#6ee7b7', fontVariantNumeric: 'tabular-nums', margin: 0, textShadow: '0 0 20px rgba(110,231,183,0.4)' }}
-          >{loading ? '—' : assetCount}</motion.p>
+          >{loading ? '\u2014' : assetCount}</motion.p>
         </div>
       </div>
     </div>
@@ -107,7 +111,33 @@ function GroupSummaryCard({ group, items }: {
   group: typeof ASSET_GROUPS[number]
   items: AssetItem[]
 }) {
-  const totalInvested = items.reduce((s, a) => s + a.value, 0)
+  const isBank = group.id === 'Bank'
+
+  // For bank: separate root entries from top-ups
+  const rootItems   = isBank ? items.filter(a => !isTopUp(a.notes)) : items
+  const totalInvested = rootItems.reduce((s, a) => s + a.value, 0)
+    + (isBank ? items.filter(a => isTopUp(a.notes)).reduce((s, a) => s + a.value, 0) : 0)
+
+  // Bank net worth = compound appreciated value across all deposits (root + top-ups)
+  const bankNetWorth = useMemo(() => {
+    if (!isBank) return null
+    const deposits: BankDeposit[] = []
+    // Group by root label
+    const rootLabels = [...new Set(rootItems.map(a => a.label))]
+    for (const label of rootLabels) {
+      const siblings = items.filter(a => a.label === label)
+      const root = siblings.find(a => !isTopUp(a.notes))
+      if (!root) continue
+      const { rate } = parseBankNotes(root.notes)
+      if (!rate) { deposits.push({ amount: root.value, startDate: new Date().toISOString().substring(0,10), rate: 0 }); continue }
+      for (const s of siblings) {
+        const p = parseBankNotes(s.notes)
+        if (p.startDate) deposits.push({ amount: s.value, startDate: p.startDate, rate })
+      }
+    }
+    return deposits.length > 0 ? compoundWithTopUps(deposits) : totalInvested
+  }, [isBank, items, rootItems, totalInvested])
+
   const liveItems     = items.filter(a => a.current_price != null && a.quantity != null)
   const liveValue     = liveItems.reduce((s, a) => s + (a.current_price! * a.quantity!), 0)
   const hasLive       = liveItems.length > 0
@@ -115,6 +145,9 @@ function GroupSummaryCard({ group, items }: {
   const pnlAbs        = liveValue - investedLive
   const pnlPct        = investedLive > 0 ? (pnlAbs / investedLive) * 100 : 0
   const pnlGain       = pnlAbs >= 0
+
+  const displayNetWorth = isBank ? (bankNetWorth ?? totalInvested) : (hasLive ? liveValue : totalInvested)
+  const assetCount = isBank ? rootItems.length : items.length
 
   return (
     <motion.div
@@ -128,31 +161,48 @@ function GroupSummaryCard({ group, items }: {
       }}
     >
       <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: group.border, filter: 'blur(40px)', pointerEvents: 'none', opacity: 0.6 }} />
-      <div style={{ position: 'relative', zIndex: 1, marginBottom: 14 }}>
-        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: group.text, opacity: 0.6, margin: '0 0 4px' }}>Total Invested</p>
-        <motion.p key={totalInvested} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-          style={{ fontSize: 32, fontWeight: 900, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.025em', margin: 0, textShadow: `0 0 28px ${group.border}` }}
-        >{formatINR(totalInvested)}</motion.p>
+
+      {/* Two-column: Total Invested | Net Worth */}
+      <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 14 }}>
+        <div>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: group.text, opacity: 0.6, margin: '0 0 4px' }}>Total Invested</p>
+          <motion.p key={totalInvested} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+            style={{ fontSize: 22, fontWeight: 900, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', margin: 0 }}
+          >{formatINR(totalInvested)}</motion.p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: group.text, opacity: 0.6, margin: '0 0 4px' }}>Net Worth</p>
+          <motion.p key={displayNetWorth} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+            style={{ fontSize: 22, fontWeight: 900, color: group.text, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em', margin: 0, textShadow: `0 0 20px ${group.border}` }}
+          >{formatINR(displayNetWorth)}</motion.p>
+        </div>
       </div>
+
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}` }}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
             <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
           </svg>
-          <span style={{ fontSize: 12, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums' }}>{items.length}</span>
-          <span style={{ fontSize: 10, color: group.text, opacity: 0.65, fontWeight: 600 }}>{items.length === 1 ? 'asset' : 'assets'}</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums' }}>{assetCount}</span>
+          <span style={{ fontSize: 10, color: group.text, opacity: 0.65, fontWeight: 600 }}>{assetCount === 1 ? 'asset' : 'assets'}</span>
         </div>
-        {hasLive && (
+        {!isBank && hasLive && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}` }}>
             <span style={{ fontSize: 9, color: group.text, opacity: 0.6, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Live</span>
             <span style={{ fontSize: 12, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{formatINR(liveValue)}</span>
           </div>
         )}
-        {hasLive && Math.abs(pnlAbs) >= 0.01 && (
+        {!isBank && hasLive && Math.abs(pnlAbs) >= 0.01 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: pnlGain ? 'rgba(52,211,153,0.18)' : 'rgba(248,113,113,0.18)', border: `1px solid ${pnlGain ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)'}` }}>
-            <span style={{ fontSize: 12, fontWeight: 900, color: pnlGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>{pnlGain ? '▲' : '▼'} {formatINR(Math.abs(pnlAbs))}</span>
+            <span style={{ fontSize: 12, fontWeight: 900, color: pnlGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>{pnlGain ? '\u25b2' : '\u25bc'} {formatINR(Math.abs(pnlAbs))}</span>
             <span style={{ fontSize: 10, fontWeight: 700, color: pnlGain ? '#34d399' : '#f87171', opacity: 0.8 }}>{Math.abs(pnlPct).toFixed(1)}%</span>
+          </div>
+        )}
+        {isBank && bankNetWorth !== null && bankNetWorth > totalInvested && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: 'rgba(52,211,153,0.18)', border: '1px solid rgba(52,211,153,0.4)' }}>
+            <span style={{ fontSize: 12, fontWeight: 900, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>▲ {formatINR(bankNetWorth - totalInvested)}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#34d399', opacity: 0.8 }}>interest</span>
           </div>
         )}
       </div>
@@ -194,6 +244,29 @@ function GroupCard({ group, total, count, loading, onPress }: {
   )
 }
 
+// ─── shared sheet shell styles ────────────────────────────────────────────────
+const sheetShell = {
+  position: 'fixed' as const,
+  bottom: 0, left: 0, right: 0, zIndex: 50,
+  background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)',
+  border: '1px solid rgba(96,165,250,0.22)',
+  borderBottom: 'none',
+  borderRadius: '28px 28px 0 0',
+  display: 'flex', flexDirection: 'column' as const,
+  maxHeight: '92dvh',
+}
+const sheetFooter = {
+  flexShrink: 0,
+  padding: '12px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
+  borderTop: '1px solid rgba(96,165,250,0.18)',
+  background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)',
+}
+const dragHandle = (
+  <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
+    <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
+  </div>
+)
+
 // ─── Log Sheet ────────────────────────────────────────────────────────────────
 function BankLogSheet({ open, asset, allBankItems, onClose }: {
   open: boolean
@@ -209,7 +282,7 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
     .filter(a => a.label === asset.label)
     .map(a => {
       const p = parseBankNotes(a.notes)
-      return { id: a.id, value: a.value, startDate: p.startDate, created_at: a.created_at, isTopUp: a.notes?.includes('top-up') ?? false }
+      return { id: a.id, value: a.value, startDate: p.startDate, created_at: a.created_at, isTopUp: isTopUp(a.notes) }
     })
     .sort((a, b) => {
       const da = a.startDate ?? a.created_at
@@ -234,23 +307,14 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
           <motion.div key="log-sh"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              position: 'fixed', bottom: 'var(--nav-h, 100px)', left: 0, right: 0, zIndex: 50,
-              background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)',
-              border: '1px solid rgba(96,165,250,0.22)',
-              borderRadius: '28px 28px 20px 20px',
-              display: 'flex', flexDirection: 'column',
-              maxHeight: 'calc(88dvh - var(--nav-h, 100px))',
-            }}
+            style={sheetShell}
           >
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
-              <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
-            </div>
+            {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 18px', flexShrink: 0 }}>
               <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📋</div>
               <div>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#93c5fd', margin: '0 0 2px' }}>Transaction Log</p>
-                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{bankName}{accountType ? ` – ${accountType}` : ''}</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{bankName}{accountType ? ` \u2013 ${accountType}` : ''}</h2>
               </div>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 20px' }}>
@@ -262,22 +326,16 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
                     background: entry.isTopUp ? 'rgba(96,165,250,0.06)' : 'rgba(52,211,153,0.06)',
                     border: `1px solid ${entry.isTopUp ? 'rgba(96,165,250,0.14)' : 'rgba(52,211,153,0.14)'}`,
                   }}>
-                    <div style={{
-                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                      background: entry.isTopUp ? '#60a5fa' : '#34d399',
-                      boxShadow: `0 0 8px ${entry.isTopUp ? '#60a5fa' : '#34d399'}`,
-                    }} />
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: entry.isTopUp ? '#60a5fa' : '#34d399', boxShadow: `0 0 8px ${entry.isTopUp ? '#60a5fa' : '#34d399'}` }} />
                     <div style={{ flex: 1 }}>
                       <p style={{ fontSize: 12, fontWeight: 600, color: entry.isTopUp ? '#93c5fd' : '#6ee7b7', margin: '0 0 2px' }}>
-                        {i === 0 ? '🟢 Created' : '🔵 Top-up'}
+                        {i === 0 ? '\ud83d\udfe2 Created' : '\ud83d\udd35 Top-up'}
                       </p>
                       <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
                         {entry.startDate ? fmtStartDate(entry.startDate) : fmtStartDate(entry.created_at.substring(0, 10))}
                       </p>
                     </div>
-                    <p style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', margin: 0 }}>
-                      {formatINR(entry.value)}
-                    </p>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', margin: 0 }}>{formatINR(entry.value)}</p>
                   </div>
                 ))}
               </div>
@@ -338,7 +396,7 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
     if (!accountType)      { setErr('Select account type'); return }
     try {
       setSaving(true); setErr('')
-      const newLabel = `${bankName.trim()} – ${accountType}`
+      const newLabel = `${bankName.trim()} \u2013 ${accountType}`
       const ids = siblings.map(a => a.id)
       await onSave(ids, newLabel, (oldNotes) => {
         const p = parseBankNotes(oldNotes)
@@ -350,7 +408,7 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
     } finally { setSaving(false) }
   }
 
-  const inputStyle = {
+  const editInputStyle = {
     width: '100%', padding: '13px 16px',
     background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)',
     borderRadius: 14, color: '#f5f7ff', fontSize: 15, outline: 'none',
@@ -369,18 +427,9 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
           <motion.div key="edit-sh"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              position: 'fixed', bottom: 'var(--nav-h, 100px)', left: 0, right: 0, zIndex: 50,
-              background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)',
-              border: '1px solid rgba(96,165,250,0.22)',
-              borderRadius: '28px 28px 20px 20px',
-              display: 'flex', flexDirection: 'column',
-              maxHeight: 'calc(88dvh - var(--nav-h, 100px))',
-            }}
+            style={sheetShell}
           >
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 10px', flexShrink: 0 }}>
-              <div style={{ width: 40, height: 4, borderRadius: 4, background: 'rgba(255,255,255,0.15)' }} />
-            </div>
+            {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 20px', flexShrink: 0 }}>
               <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✏️</div>
               <div>
@@ -391,7 +440,7 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
             <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 8px' }}>
               <label style={{ display: 'block', marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Bank Name</p>
-                <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} style={inputStyle} placeholder="e.g. HDFC Bank" />
+                <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} style={editInputStyle} placeholder="e.g. HDFC Bank" />
               </label>
               <div style={{ marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Account Type</p>
@@ -412,11 +461,11 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
               </div>
               <label style={{ display: 'block', marginBottom: 20 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Note <span style={{ opacity: 0.5, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></p>
-                <input type="text" value={note} onChange={e => setNote(e.target.value)} style={inputStyle} placeholder="Branch, account ending, any detail" />
+                <input type="text" value={note} onChange={e => setNote(e.target.value)} style={editInputStyle} placeholder="Branch, account ending, any detail" />
               </label>
               {err && <p style={{ fontSize: 13, color: '#fca5a5', padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)', marginBottom: 8 }}>{err}</p>}
             </div>
-            <div style={{ flexShrink: 0, padding: '12px 20px 16px', borderTop: '1px solid rgba(96,165,250,0.18)' }}>
+            <div style={sheetFooter}>
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
                 style={{
                   width: '100%', padding: '16px',
@@ -425,7 +474,7 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
                   cursor: saving ? 'not-allowed' : 'pointer',
                   boxShadow: saving ? 'none' : '0 4px 20px rgba(96,165,250,0.35)',
                 }}
-              >{saving ? 'Saving…' : 'Save Changes'}</motion.button>
+              >{saving ? 'Saving\u2026' : 'Save Changes'}</motion.button>
             </div>
           </motion.div>
         </>
@@ -469,7 +518,7 @@ function BankAssetCard({
     siblingDeposits.length > 0 ? compoundWithTopUps(siblingDeposits) : null
   , [siblingDeposits])
 
-  if (asset.notes?.includes('top-up')) return null
+  if (isTopUp(asset.notes)) return null
 
   const totalPrincipal = allBankItems
     .filter(a => a.label === asset.label)
@@ -481,8 +530,7 @@ function BankAssetCard({
     width: 34, height: 34, borderRadius: 10,
     background: bg, border: `1px solid ${border}`,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    cursor: 'pointer', flexShrink: 0,
-    color,
+    cursor: 'pointer', flexShrink: 0, color,
   })
 
   return (
@@ -491,46 +539,25 @@ function BankAssetCard({
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -30, scale: 0.95 }}
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      style={{
-        borderRadius: 18,
-        background: 'rgba(96,165,250,0.08)',
-        border: '1px solid rgba(96,165,250,0.16)',
-        overflow: 'hidden',
-        cursor: reorderMode ? 'grab' : 'pointer',
-      }}
+      style={{ borderRadius: 18, background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.16)', overflow: 'hidden', cursor: reorderMode ? 'grab' : 'pointer' }}
       onClick={() => { if (!reorderMode) setExpanded(e => !e) }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
         {reorderMode ? (
-          <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>
-            ☰
-          </div>
+          <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>☰</div>
         ) : (
           <span style={{ fontSize: 22, flexShrink: 0 }}>🏦</span>
         )}
-
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{
-            fontSize: 14, fontWeight: 700,
-            margin: '0 0 5px',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            display: 'flex', alignItems: 'baseline',
-          }}>
+          <p style={{ fontSize: 14, fontWeight: 700, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'baseline' }}>
             <span style={{ color: '#f5f7ff' }}>{bankName}</span>
             {accountType ? <>{sep}<span style={{ fontWeight: 500, fontSize: 13, color: 'rgba(147,197,253,0.75)' }}>{accountType}</span></> : null}
             {userNote    ? <>{sep}<span style={{ fontWeight: 400, fontSize: 12, fontStyle: 'italic', color: 'rgba(148,163,184,0.55)' }}>{userNote}</span></> : null}
           </p>
           {rate ? (
-            <span style={{
-              display: 'inline-block', fontSize: 11, fontWeight: 700,
-              color: '#93c5fd', background: 'rgba(96,165,250,0.15)',
-              padding: '2px 9px', borderRadius: 99,
-              border: '1px solid rgba(96,165,250,0.35)',
-              fontVariantNumeric: 'tabular-nums',
-            }}>{rate.toFixed(2)}% p.a.</span>
+            <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#93c5fd', background: 'rgba(96,165,250,0.15)', padding: '2px 9px', borderRadius: 99, border: '1px solid rgba(96,165,250,0.35)', fontVariantNumeric: 'tabular-nums' }}>{rate.toFixed(2)}% p.a.</span>
           ) : null}
         </div>
-
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalPrincipal)}</span>
@@ -542,85 +569,27 @@ function BankAssetCard({
             )}
           </div>
           {startDate && (
-            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', margin: '3px 0 0', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-              {fmtStartDate(startDate)}
-            </p>
+            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', margin: '3px 0 0', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtStartDate(startDate)}</p>
           )}
         </div>
       </div>
-
       <AnimatePresence initial={false}>
         {expanded && !reorderMode && (
-          <motion.div
-            key="actions"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            style={{ overflow: 'hidden' }}
-          >
-            <div
-              onClick={e => e.stopPropagation()}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-                gap: 8, padding: '8px 14px 10px',
-                borderTop: '1px solid rgba(96,165,250,0.10)',
-                background: 'rgba(96,165,250,0.04)',
-              }}
-            >
-              {/* + Add Deposit */}
-              <motion.button whileTap={{ scale: 0.9 }}
-                onClick={() => { setExpanded(false); onTopUp(asset) }}
-                style={iconBtn('#93c5fd', 'rgba(96,165,250,0.14)', 'rgba(96,165,250,0.3)')}
-                title="Add Deposit"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
+          <motion.div key="actions" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
+            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '8px 14px 10px', borderTop: '1px solid rgba(96,165,250,0.10)', background: 'rgba(96,165,250,0.04)' }}>
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onTopUp(asset) }} style={iconBtn('#93c5fd', 'rgba(96,165,250,0.14)', 'rgba(96,165,250,0.3)')} title="Add Deposit">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
               </motion.button>
-
-              {/* Log */}
-              <motion.button whileTap={{ scale: 0.9 }}
-                onClick={() => { setExpanded(false); onLog(asset) }}
-                style={iconBtn('#a5b4fc', 'rgba(99,102,241,0.14)', 'rgba(99,102,241,0.3)')}
-                title="Transaction Log"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onLog(asset) }} style={iconBtn('#a5b4fc', 'rgba(99,102,241,0.14)', 'rgba(99,102,241,0.3)')} title="Transaction Log">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
               </motion.button>
-
-              {/* Edit */}
-              <motion.button whileTap={{ scale: 0.9 }}
-                onClick={() => { setExpanded(false); onEdit(asset) }}
-                style={iconBtn('#fcd34d', 'rgba(251,191,36,0.12)', 'rgba(251,191,36,0.28)')}
-                title="Edit"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onEdit(asset) }} style={iconBtn('#fcd34d', 'rgba(251,191,36,0.12)', 'rgba(251,191,36,0.28)')} title="Edit">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
               </motion.button>
-
-              {/* Delete — now routes through confirm */}
-              <motion.button whileTap={{ scale: 0.9 }}
-                onClick={() => { setExpanded(false); onDelete(asset.id, asset.label) }}
-                disabled={working === asset.id}
-                style={iconBtn('#f87171', 'rgba(248,113,113,0.12)', 'rgba(248,113,113,0.28)')}
-                title="Delete"
-              >
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onDelete(asset.id, asset.label) }} disabled={working === asset.id} style={iconBtn('#f87171', 'rgba(248,113,113,0.12)', 'rgba(248,113,113,0.28)')} title="Delete">
                 {working === asset.id
                   ? <span style={{ fontSize: 11, color: '#f87171' }}>…</span>
-                  : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                      <path d="M10 11v6" /><path d="M14 11v6" />
-                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
+                  : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
                 }
               </motion.button>
             </div>
@@ -639,45 +608,25 @@ function GenericAssetCard({ asset, group, onDelete, working }: {
   working: string | null
 }) {
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -30, scale: 0.95 }}
-      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 14,
-        padding: '14px 16px', borderRadius: 18,
-        background: group.color, border: `1px solid ${group.border.replace('0.35', '0.18')}`,
-      }}
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -30, scale: 0.95 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 18, background: group.color, border: `1px solid ${group.border.replace('0.35', '0.18')}` }}
     >
       <span style={{ fontSize: 22, flexShrink: 0 }}>{group.emoji}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {asset.label}
-        </p>
+        <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.label}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
-            {formatShortDate(asset.created_at)}{asset.notes ? ` · ${asset.notes}` : ''}
-          </p>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>{formatShortDate(asset.created_at)}{asset.notes ? ` \u00b7 ${asset.notes}` : ''}</p>
           <PnlBadge asset={asset} />
         </div>
       </div>
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <p style={{ fontSize: 15, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums', margin: '0 0 2px' }}>
-          {formatINR(asset.value)}
-        </p>
+        <p style={{ fontSize: 15, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums', margin: '0 0 2px' }}>{formatINR(asset.value)}</p>
         {asset.current_price && asset.last_synced && (
-          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', margin: '0 0 3px', fontVariantNumeric: 'tabular-nums' }}>
-            Live: {formatINR(asset.current_price * (asset.quantity ?? 1))}
-          </p>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', margin: '0 0 3px', fontVariantNumeric: 'tabular-nums' }}>Live: {formatINR(asset.current_price * (asset.quantity ?? 1))}</p>
         )}
-        <button
-          onClick={() => onDelete(asset.id, asset.label)}
-          disabled={working === asset.id}
+        <button onClick={() => onDelete(asset.id, asset.label)} disabled={working === asset.id}
           style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
-        >
-          {working === asset.id ? '…' : 'delete'}
-        </button>
+        >{working === asset.id ? '\u2026' : 'delete'}</button>
       </div>
     </motion.div>
   )
@@ -705,9 +654,7 @@ function GroupDetailView({
   onReorder: (fromIdx: number, toIdx: number) => void
 }) {
   const isBank = group.id === 'Bank'
-  const rootItems = isBank
-    ? items.filter(a => !(a.notes?.includes('top-up') ?? false))
-    : items
+  const rootItems = isBank ? items.filter(a => !isTopUp(a.notes)) : items
 
   const displayItems = isBank && reorderedIds.length > 0
     ? [...rootItems].sort((a, b) => {
@@ -723,10 +670,7 @@ function GroupDetailView({
   const dragIdx = useRef<number | null>(null)
 
   return (
-    <motion.div
-      key={'detail-' + group.id}
-      initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }}
-      transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div key={'detail-' + group.id} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 40 }} transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
       style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
     >
       {/* Top nav */}
@@ -734,55 +678,34 @@ function GroupDetailView({
         <motion.button whileTap={{ scale: 0.88 }} onClick={onBack}
           style={{ width: 36, height: 36, borderRadius: 12, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
         </motion.button>
-
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           <span style={{ fontSize: 20 }}>{group.emoji}</span>
           <p style={{ fontSize: 16, fontWeight: 700, color: '#f5f7ff', margin: 0, letterSpacing: '-0.01em' }}>{group.label}</p>
         </div>
-
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {isBank && (
             <motion.button whileTap={{ scale: 0.88 }} onClick={onToggleReorder}
-              style={{
-                width: 36, height: 36, borderRadius: 12,
-                background: reorderMode ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.07)',
-                border: reorderMode ? '1px solid rgba(251,191,36,0.4)' : '1px solid rgba(255,255,255,0.12)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-              }}
-              title="Reorder"
+              style={{ width: 36, height: 36, borderRadius: 12, background: reorderMode ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.07)', border: reorderMode ? '1px solid rgba(251,191,36,0.4)' : '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Reorder"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={reorderMode ? '#fcd34d' : 'rgba(255,255,255,0.75)'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-                <polyline points="17 2 21 6 17 10" />
-                <polyline points="17 14 21 18 17 22" />
+                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                <polyline points="17 2 21 6 17 10" /><polyline points="17 14 21 18 17 22" />
               </svg>
             </motion.button>
           )}
-
           {!reorderMode && (
             <motion.button whileTap={{ scale: 0.88 }} onClick={onAddPress}
               style={{ width: 36, height: 36, borderRadius: 12, background: group.color, border: `1px solid ${group.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 2px 12px ${group.color}` }}
               aria-label={`Add ${group.label}`}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             </motion.button>
           )}
-
           {reorderMode && (
             <motion.button whileTap={{ scale: 0.88 }} onClick={onToggleReorder}
-              style={{
-                height: 36, padding: '0 14px', borderRadius: 12,
-                background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.4)',
-                color: '#fcd34d', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              }}
+              style={{ height: 36, padding: '0 14px', borderRadius: 12, background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.4)', color: '#fcd34d', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >Done</motion.button>
           )}
         </div>
@@ -817,39 +740,18 @@ function GroupDetailView({
           <AnimatePresence initial={false}>
             {isBank
               ? displayItems.map((asset, idx) => (
-                  <div
-                    key={asset.id}
+                  <div key={asset.id}
                     draggable={reorderMode}
                     onDragStart={() => { dragIdx.current = idx }}
                     onDragOver={e => e.preventDefault()}
-                    onDrop={() => {
-                      if (dragIdx.current !== null && dragIdx.current !== idx) {
-                        onReorder(dragIdx.current, idx)
-                        dragIdx.current = null
-                      }
-                    }}
+                    onDrop={() => { if (dragIdx.current !== null && dragIdx.current !== idx) { onReorder(dragIdx.current, idx); dragIdx.current = null } }}
                     style={{ touchAction: reorderMode ? 'none' : undefined }}
                   >
-                    <BankAssetCard
-                      asset={asset}
-                      allBankItems={items}
-                      reorderMode={reorderMode}
-                      onDelete={onDelete}
-                      onTopUp={onTopUp}
-                      onLog={onLog}
-                      onEdit={onEdit}
-                      working={working}
-                    />
+                    <BankAssetCard asset={asset} allBankItems={items} reorderMode={reorderMode} onDelete={onDelete} onTopUp={onTopUp} onLog={onLog} onEdit={onEdit} working={working} />
                   </div>
                 ))
               : displayItems.map(asset => (
-                  <GenericAssetCard
-                    key={asset.id}
-                    asset={asset}
-                    group={group}
-                    onDelete={onDelete}
-                    working={working}
-                  />
+                  <GenericAssetCard key={asset.id} asset={asset} group={group} onDelete={onDelete} working={working} />
                 ))
             }
           </AnimatePresence>
@@ -874,7 +776,6 @@ export function AssetScreen() {
   const [logAsset,   setLogAsset]   = useState<AssetItem | null>(null)
   const [editAsset,  setEditAsset]  = useState<AssetItem | null>(null)
 
-  // ── Confirm delete state ──
   const [confirmId,    setConfirmId]    = useState<string | null>(null)
   const [confirmLabel, setConfirmLabel] = useState('')
 
@@ -889,7 +790,7 @@ export function AssetScreen() {
 
   const handleReorder = useCallback((fromIdx: number, toIdx: number) => {
     setBankOrder(prev => {
-      const bankItems = assets.filter(a => a.category === 'Bank' && !(a.notes?.includes('top-up')))
+      const bankItems = assets.filter(a => a.category === 'Bank' && !isTopUp(a.notes))
       const orderedIds = prev.length > 0
         ? [...bankItems].sort((a, b) => { const ai = prev.indexOf(a.id); const bi = prev.indexOf(b.id); return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi) }).map(a => a.id)
         : bankItems.map(a => a.id)
@@ -907,10 +808,8 @@ export function AssetScreen() {
     return rate ?? 0
   }, [topUpAsset])
 
-  // Intercept delete — show confirm sheet instead of deleting immediately
   const requestDelete = useCallback((id: string, label: string) => {
-    setConfirmLabel(label)
-    setConfirmId(id)
+    setConfirmLabel(label); setConfirmId(id)
   }, [])
 
   const handleDelete = async (id: string) => {
@@ -920,11 +819,7 @@ export function AssetScreen() {
     finally   { setWorking(null) }
   }
 
-  const handleEditSave = async (
-    ids: string[],
-    newLabel: string,
-    notesUpdater: (oldNotes: string | null) => string,
-  ) => {
+  const handleEditSave = async (ids: string[], newLabel: string, notesUpdater: (oldNotes: string | null) => string) => {
     await Promise.all(
       ids.map(id => {
         const asset = assets.find(a => a.id === id)
@@ -934,11 +829,16 @@ export function AssetScreen() {
     )
   }
 
+  // Exclude top-ups from group stats counts and totals (top-up value already included via root card)
   const groupStats = useMemo(() =>
     Object.fromEntries(
       ASSET_GROUPS.map(g => {
-        const items = assets.filter(a => a.category === g.id)
-        return [g.id, { total: items.reduce((s, a) => s + a.value, 0), count: items.length }]
+        const allItems = assets.filter(a => a.category === g.id)
+        const countItems = g.id === 'Bank' ? allItems.filter(a => !isTopUp(a.notes)) : allItems
+        return [g.id, {
+          total: allItems.reduce((s, a) => s + a.value, 0),
+          count: countItems.length,
+        }]
       })
     )
   , [assets])
@@ -949,14 +849,16 @@ export function AssetScreen() {
 
   const activeGroupMeta = ASSET_GROUPS.find(g => g.id === selectedGroup)
 
-  // suppress unused warning
+  // Exclude top-ups from global asset count
+  const displayAssetCount = useMemo(() =>
+    assets.filter(a => !(a.category === 'Bank' && isTopUp(a.notes))).length
+  , [assets])
+
   void saveOrder
 
   return (
     <div style={{ padding: '20px 20px 0', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 'calc(var(--nav-h, 100px) + 24px)' }}>
-      <motion.div
-        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
         style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
       >
         {error && (
@@ -965,12 +867,10 @@ export function AssetScreen() {
 
         <AnimatePresence mode="wait">
           {selectedGroup === null ? (
-            <motion.div key="grid"
-              initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            <motion.div key="grid" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
               style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
             >
-              <SummaryCard totalValue={totalValue} assetCount={assets.length} loading={loading} />
+              <SummaryCard totalValue={totalValue} assetCount={displayAssetCount} loading={loading} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {ASSET_GROUPS.map((g, i) => (
                   <motion.div key={g.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.28, ease: [0.16, 1, 0.3, 1] }}>
@@ -1003,7 +903,6 @@ export function AssetScreen() {
         </AnimatePresence>
       </motion.div>
 
-      {/* Asset add sheets */}
       <BankAssetSheet open={sheetGroup === 'Bank'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
       <RealEstateAssetSheet open={sheetGroup === 'Real Estate'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
       <StockAssetSheet open={sheetGroup === 'Stock'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
@@ -1011,48 +910,19 @@ export function AssetScreen() {
       <CryptoAssetSheet open={sheetGroup === 'Crypto'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
       <PreciousMetalAssetSheet open={sheetGroup === 'Precious Metal'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
 
-      {/* Bank top-up sheet */}
-      <BankTopUpSheet
-        open={topUpAsset !== null}
-        onClose={() => setTopUpAsset(null)}
-        bankLabel={topUpAsset?.label ?? ''}
-        rate={topUpRate}
-        onSave={async (a) => { await add(a); setTopUpAsset(null) }}
-      />
+      <BankTopUpSheet open={topUpAsset !== null} onClose={() => setTopUpAsset(null)} bankLabel={topUpAsset?.label ?? ''} rate={topUpRate} onSave={async (a) => { await add(a); setTopUpAsset(null) }} />
 
-      {/* Bank log sheet */}
-      <BankLogSheet
-        open={logAsset !== null}
-        asset={logAsset}
-        allBankItems={groupItems}
-        onClose={() => setLogAsset(null)}
-      />
+      <BankLogSheet open={logAsset !== null} asset={logAsset} allBankItems={groupItems} onClose={() => setLogAsset(null)} />
 
-      {/* Bank edit sheet */}
-      <BankEditSheet
-        open={editAsset !== null}
-        asset={editAsset}
-        allBankItems={groupItems}
-        onClose={() => setEditAsset(null)}
-        onSave={handleEditSave}
-      />
+      <BankEditSheet open={editAsset !== null} asset={editAsset} allBankItems={groupItems} onClose={() => setEditAsset(null)} onSave={handleEditSave} />
 
-      {/* Confirm delete */}
       <ConfirmSheet
         open={confirmId !== null}
         title="Delete Asset?"
         message={confirmLabel ? `"${confirmLabel}" will be permanently removed.` : 'This asset will be permanently removed.'}
         confirmLabel="Delete"
-        onConfirm={() => {
-          const id = confirmId!
-          setConfirmId(null)
-          setConfirmLabel('')
-          handleDelete(id)
-        }}
-        onCancel={() => {
-          setConfirmId(null)
-          setConfirmLabel('')
-        }}
+        onConfirm={() => { const id = confirmId!; setConfirmId(null); setConfirmLabel(''); handleDelete(id) }}
+        onCancel={() => { setConfirmId(null); setConfirmLabel('') }}
       />
     </div>
   )
