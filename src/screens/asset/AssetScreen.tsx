@@ -487,7 +487,7 @@ function StockTopUpSheet({ open, stockLabel, onClose, onSave }: {
                 <input type="number" inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} style={inp} placeholder="e.g. 10" />
               </label>
               <label style={{ display: 'block', marginBottom: 20 }}>
-                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Price per Stock (\u20b9)</p>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Price per Stock (&#8377;)</p>
                 <input type="number" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} style={inp} placeholder="e.g. 1500" />
               </label>
               {total !== null && (
@@ -678,7 +678,7 @@ function BankAssetCard({
   )
 }
 
-// ─── Stock asset card (bank-style) ────────────────────────────────────────────
+// ─── Stock asset card ─────────────────────────────────────────────────────────
 function StockAssetCard({
   asset, allStockItems, reorderMode, dragHandleProps,
   onDelete, onTopUp, onLog, working,
@@ -706,6 +706,8 @@ function StockAssetCard({
   const currentVal = asset.current_price != null && totalQty > 0 ? asset.current_price * totalQty : null
   const isGain     = currentVal != null && currentVal >= totalInvested
 
+  const sep = <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>·</span>
+
   const iconBtn = (color: string, bg: string, border: string) => ({
     width: 34, height: 34, borderRadius: 10, background: bg,
     border: `1px solid ${border}`, display: 'flex', alignItems: 'center',
@@ -723,61 +725,46 @@ function StockAssetCard({
     >
       {/* ── Main row ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
-        {/* Left: drag handle or dot indicator */}
+        {/* Left: drag handle or emoji */}
         {reorderMode
           ? <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>☰</div>
-          : <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: '#fcd34d', boxShadow: '0 0 8px rgba(252,211,77,0.7)' }} />
+          : <span style={{ fontSize: 22, flexShrink: 0 }}>📈</span>
         }
 
-        {/* Centre: name + live price pill, shares badge below */}
+        {/* Centre: stock name + inline qty/note, live price pill below */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Name row with live price pill */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 5, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
-              {asset.label}
-            </span>
-            {asset.current_price != null && (
-              <span style={{
-                fontSize: 11, fontWeight: 700, color: '#fcd34d',
-                background: 'rgba(251,191,36,0.15)', padding: '2px 9px',
-                borderRadius: 99, border: '1px solid rgba(251,191,36,0.35)',
-                fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' as const,
-              }}>
-                \u20b9{asset.current_price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+          {/* Name row — mirrors bank: name · qty dimmed · note italic */}
+          <p style={{ fontSize: 14, fontWeight: 700, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'baseline' }}>
+            <span style={{ color: '#f5f7ff' }}>{asset.label}</span>
+            {totalQty > 0 ? <>{sep}<span style={{ fontWeight: 500, fontSize: 13, color: 'rgba(252,211,77,0.7)' }}>{totalQty} shares</span></> : null}
+          </p>
+          {/* Live price pill (mirrors bank rate pill) — only when price exists */}
+          {asset.current_price != null
+            ? <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#fcd34d', background: 'rgba(251,191,36,0.15)', padding: '2px 9px', borderRadius: 99, border: '1px solid rgba(251,191,36,0.35)', fontVariantNumeric: 'tabular-nums' }}>
+                {'\u20b9'}{asset.current_price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
               </span>
-            )}
-          </div>
-
-          {/* Shares + P&L badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            {totalQty > 0 && (
-              <span style={{
-                fontSize: 11, fontWeight: 700, color: '#fcd34d',
-                background: 'rgba(251,191,36,0.12)', padding: '2px 9px',
-                borderRadius: 99, border: '1px solid rgba(251,191,36,0.28)',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {totalQty} shares
-              </span>
-            )}
-            <PnlBadge asset={{ ...asset, quantity: totalQty, value: totalInvested }} />
-          </div>
+            : <PnlBadge asset={{ ...asset, quantity: totalQty, value: totalInvested }} />
+          }
         </div>
 
-        {/* Right: invested (dimmed) → current (bright) */}
-        <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.38)', fontVariantNumeric: 'tabular-nums' }}>
-            {formatINR(totalInvested)}
-          </span>
+        {/* Right: invested (dimmed) → current value (bright, gain/loss colour) */}
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(252,211,77,0.7)', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalInvested)}</span>
+            {currentVal !== null && (
+              <>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>&#8594;</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: isGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums', textShadow: isGain ? '0 0 10px rgba(52,211,153,0.45)' : '0 0 10px rgba(248,113,113,0.35)' }}>
+                  {formatINR(currentVal)}
+                </span>
+              </>
+            )}
+          </div>
+          {/* P&L badge shown when current price is set */}
           {currentVal !== null && (
-            <span style={{
-              fontSize: 14, fontWeight: 900,
-              color: isGain ? '#34d399' : '#f87171',
-              fontVariantNumeric: 'tabular-nums',
-              textShadow: isGain ? '0 0 12px rgba(52,211,153,0.5)' : '0 0 12px rgba(248,113,113,0.4)',
-            }}>
-              {formatINR(currentVal)}
-            </span>
+            <div style={{ marginTop: 3, display: 'flex', justifyContent: 'flex-end' }}>
+              <PnlBadge asset={{ ...asset, quantity: totalQty, value: totalInvested }} />
+            </div>
           )}
         </div>
       </div>
@@ -1257,7 +1244,8 @@ export function AssetScreen() {
         open={bankLogAsset !== null}
         asset={bankLogAsset}
         allBankItems={groupedAssets['Bank'] ?? []}
-        onClose={() => setBankLogAsset(null)}
+        onClose={() => setBankLogAsset(null)
+      }
       />
 
       <StockLogSheet
