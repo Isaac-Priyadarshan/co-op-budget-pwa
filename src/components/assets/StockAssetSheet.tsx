@@ -26,26 +26,41 @@ const inputStyle = {
 }
 
 export function StockAssetSheet({ open, onClose, onSave }: Props) {
-  const [query,     setQuery]     = useState('')
-  const [results,   setResults]   = useState<StockResult[]>([])
-  const [selected,  setSelected]  = useState<StockResult | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [qty,       setQty]       = useState('')
-  const [buyPrice,  setBuyPrice]  = useState('')
-  const [notes,     setNotes]     = useState('')
-  const [saving,    setSaving]    = useState(false)
-  const [err,       setErr]       = useState('')
+  const [query,        setQuery]        = useState('')
+  const [results,      setResults]      = useState<StockResult[]>([])
+  const [selected,     setSelected]     = useState<StockResult | null>(null)
+  const [searching,    setSearching]    = useState(false)
+  const [qty,          setQty]          = useState('')
+  const [buyPrice,     setBuyPrice]     = useState('')
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null)
+  const [priceLoading, setPriceLoading] = useState(false)
+  const [notes,        setNotes]        = useState('')
+  const [saving,       setSaving]       = useState(false)
+  const [err,          setErr]          = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const reset = () => {
     setQuery(''); setResults([]); setSelected(null)
-    setQty(''); setBuyPrice(''); setNotes('')
-    setErr(''); setSaving(false); setSearching(false)
+    setQty(''); setBuyPrice(''); setCurrentPrice(null)
+    setNotes(''); setErr(''); setSaving(false); setSearching(false)
   }
   useEffect(() => { if (!open) reset() }, [open])
 
+  // Fetch live price whenever a stock is selected
+  useEffect(() => {
+    if (!selected) { setCurrentPrice(null); return }
+    let cancelled = false
+    setPriceLoading(true)
+    fetch(`/api/stock-price?symbol=${encodeURIComponent(selected.symbol)}`)
+      .then(r => r.json())
+      .then((j: { price?: number }) => { if (!cancelled) setCurrentPrice(j.price ?? null) })
+      .catch(() => { if (!cancelled) setCurrentPrice(null) })
+      .finally(() => { if (!cancelled) setPriceLoading(false) })
+    return () => { cancelled = true }
+  }, [selected])
+
   const handleQueryChange = (val: string) => {
-    setQuery(val); setSelected(null)
+    setQuery(val); setSelected(null); setCurrentPrice(null)
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (val.trim().length < 2) { setResults([]); return }
     debounceRef.current = setTimeout(async () => {
@@ -69,14 +84,15 @@ export function StockAssetSheet({ open, onClose, onSave }: Props) {
     try {
       setSaving(true); setErr('')
       await onSave({
-        label:     `${selected.name} (${selected.symbol})`,
-        category:  'Stock',
+        label:         `${selected.name} (${selected.symbol})`,
+        category:      'Stock',
         value,
-        owner:     'Both',
-        notes:     notes.trim() || null,
-        ticker:    selected.symbol,
-        quantity:  shares,
-        buy_price: price,
+        owner:         'Both',
+        notes:         notes.trim() || null,
+        ticker:        selected.symbol,
+        quantity:      shares,
+        buy_price:     price,
+        current_price: currentPrice ?? undefined,
       })
       reset(); onClose()
     } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to save') }
@@ -99,20 +115,20 @@ export function StockAssetSheet({ open, onClose, onSave }: Props) {
             }}
           />
 
-          {/* Sheet */}
+          {/* Sheet — flush to bottom */}
           <motion.div key="st-sh"
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
               position: 'fixed',
-              bottom: 'var(--nav-h, 100px)',
+              bottom: 0,
               left: 0, right: 0, zIndex: 50,
               background: 'linear-gradient(180deg,#00080f 0%,#000608 100%)',
               border: `1px solid ${accentBorder}`,
-              borderBottom: `1px solid rgba(34,211,238,0.10)`,
-              borderRadius: '28px 28px 20px 20px',
+              borderBottom: 'none',
+              borderRadius: '28px 28px 0 0',
               display: 'flex', flexDirection: 'column',
-              maxHeight: 'calc(92dvh - var(--nav-h, 100px))',
+              maxHeight: '92dvh',
             }}
           >
             {/* Drag handle */}
@@ -144,115 +160,4 @@ export function StockAssetSheet({ open, onClose, onSave }: Props) {
                   placeholder="e.g. Reliance, HDFC Bank, Infosys…"
                   value={query}
                   onChange={e => handleQueryChange(e.target.value)}
-                  style={{ ...inputStyle, border: `1px solid ${selected ? accentSelBorder : accentBorder}` }}
-                />
-                {searching && <p style={{ fontSize: 12, color: accent, marginTop: 6 }}>Searching…</p>}
-                {results.length > 0 && !selected && (
-                  <div style={{
-                    position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 4,
-                    background: '#0a0f14', border: `1px solid ${accentBorder}`,
-                    borderRadius: 14, overflow: 'hidden', zIndex: 60, maxHeight: 220, overflowY: 'auto',
-                  }}>
-                    {results.map(s => (
-                      <motion.button key={s.symbol} whileTap={{ scale: 0.98 }} onClick={() => handleSelect(s)}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          width: '100%', padding: '12px 16px',
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          borderBottom: '1px solid rgba(255,255,255,0.06)',
-                        }}
-                      >
-                        <span style={{ fontSize: 14, color: '#f5f7ff', fontWeight: 600, textAlign: 'left' }}>{s.name}</span>
-                        <span style={{ fontSize: 11, color: accent, fontWeight: 700, marginLeft: 8, flexShrink: 0 }}>{s.symbol} · {s.exchange}</span>
-                      </motion.button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Selected chip */}
-              {selected && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18,
-                  padding: '8px 14px', background: accentSel,
-                  border: `1px solid ${accentSelBorder}`, borderRadius: 100,
-                }}>
-                  <span style={{ fontSize: 13, color: accent, fontWeight: 700 }}>{selected.symbol}</span>
-                  <span style={{ fontSize: 13, color: '#f5f7ff' }}>{selected.name}</span>
-                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginLeft: 'auto' }}>{selected.exchange}</span>
-                  <button onClick={() => { setSelected(null); setQuery('') }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 16, padding: '0 0 0 4px' }}>×</button>
-                </div>
-              )}
-
-              {/* Shares + Buy Price */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
-                <label>
-                  <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Shares</p>
-                  <input type="number" inputMode="decimal" placeholder="0" value={qty} onChange={e => setQty(e.target.value)}
-                    style={{ ...inputStyle, padding: '13px 14px', color: accent, fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}
-                  />
-                </label>
-                <label>
-                  <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Buy Price (₹)</p>
-                  <input type="number" inputMode="decimal" placeholder="0.00" value={buyPrice} onChange={e => setBuyPrice(e.target.value)}
-                    style={{ ...inputStyle, padding: '13px 14px', fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}
-                  />
-                </label>
-              </div>
-
-              {/* Total preview */}
-              {qty && buyPrice && Number(qty) > 0 && Number(buyPrice) > 0 && (
-                <div style={{ marginBottom: 18, padding: '12px 16px', background: 'rgba(34,211,238,0.05)', border: `1px solid ${accentBorder}`, borderRadius: 14 }}>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: '0 0 4px' }}>Total invested value</p>
-                  <p style={{ fontSize: 22, fontWeight: 800, color: accent, fontVariantNumeric: 'tabular-nums', margin: 0 }}>
-                    ₹{(Number(qty) * Number(buyPrice)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-              )}
-
-              {/* Notes */}
-              <label style={{ display: 'block', marginBottom: 18 }}>
-                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
-                  Notes <span style={{ fontWeight: 400, opacity: 0.5, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
-                </p>
-                <input type="text" placeholder="Broker, DEMAT account…" value={notes} onChange={e => setNotes(e.target.value)}
-                  style={inputStyle}
-                />
-              </label>
-
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginBottom: 8, lineHeight: 1.5 }}>📡 Live price syncs daily at midnight — tracks current value &amp; P&amp;L automatically.</p>
-
-              {err && (
-                <p style={{
-                  fontSize: 13, color: '#fca5a5', marginBottom: 8,
-                  padding: '10px 14px', background: 'rgba(248,113,113,0.1)',
-                  borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)',
-                }}>{err}</p>
-              )}
-            </div>
-
-            {/* Save button */}
-            <div style={{
-              flexShrink: 0, padding: '12px 20px 16px',
-              borderTop: `1px solid ${accentBorder}`,
-              background: 'linear-gradient(180deg,#00080f 0%,#000608 100%)',
-            }}>
-              <motion.button whileTap={{ scale: 0.97 }} onClick={handleSubmit} disabled={saving}
-                style={{
-                  width: '100%', padding: '16px',
-                  background: saving ? accentBg : `linear-gradient(135deg,#22d3ee,#0891b2)`,
-                  border: 'none', borderRadius: 16,
-                  color: saving ? accent : '#fff', fontSize: 16, fontWeight: 800,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  boxShadow: saving ? 'none' : `0 4px 20px ${accentGlow}`,
-                  transition: 'all 0.16s ease',
-                }}
-              >{saving ? 'Saving…' : 'Save Stock Holding'}</motion.button>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
-}
+   
