@@ -40,6 +40,17 @@ function isTopUp(notes: string | null): boolean {
   return notes?.includes('top-up') ?? false
 }
 
+// Parse stock top-up notes: "top-up · qty:10 · price:150.50"
+function parseStockTopUpNotes(notes: string | null): { qty: number | null; price: number | null } {
+  if (!notes) return { qty: null, price: null }
+  const qtyMatch   = notes.match(/qty:(\d+(?:\.\d+)?)/)
+  const priceMatch = notes.match(/price:(\d+(?:\.\d+)?)/)
+  return {
+    qty:   qtyMatch   ? parseFloat(qtyMatch[1])   : null,
+    price: priceMatch ? parseFloat(priceMatch[1]) : null,
+  }
+}
+
 // ─── P&L badge ────────────────────────────────────────────────────────────────
 function PnlBadge({ asset }: {
   asset: { value: number; current_price: number | null; quantity: number | null; buy_price: number | null }
@@ -111,11 +122,12 @@ function GroupSummaryCard({ group, items }: {
   group: typeof ASSET_GROUPS[number]
   items: AssetItem[]
 }) {
-  const isBank = group.id === 'Bank'
+  const isBank  = group.id === 'Bank'
+  const isStock = group.id === 'Stock'
 
-  const rootItems   = isBank ? items.filter(a => !isTopUp(a.notes)) : items
+  const rootItems = (isBank || isStock) ? items.filter(a => !isTopUp(a.notes)) : items
   const totalInvested = rootItems.reduce((s, a) => s + a.value, 0)
-    + (isBank ? items.filter(a => isTopUp(a.notes)).reduce((s, a) => s + a.value, 0) : 0)
+    + ((isBank || isStock) ? items.filter(a => isTopUp(a.notes)).reduce((s, a) => s + a.value, 0) : 0)
 
   const bankNetWorth = useMemo(() => {
     if (!isBank) return null
@@ -135,16 +147,16 @@ function GroupSummaryCard({ group, items }: {
     return deposits.length > 0 ? compoundWithTopUps(deposits) : totalInvested
   }, [isBank, items, rootItems, totalInvested])
 
-  const liveItems     = items.filter(a => a.current_price != null && a.quantity != null)
-  const liveValue     = liveItems.reduce((s, a) => s + (a.current_price! * a.quantity!), 0)
-  const hasLive       = liveItems.length > 0
-  const investedLive  = liveItems.reduce((s, a) => s + a.value, 0)
-  const pnlAbs        = liveValue - investedLive
-  const pnlPct        = investedLive > 0 ? (pnlAbs / investedLive) * 100 : 0
-  const pnlGain       = pnlAbs >= 0
+  const liveItems    = items.filter(a => a.current_price != null && a.quantity != null)
+  const liveValue    = liveItems.reduce((s, a) => s + (a.current_price! * a.quantity!), 0)
+  const hasLive      = liveItems.length > 0
+  const investedLive = liveItems.reduce((s, a) => s + a.value, 0)
+  const pnlAbs       = liveValue - investedLive
+  const pnlPct       = investedLive > 0 ? (pnlAbs / investedLive) * 100 : 0
+  const pnlGain      = pnlAbs >= 0
 
   const displayNetWorth = isBank ? (bankNetWorth ?? totalInvested) : (hasLive ? liveValue : totalInvested)
-  const assetCount = isBank ? rootItems.length : items.length
+  const assetCount = (isBank || isStock) ? rootItems.length : items.length
 
   return (
     <motion.div
@@ -158,8 +170,6 @@ function GroupSummaryCard({ group, items }: {
       }}
     >
       <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: group.border, filter: 'blur(40px)', pointerEvents: 'none', opacity: 0.6 }} />
-
-      {/* Two-column: Total Invested | Net Worth */}
       <div style={{ position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 14 }}>
         <div>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: group.text, opacity: 0.6, margin: '0 0 4px' }}>Total Invested</p>
@@ -174,8 +184,6 @@ function GroupSummaryCard({ group, items }: {
           >{formatINR(displayNetWorth)}</motion.p>
         </div>
       </div>
-
-      {/* Pills row — Live badge REMOVED, only count + P&L */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 99, background: 'rgba(0,0,0,0.18)', border: `1px solid ${group.border}` }}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -259,12 +267,9 @@ const dragHandle = (
   </div>
 )
 
-// ─── Log Sheet ────────────────────────────────────────────────────────────────
+// ─── Bank Log Sheet ───────────────────────────────────────────────────────────
 function BankLogSheet({ open, asset, allBankItems, onClose }: {
-  open: boolean
-  asset: AssetItem | null
-  allBankItems: AssetItem[]
-  onClose: () => void
+  open: boolean; asset: AssetItem | null; allBankItems: AssetItem[]; onClose: () => void
 }) {
   if (!asset) return null
   const { bankName, accountType } = splitBankLabel(asset.label)
@@ -276,11 +281,7 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
       const p = parseBankNotes(a.notes)
       return { id: a.id, value: a.value, startDate: p.startDate, created_at: a.created_at, isTopUp: isTopUp(a.notes) }
     })
-    .sort((a, b) => {
-      const da = a.startDate ?? a.created_at
-      const db = b.startDate ?? b.created_at
-      return da.localeCompare(db)
-    })
+    .sort((a, b) => (a.startDate ?? a.created_at).localeCompare(b.startDate ?? b.created_at))
 
   const totalPrincipal = siblings.reduce((s, a) => s + a.value, 0)
   const appreciated = rate
@@ -291,16 +292,10 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
     <AnimatePresence>
       {open && (
         <>
-          <motion.div key="log-bd"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose}
+          <motion.div key="blog-bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
           />
-          <motion.div key="log-sh"
-            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            style={sheetShell}
-          >
+          <motion.div key="blog-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }} style={sheetShell}>
             {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 18px', flexShrink: 0 }}>
               <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📋</div>
@@ -312,20 +307,11 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
             <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 20px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {siblings.map((entry, i) => (
-                  <div key={entry.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '12px 14px', borderRadius: 14,
-                    background: entry.isTopUp ? 'rgba(96,165,250,0.06)' : 'rgba(52,211,153,0.06)',
-                    border: `1px solid ${entry.isTopUp ? 'rgba(96,165,250,0.14)' : 'rgba(52,211,153,0.14)'}`,
-                  }}>
+                  <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: entry.isTopUp ? 'rgba(96,165,250,0.06)' : 'rgba(52,211,153,0.06)', border: `1px solid ${entry.isTopUp ? 'rgba(96,165,250,0.14)' : 'rgba(52,211,153,0.14)'}` }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: entry.isTopUp ? '#60a5fa' : '#34d399', boxShadow: `0 0 8px ${entry.isTopUp ? '#60a5fa' : '#34d399'}` }} />
                     <div style={{ flex: 1 }}>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: entry.isTopUp ? '#93c5fd' : '#6ee7b7', margin: '0 0 2px' }}>
-                        {i === 0 ? '\ud83d\udfe2 Created' : '\ud83d\udd35 Top-up'}
-                      </p>
-                      <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
-                        {entry.startDate ? fmtStartDate(entry.startDate) : fmtStartDate(entry.created_at.substring(0, 10))}
-                      </p>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: entry.isTopUp ? '#93c5fd' : '#6ee7b7', margin: '0 0 2px' }}>{i === 0 ? '\ud83d\udfe2 Created' : '\ud83d\udd35 Top-up'}</p>
+                      <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{entry.startDate ? fmtStartDate(entry.startDate) : fmtStartDate(entry.created_at.substring(0, 10))}</p>
                     </div>
                     <p style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', margin: 0 }}>{formatINR(entry.value)}</p>
                   </div>
@@ -351,23 +337,18 @@ function BankLogSheet({ open, asset, allBankItems, onClose }: {
   )
 }
 
-// ─── Edit Sheet ───────────────────────────────────────────────────────────────
+// ─── Bank Edit Sheet ──────────────────────────────────────────────────────────
 function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
-  open: boolean
-  asset: AssetItem | null
-  allBankItems: AssetItem[]
-  onClose: () => void
+  open: boolean; asset: AssetItem | null; allBankItems: AssetItem[]; onClose: () => void
   onSave: (ids: string[], newLabel: string, newNotes: (oldNotes: string | null) => string) => Promise<void>
 }) {
   const { bankName: initName, accountType: initType } = splitBankLabel(asset?.label ?? '')
   const { userNote: initNote } = parseBankNotes(asset?.notes ?? null)
-
   const [bankName,    setBankName]    = useState(initName)
   const [accountType, setAccountType] = useState<AccountType | ''>(initType as AccountType | '')
   const [note,        setNote]        = useState(initNote)
   const [saving,      setSaving]      = useState(false)
   const [err,         setErr]         = useState('')
-
   const prevOpen = useRef(false)
   if (open && !prevOpen.current) {
     const { bankName: n, accountType: t } = splitBankLabel(asset?.label ?? '')
@@ -378,49 +359,31 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
     setErr('')
   }
   prevOpen.current = open
-
   if (!asset) return null
-
   const siblings = allBankItems.filter(a => a.label === asset.label)
-
   const handleSave = async () => {
-    if (!bankName.trim())  { setErr('Enter bank name'); return }
-    if (!accountType)      { setErr('Select account type'); return }
+    if (!bankName.trim()) { setErr('Enter bank name'); return }
+    if (!accountType)     { setErr('Select account type'); return }
     try {
       setSaving(true); setErr('')
       const newLabel = `${bankName.trim()} \u2013 ${accountType}`
-      const ids = siblings.map(a => a.id)
-      await onSave(ids, newLabel, (oldNotes) => {
+      await onSave(siblings.map(a => a.id), newLabel, (oldNotes) => {
         const p = parseBankNotes(oldNotes)
         return buildNotesStr(p.rate, p.startDate, oldNotes?.includes('top-up') ? (oldNotes ?? '') : note)
       })
       onClose()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to save')
-    } finally { setSaving(false) }
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to save') }
+    finally { setSaving(false) }
   }
-
-  const editInputStyle = {
-    width: '100%', padding: '13px 16px',
-    background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)',
-    borderRadius: 14, color: '#f5f7ff', fontSize: 15, outline: 'none',
-    boxSizing: 'border-box' as const,
-  }
-
+  const inp = { width: '100%', padding: '13px 16px', background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: 14, color: '#f5f7ff', fontSize: 15, outline: 'none', boxSizing: 'border-box' as const }
   return (
     <AnimatePresence>
       {open && (
         <>
-          <motion.div key="edit-bd"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={onClose}
+          <motion.div key="bedit-bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
           />
-          <motion.div key="edit-sh"
-            initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            style={sheetShell}
-          >
+          <motion.div key="bedit-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }} style={sheetShell}>
             {dragHandle}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 20px', flexShrink: 0 }}>
               <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(96,165,250,0.15)', border: '1px solid rgba(96,165,250,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>✏️</div>
@@ -432,41 +395,201 @@ function BankEditSheet({ open, asset, allBankItems, onClose, onSave }: {
             <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 8px' }}>
               <label style={{ display: 'block', marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Bank Name</p>
-                <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} style={editInputStyle} placeholder="e.g. HDFC Bank" />
+                <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} style={inp} placeholder="e.g. HDFC Bank" />
               </label>
               <div style={{ marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>Account Type</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {ACCOUNT_TYPES.map(t => (
                     <motion.button key={t} whileTap={{ scale: 0.92 }} onClick={() => setAccountType(t)}
-                      style={{
-                        padding: '9px 18px', borderRadius: 100, fontSize: 13,
-                        fontWeight:  accountType === t ? 700 : 400,
-                        background:  accountType === t ? 'rgba(96,165,250,0.22)' : 'rgba(255,255,255,0.04)',
-                        border:      accountType === t ? '1px solid rgba(96,165,250,0.55)' : '1px solid rgba(255,255,255,0.09)',
-                        color:       accountType === t ? '#93c5fd' : 'rgba(255,255,255,0.45)',
-                        cursor: 'pointer',
-                      }}
+                      style={{ padding: '9px 18px', borderRadius: 100, fontSize: 13, fontWeight: accountType === t ? 700 : 400, background: accountType === t ? 'rgba(96,165,250,0.22)' : 'rgba(255,255,255,0.04)', border: accountType === t ? '1px solid rgba(96,165,250,0.55)' : '1px solid rgba(255,255,255,0.09)', color: accountType === t ? '#93c5fd' : 'rgba(255,255,255,0.45)', cursor: 'pointer' }}
                     >{t}</motion.button>
                   ))}
                 </div>
               </div>
               <label style={{ display: 'block', marginBottom: 20 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Note <span style={{ opacity: 0.5, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></p>
-                <input type="text" value={note} onChange={e => setNote(e.target.value)} style={editInputStyle} placeholder="Branch, account ending, any detail" />
+                <input type="text" value={note} onChange={e => setNote(e.target.value)} style={inp} placeholder="Branch, account ending, any detail" />
               </label>
               {err && <p style={{ fontSize: 13, color: '#fca5a5', padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)', marginBottom: 8 }}>{err}</p>}
             </div>
             <div style={sheetFooter}>
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
-                style={{
-                  width: '100%', padding: '16px',
-                  background: saving ? 'rgba(96,165,250,0.2)' : 'linear-gradient(135deg, #60a5fa, #3b82f6)',
-                  border: 'none', borderRadius: 16, color: '#fff', fontSize: 16, fontWeight: 800,
-                  cursor: saving ? 'not-allowed' : 'pointer',
-                  boxShadow: saving ? 'none' : '0 4px 20px rgba(96,165,250,0.35)',
-                }}
+                style={{ width: '100%', padding: '16px', background: saving ? 'rgba(96,165,250,0.2)' : 'linear-gradient(135deg, #60a5fa, #3b82f6)', border: 'none', borderRadius: 16, color: '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 20px rgba(96,165,250,0.35)' }}
               >{saving ? 'Saving\u2026' : 'Save Changes'}</motion.button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ─── Stock Top-Up Sheet ───────────────────────────────────────────────────────
+function StockTopUpSheet({ open, stockLabel, onClose, onSave }: {
+  open: boolean; stockLabel: string; onClose: () => void
+  onSave: (data: { label: string; category: string; value: number; notes: string }) => Promise<void>
+}) {
+  const [qty,     setQty]     = useState('')
+  const [price,   setPrice]   = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [err,     setErr]     = useState('')
+  const prevOpen = useRef(false)
+  if (open && !prevOpen.current) { setQty(''); setPrice(''); setErr('') }
+  prevOpen.current = open
+
+  const total = useMemo(() => {
+    const q = parseFloat(qty); const p = parseFloat(price)
+    return (!isNaN(q) && !isNaN(p) && q > 0 && p > 0) ? q * p : null
+  }, [qty, price])
+
+  const handleSave = async () => {
+    const q = parseFloat(qty); const p = parseFloat(price)
+    if (isNaN(q) || q <= 0)  { setErr('Enter a valid quantity'); return }
+    if (isNaN(p) || p <= 0)  { setErr('Enter a valid price'); return }
+    try {
+      setSaving(true); setErr('')
+      await onSave({
+        label: stockLabel,
+        category: 'Stock',
+        value: q * p,
+        notes: `top-up \u00b7 qty:${q} \u00b7 price:${p}`,
+      })
+      onClose()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Failed to save') }
+    finally { setSaving(false) }
+  }
+
+  const inp = { width: '100%', padding: '13px 16px', background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 14, color: '#f5f7ff', fontSize: 16, outline: 'none', boxSizing: 'border-box' as const, fontVariantNumeric: 'tabular-nums' as const }
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div key="stu-bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
+          />
+          <motion.div key="stu-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            style={{ ...sheetShell, border: '1px solid rgba(251,191,36,0.28)' }}
+          >
+            {dragHandle}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 20px', flexShrink: 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📈</div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fcd34d', margin: '0 0 2px' }}>Add Stocks</p>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{stockLabel}</h2>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 8px' }}>
+              <label style={{ display: 'block', marginBottom: 18 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Quantity</p>
+                <input type="number" inputMode="decimal" value={qty} onChange={e => setQty(e.target.value)} style={inp} placeholder="e.g. 10" />
+              </label>
+              <label style={{ display: 'block', marginBottom: 20 }}>
+                <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>Price per Stock (\u20b9)</p>
+                <input type="number" inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} style={inp} placeholder="e.g. 1500" />
+              </label>
+              {total !== null && (
+                <div style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Value</span>
+                    <span style={{ fontSize: 18, fontWeight: 900, color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>{formatINR(total)}</span>
+                  </div>
+                </div>
+              )}
+              {err && <p style={{ fontSize: 13, color: '#fca5a5', padding: '10px 14px', background: 'rgba(248,113,113,0.1)', borderRadius: 10, border: '1px solid rgba(248,113,113,0.2)', marginBottom: 8 }}>{err}</p>}
+            </div>
+            <div style={sheetFooter}>
+              <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
+                style={{ width: '100%', padding: '16px', background: saving ? 'rgba(251,191,36,0.2)' : 'linear-gradient(135deg, #fcd34d, #f59e0b)', border: 'none', borderRadius: 16, color: '#1a1000', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', boxShadow: saving ? 'none' : '0 4px 20px rgba(251,191,36,0.35)' }}
+              >{saving ? 'Adding\u2026' : 'Add Stocks'}</motion.button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+// ─── Stock Log Sheet ──────────────────────────────────────────────────────────
+function StockLogSheet({ open, asset, allStockItems, onClose }: {
+  open: boolean; asset: AssetItem | null; allStockItems: AssetItem[]; onClose: () => void
+}) {
+  if (!asset) return null
+
+  const siblings = allStockItems
+    .filter(a => a.label === asset.label)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+
+  const totalInvested  = siblings.reduce((s, a) => s + a.value, 0)
+  const totalQty       = siblings.reduce((s, a) => {
+    if (!isTopUp(a.notes)) {
+      // root entry: qty is asset.quantity
+      return s + (a.quantity ?? 0)
+    }
+    const p = parseStockTopUpNotes(a.notes)
+    return s + (p.qty ?? 0)
+  }, 0)
+  const currentVal = asset.current_price != null ? asset.current_price * totalQty : null
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div key="slog-bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', zIndex: 40 }}
+          />
+          <motion.div key="slog-sh" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+            style={{ ...sheetShell, border: '1px solid rgba(251,191,36,0.28)' }}
+          >
+            {dragHandle}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 20px 18px', flexShrink: 0 }}>
+              <div style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📋</div>
+              <div>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#fcd34d', margin: '0 0 2px' }}>Transaction Log</p>
+                <h2 style={{ fontSize: 18, fontWeight: 800, color: '#f5f7ff', margin: 0, letterSpacing: '-0.02em' }}>{asset.label}</h2>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '0 20px 20px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {siblings.map((entry, i) => {
+                  const isTU = isTopUp(entry.notes)
+                  const p    = isTU ? parseStockTopUpNotes(entry.notes) : null
+                  const qty  = isTU ? (p?.qty ?? null) : (entry.quantity ?? null)
+                  const price = isTU ? (p?.price ?? null) : (entry.buy_price ?? null)
+                  return (
+                    <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: isTU ? 'rgba(251,191,36,0.06)' : 'rgba(52,211,153,0.06)', border: `1px solid ${isTU ? 'rgba(251,191,36,0.16)' : 'rgba(52,211,153,0.14)'}` }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: isTU ? '#fcd34d' : '#34d399', boxShadow: `0 0 8px ${isTU ? '#fcd34d' : '#34d399'}` }} />
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: isTU ? '#fcd34d' : '#6ee7b7', margin: '0 0 2px' }}>
+                          {i === 0 ? '\ud83d\udfe2 Created' : '\ud83d� Top-up'}
+                        </p>
+                        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                          {fmtStartDate(entry.created_at.substring(0, 10))}
+                          {qty !== null && price !== null ? ` \u00b7 ${qty} shares @ ${formatINR(price)}` : ''}
+                        </p>
+                      </div>
+                      <p style={{ fontSize: 14, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums', margin: 0 }}>{formatINR(entry.value)}</p>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Invested</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#fcd34d', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalInvested)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: currentVal !== null ? 8 : 0 }}>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Total Quantity</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>{totalQty} shares</span>
+                </div>
+                {currentVal !== null && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>Current Value</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: currentVal >= totalInvested ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums' }}>{formatINR(currentVal)}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </motion.div>
         </>
@@ -480,18 +603,12 @@ function BankAssetCard({
   asset, allBankItems, reorderMode, dragHandleProps,
   onDelete, onTopUp, onLog, onEdit, working,
 }: {
-  asset: AssetItem
-  allBankItems: AssetItem[]
-  reorderMode: boolean
+  asset: AssetItem; allBankItems: AssetItem[]; reorderMode: boolean
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
-  onDelete: (id: string, label: string) => void
-  onTopUp: (asset: AssetItem) => void
-  onLog: (asset: AssetItem) => void
-  onEdit: (asset: AssetItem) => void
-  working: string | null
+  onDelete: (id: string, label: string) => void; onTopUp: (asset: AssetItem) => void
+  onLog: (asset: AssetItem) => void; onEdit: (asset: AssetItem) => void; working: string | null
 }) {
   const [expanded, setExpanded] = useState(false)
-
   const { rate, startDate, userNote } = parseBankNotes(asset.notes)
   const { bankName, accountType } = splitBankLabel(asset.label)
 
@@ -499,75 +616,47 @@ function BankAssetCard({
     if (!rate) return []
     return allBankItems
       .filter(a => a.label === asset.label)
-      .map(a => {
-        const p = parseBankNotes(a.notes)
-        return p.startDate ? { amount: a.value, startDate: p.startDate, rate: rate } : null
-      })
+      .map(a => { const p = parseBankNotes(a.notes); return p.startDate ? { amount: a.value, startDate: p.startDate, rate: rate } : null })
       .filter((d): d is BankDeposit => d !== null)
   }, [allBankItems, asset.label, rate])
 
-  const appreciated = useMemo(() =>
-    siblingDeposits.length > 0 ? compoundWithTopUps(siblingDeposits) : null
-  , [siblingDeposits])
+  const appreciated = useMemo(() => siblingDeposits.length > 0 ? compoundWithTopUps(siblingDeposits) : null, [siblingDeposits])
 
   if (isTopUp(asset.notes)) return null
 
-  const totalPrincipal = allBankItems
-    .filter(a => a.label === asset.label)
-    .reduce((s, a) => s + a.value, 0)
-
+  const totalPrincipal = allBankItems.filter(a => a.label === asset.label).reduce((s, a) => s + a.value, 0)
   const sep = <span style={{ color: 'rgba(255,255,255,0.2)', margin: '0 4px' }}>·</span>
-
-  const iconBtn = (color: string, bg: string, border: string) => ({
-    width: 34, height: 34, borderRadius: 10,
-    background: bg, border: `1px solid ${border}`,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    cursor: 'pointer', flexShrink: 0, color,
-  })
+  const iconBtn = (color: string, bg: string, border: string) => ({ width: 34, height: 34, borderRadius: 10, background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color })
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -30, scale: 0.95 }}
-      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -30, scale: 0.95 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       style={{ borderRadius: 18, background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.16)', overflow: 'hidden', cursor: reorderMode ? 'grab' : 'pointer' }}
       onClick={() => { if (!reorderMode) setExpanded(e => !e) }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
-        {reorderMode ? (
-          <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>☰</div>
-        ) : (
-          <span style={{ fontSize: 22, flexShrink: 0 }}>🏦</span>
-        )}
+        {reorderMode
+          ? <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>☰</div>
+          : <span style={{ fontSize: 22, flexShrink: 0 }}>🏦</span>
+        }
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 14, fontWeight: 700, margin: '0 0 5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'baseline' }}>
             <span style={{ color: '#f5f7ff' }}>{bankName}</span>
             {accountType ? <>{sep}<span style={{ fontWeight: 500, fontSize: 13, color: 'rgba(147,197,253,0.75)' }}>{accountType}</span></> : null}
             {userNote    ? <>{sep}<span style={{ fontWeight: 400, fontSize: 12, fontStyle: 'italic', color: 'rgba(148,163,184,0.55)' }}>{userNote}</span></> : null}
           </p>
-          {rate ? (
-            <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#93c5fd', background: 'rgba(96,165,250,0.15)', padding: '2px 9px', borderRadius: 99, border: '1px solid rgba(96,165,250,0.35)', fontVariantNumeric: 'tabular-nums' }}>{rate.toFixed(2)}% p.a.</span>
-          ) : null}
+          {rate ? <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#93c5fd', background: 'rgba(96,165,250,0.15)', padding: '2px 9px', borderRadius: 99, border: '1px solid rgba(96,165,250,0.35)', fontVariantNumeric: 'tabular-nums' }}>{rate.toFixed(2)}% p.a.</span> : null}
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalPrincipal)}</span>
-            {appreciated !== null && (
-              <>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>\u2192</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>\u2248 {formatINR(appreciated)}</span>
-              </>
-            )}
+            {appreciated !== null && (<><span style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)' }}>\u2192</span><span style={{ fontSize: 13, fontWeight: 800, color: '#34d399', fontVariantNumeric: 'tabular-nums' }}>\u2248 {formatINR(appreciated)}</span></>)}
           </div>
-          {startDate && (
-            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', margin: '3px 0 0', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtStartDate(startDate)}</p>
-          )}
+          {startDate && <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', margin: '3px 0 0', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtStartDate(startDate)}</p>}
         </div>
       </div>
       <AnimatePresence initial={false}>
         {expanded && !reorderMode && (
-          <motion.div key="actions" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
+          <motion.div key="bactions" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
             <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '8px 14px 10px', borderTop: '1px solid rgba(96,165,250,0.10)', background: 'rgba(96,165,250,0.04)' }}>
               <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onTopUp(asset) }} style={iconBtn('#93c5fd', 'rgba(96,165,250,0.14)', 'rgba(96,165,250,0.3)')} title="Add Deposit">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -579,10 +668,7 @@ function BankAssetCard({
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
               </motion.button>
               <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onDelete(asset.id, asset.label) }} disabled={working === asset.id} style={iconBtn('#f87171', 'rgba(248,113,113,0.12)', 'rgba(248,113,113,0.28)')} title="Delete">
-                {working === asset.id
-                  ? <span style={{ fontSize: 11, color: '#f87171' }}>…</span>
-                  : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
-                }
+                {working === asset.id ? <span style={{ fontSize: 11, color: '#f87171' }}>…</span> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>}
               </motion.button>
             </div>
           </motion.div>
@@ -592,68 +678,122 @@ function BankAssetCard({
   )
 }
 
-// ─── Generic asset card ───────────────────────────────────────────────────────
-function GenericAssetCard({ asset, group, onDelete, working }: {
-  asset: AssetItem
-  group: typeof ASSET_GROUPS[number]
+// ─── Stock asset card ─────────────────────────────────────────────────────────
+function StockAssetCard({
+  asset, allStockItems, reorderMode, dragHandleProps,
+  onDelete, onTopUp, onLog, working,
+}: {
+  asset: AssetItem; allStockItems: AssetItem[]; reorderMode: boolean
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>
   onDelete: (id: string, label: string) => void
+  onTopUp: (asset: AssetItem) => void
+  onLog: (asset: AssetItem) => void
   working: string | null
 }) {
-  const hasLiveData   = asset.current_price != null && asset.quantity != null && asset.buy_price != null
-  const investedAmt   = hasLiveData ? asset.buy_price! * asset.quantity!     : null
+  const [expanded, setExpanded] = useState(false)
+
+  if (isTopUp(asset.notes)) return null
+
+  // Aggregate all siblings (root + top-ups) for totals
+  const siblings = allStockItems.filter(a => a.label === asset.label)
+  const totalInvested = siblings.reduce((s, a) => s + a.value, 0)
+
+  const totalQty = siblings.reduce((s, a) => {
+    if (!isTopUp(a.notes)) return s + (a.quantity ?? 0)
+    const p = parseStockTopUpNotes(a.notes)
+    return s + (p.qty ?? 0)
+  }, 0)
+
+  const currentVal   = asset.current_price != null && totalQty > 0 ? asset.current_price * totalQty : null
+  const isGain       = currentVal != null && currentVal >= totalInvested
+
+  const iconBtn = (color: string, bg: string, border: string) => ({ width: 34, height: 34, borderRadius: 10, background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color })
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: -30, scale: 0.95 }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      style={{ borderRadius: 18, background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.16)', overflow: 'hidden', cursor: reorderMode ? 'grab' : 'pointer' }}
+      onClick={() => { if (!reorderMode) setExpanded(e => !e) }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
+        {reorderMode
+          ? <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>☰</div>
+          : <span style={{ fontSize: 22, flexShrink: 0 }}>💼</span>
+        }
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.label}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {totalQty > 0 && (
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(253,211,77,0.7)', fontVariantNumeric: 'tabular-nums' }}>{totalQty} shares</span>
+            )}
+            <PnlBadge asset={{ ...asset, quantity: totalQty, value: totalInvested }} />
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalInvested)}</span>
+          {currentVal !== null && (
+            <span style={{ fontSize: 14, fontWeight: 900, color: isGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums', textShadow: isGain ? '0 0 12px rgba(52,211,153,0.5)' : '0 0 12px rgba(248,113,113,0.4)' }}>{formatINR(currentVal)}</span>
+          )}
+        </div>
+      </div>
+      <AnimatePresence initial={false}>
+        {expanded && !reorderMode && (
+          <motion.div key="sactions" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
+            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '8px 14px 10px', borderTop: '1px solid rgba(251,191,36,0.10)', background: 'rgba(251,191,36,0.04)' }}>
+              {/* Add */}
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onTopUp(asset) }} style={iconBtn('#fcd34d', 'rgba(251,191,36,0.14)', 'rgba(251,191,36,0.3)')} title="Add Stocks">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+              </motion.button>
+              {/* Transaction Log */}
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onLog(asset) }} style={iconBtn('#a5b4fc', 'rgba(99,102,241,0.14)', 'rgba(99,102,241,0.3)')} title="Transaction Log">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+              </motion.button>
+              {/* Delete */}
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onDelete(asset.id, asset.label) }} disabled={working === asset.id} style={iconBtn('#f87171', 'rgba(248,113,113,0.12)', 'rgba(248,113,113,0.28)')} title="Delete">
+                {working === asset.id ? <span style={{ fontSize: 11, color: '#f87171' }}>…</span> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>}
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+// ─── Generic asset card (non-Bank, non-Stock) ─────────────────────────────────
+function GenericAssetCard({ asset, group, onDelete, working }: {
+  asset: AssetItem; group: typeof ASSET_GROUPS[number]
+  onDelete: (id: string, label: string) => void; working: string | null
+}) {
+  const hasLiveData    = asset.current_price != null && asset.quantity != null && asset.buy_price != null
+  const investedAmt    = hasLiveData ? asset.buy_price! * asset.quantity! : null
   const appreciatedAmt = hasLiveData ? asset.current_price! * asset.quantity! : null
-  const isGain        = appreciatedAmt != null && investedAmt != null && appreciatedAmt >= investedAmt
+  const isGain         = appreciatedAmt != null && investedAmt != null && appreciatedAmt >= investedAmt
 
   return (
     <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -30, scale: 0.95 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       style={{ borderRadius: 18, background: group.color, border: `1px solid ${group.border.replace('0.35', '0.18')}`, overflow: 'hidden' }}
     >
-      {/* Main row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '13px 14px 10px' }}>
         <span style={{ fontSize: 22, flexShrink: 0, marginTop: 2 }}>{group.emoji}</span>
-
-        {/* Left: name + subtitle */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
-              {asset.label}
-            </p>
-            {/* Date — top right */}
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', whiteSpace: 'nowrap', flexShrink: 0, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-              {formatShortDate(asset.created_at)}
-            </span>
-          </div>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.label}</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {asset.notes && (
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>{asset.notes}</p>
-            )}
+            {asset.notes && <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.32)', margin: 0 }}>{asset.notes}</p>}
             <PnlBadge asset={asset} />
           </div>
         </div>
-
-        {/* Right: invested + appreciated stacked */}
         <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
           {hasLiveData ? (
             <>
-              {/* Invested amount */}
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontVariantNumeric: 'tabular-nums' }}>
-                {formatINR(investedAmt!)}
-              </span>
-              {/* Appreciated / current value */}
-              <span style={{
-                fontSize: 14, fontWeight: 900,
-                color: isGain ? '#34d399' : '#f87171',
-                fontVariantNumeric: 'tabular-nums',
-                textShadow: isGain ? '0 0 12px rgba(52,211,153,0.5)' : '0 0 12px rgba(248,113,113,0.4)',
-              }}>
-                {formatINR(appreciatedAmt!)}
-              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.5)', fontVariantNumeric: 'tabular-nums' }}>{formatINR(investedAmt!)}</span>
+              <span style={{ fontSize: 14, fontWeight: 900, color: isGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums', textShadow: isGain ? '0 0 12px rgba(52,211,153,0.5)' : '0 0 12px rgba(248,113,113,0.4)' }}>{formatINR(appreciatedAmt!)}</span>
             </>
           ) : (
-            /* No live data — show plain value */
-            <p style={{ fontSize: 15, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums', margin: 0 }}>
-              {formatINR(asset.value)}
-            </p>
+            <p style={{ fontSize: 15, fontWeight: 800, color: group.text, fontVariantNumeric: 'tabular-nums', margin: 0 }}>{formatINR(asset.value)}</p>
           )}
           <button onClick={() => onDelete(asset.id, asset.label)} disabled={working === asset.id}
             style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0', marginTop: 1 }}
@@ -667,28 +807,26 @@ function GenericAssetCard({ asset, group, onDelete, working }: {
 // ─── Per-group detail view ────────────────────────────────────────────────────
 function GroupDetailView({
   group, items, loading, reorderMode, onToggleReorder,
-  onBack, onAddPress, onDelete, onTopUp, onLog, onEdit, working,
+  onBack, onAddPress, onDelete, onTopUp, onStockTopUp, onLog, onStockLog, onEdit, working,
   reorderedIds, onReorder,
 }: {
-  group: typeof ASSET_GROUPS[number]
-  items: AssetItem[]
-  loading: boolean
-  reorderMode: boolean
-  onToggleReorder: () => void
-  onBack: () => void
-  onAddPress: () => void
+  group: typeof ASSET_GROUPS[number]; items: AssetItem[]; loading: boolean
+  reorderMode: boolean; onToggleReorder: () => void; onBack: () => void; onAddPress: () => void
   onDelete: (id: string, label: string) => void
   onTopUp: (asset: AssetItem) => void
+  onStockTopUp: (asset: AssetItem) => void
   onLog: (asset: AssetItem) => void
+  onStockLog: (asset: AssetItem) => void
   onEdit: (asset: AssetItem) => void
-  working: string | null
-  reorderedIds: string[]
-  onReorder: (fromIdx: number, toIdx: number) => void
+  working: string | null; reorderedIds: string[]; onReorder: (fromIdx: number, toIdx: number) => void
 }) {
-  const isBank = group.id === 'Bank'
-  const rootItems = isBank ? items.filter(a => !isTopUp(a.notes)) : items
+  const isBank  = group.id === 'Bank'
+  const isStock = group.id === 'Stock'
+  const supportsReorder = isBank || isStock
 
-  const displayItems = isBank && reorderedIds.length > 0
+  const rootItems = (isBank || isStock) ? items.filter(a => !isTopUp(a.notes)) : items
+
+  const displayItems = supportsReorder && reorderedIds.length > 0
     ? [...rootItems].sort((a, b) => {
         const ai = reorderedIds.indexOf(a.id)
         const bi = reorderedIds.indexOf(b.id)
@@ -717,245 +855,9 @@ function GroupDetailView({
           <p style={{ fontSize: 16, fontWeight: 700, color: '#f5f7ff', margin: 0, letterSpacing: '-0.01em' }}>{group.label}</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {isBank && (
+          {/* Reorder button — Bank and Stock */}
+          {supportsReorder && (
             <motion.button whileTap={{ scale: 0.88 }} onClick={onToggleReorder}
               style={{ width: 36, height: 36, borderRadius: 12, background: reorderMode ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.07)', border: reorderMode ? '1px solid rgba(251,191,36,0.4)' : '1px solid rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} title="Reorder"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={reorderMode ? '#fcd34d' : 'rgba(255,255,255,0.75)'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
-                <polyline points="17 2 21 6 17 10" /><polyline points="17 14 21 18 17 22" />
-              </svg>
-            </motion.button>
-          )}
-          {!reorderMode && (
-            <motion.button whileTap={{ scale: 0.88 }} onClick={onAddPress}
-              style={{ width: 36, height: 36, borderRadius: 12, background: group.color, border: `1px solid ${group.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: `0 2px 12px ${group.color}` }}
-              aria-label={`Add ${group.label}`}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={group.text} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            </motion.button>
-          )}
-          {reorderMode && (
-            <motion.button whileTap={{ scale: 0.88 }} onClick={onToggleReorder}
-              style={{ height: 36, padding: '0 14px', borderRadius: 12, background: 'rgba(251,191,36,0.18)', border: '1px solid rgba(251,191,36,0.4)', color: '#fcd34d', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-            >Done</motion.button>
-          )}
-        </div>
-      </div>
-
-      {reorderMode && (
-        <div style={{ padding: '8px 14px', borderRadius: 12, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)', fontSize: 12, color: 'rgba(251,191,36,0.8)', textAlign: 'center' }}>
-          Drag ☰ to reorder · Tap Done when finished
-        </div>
-      )}
-
-      <GroupSummaryCard group={group} items={items} />
-
-      {loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[1, 2, 3].map(i => <div key={i} style={{ height: 66, borderRadius: 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }} />)}
-        </div>
-      )}
-
-      {!loading && displayItems.length === 0 && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-          style={{ textAlign: 'center', padding: '52px 20px', borderRadius: 22, background: group.color.replace('0.18', '0.06'), border: `1px dashed ${group.border.replace('0.35', '0.25')}` }}
-        >
-          <p style={{ fontSize: 38, marginBottom: 14 }}>{group.emoji}</p>
-          <p style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.5)', marginBottom: 6 }}>No {group.label} assets yet</p>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.28)' }}>Tap + above to add your first {group.label} asset</p>
-        </motion.div>
-      )}
-
-      {!loading && displayItems.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <AnimatePresence initial={false}>
-            {isBank
-              ? displayItems.map((asset, idx) => (
-                  <div key={asset.id}
-                    draggable={reorderMode}
-                    onDragStart={() => { dragIdx.current = idx }}
-                    onDragOver={e => e.preventDefault()}
-                    onDrop={() => { if (dragIdx.current !== null && dragIdx.current !== idx) { onReorder(dragIdx.current, idx); dragIdx.current = null } }}
-                    style={{ touchAction: reorderMode ? 'none' : undefined }}
-                  >
-                    <BankAssetCard asset={asset} allBankItems={items} reorderMode={reorderMode} onDelete={onDelete} onTopUp={onTopUp} onLog={onLog} onEdit={onEdit} working={working} />
-                  </div>
-                ))
-              : displayItems.map(asset => (
-                  <GenericAssetCard key={asset.id} asset={asset} group={group} onDelete={onDelete} working={working} />
-                ))
-            }
-          </AnimatePresence>
-        </div>
-      )}
-    </motion.div>
-  )
-}
-
-// ─── Main screen ──────────────────────────────────────────────────────────────
-const BANK_ORDER_KEY = 'bank_asset_order'
-
-export function AssetScreen() {
-  const { assets, loading, error, add, remove, update, totalValue } = useAssets()
-
-  const [selectedGroup, setSelectedGroup] = useState<AssetGroupId | null>(null)
-  const [sheetGroup,    setSheetGroup]    = useState<AssetGroupId | undefined>(undefined)
-  const [working,       setWorking]       = useState<string | null>(null)
-  const [reorderMode,   setReorderMode]   = useState(false)
-
-  const [topUpAsset, setTopUpAsset] = useState<AssetItem | null>(null)
-  const [logAsset,   setLogAsset]   = useState<AssetItem | null>(null)
-  const [editAsset,  setEditAsset]  = useState<AssetItem | null>(null)
-
-  const [confirmId,    setConfirmId]    = useState<string | null>(null)
-  const [confirmLabel, setConfirmLabel] = useState('')
-
-  const [bankOrder, setBankOrder] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem(BANK_ORDER_KEY) ?? '[]') } catch { return [] }
-  })
-
-  const saveOrder = useCallback((ids: string[]) => {
-    setBankOrder(ids)
-    localStorage.setItem(BANK_ORDER_KEY, JSON.stringify(ids))
-  }, [])
-
-  const handleReorder = useCallback((fromIdx: number, toIdx: number) => {
-    setBankOrder(prev => {
-      const bankItems = assets.filter(a => a.category === 'Bank' && !isTopUp(a.notes))
-      const orderedIds = prev.length > 0
-        ? [...bankItems].sort((a, b) => { const ai = prev.indexOf(a.id); const bi = prev.indexOf(b.id); return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi) }).map(a => a.id)
-        : bankItems.map(a => a.id)
-      const next = [...orderedIds]
-      const [moved] = next.splice(fromIdx, 1)
-      next.splice(toIdx, 0, moved)
-      localStorage.setItem(BANK_ORDER_KEY, JSON.stringify(next))
-      return next
-    })
-  }, [assets])
-
-  const topUpRate = useMemo(() => {
-    if (!topUpAsset) return 0
-    const { rate } = parseBankNotes(topUpAsset.notes)
-    return rate ?? 0
-  }, [topUpAsset])
-
-  const requestDelete = useCallback((id: string, label: string) => {
-    setConfirmLabel(label); setConfirmId(id)
-  }, [])
-
-  const handleDelete = async (id: string) => {
-    setWorking(id)
-    try   { await remove(id) }
-    catch (e) { console.error(e) }
-    finally   { setWorking(null) }
-  }
-
-  const handleEditSave = async (ids: string[], newLabel: string, notesUpdater: (oldNotes: string | null) => string) => {
-    await Promise.all(
-      ids.map(id => {
-        const asset = assets.find(a => a.id === id)
-        if (!asset) return Promise.resolve()
-        return update(id, { label: newLabel, notes: notesUpdater(asset.notes) })
-      })
-    )
-  }
-
-  const groupStats = useMemo(() =>
-    Object.fromEntries(
-      ASSET_GROUPS.map(g => {
-        const allItems = assets.filter(a => a.category === g.id)
-        const countItems = g.id === 'Bank' ? allItems.filter(a => !isTopUp(a.notes)) : allItems
-        return [g.id, {
-          total: allItems.reduce((s, a) => s + a.value, 0),
-          count: countItems.length,
-        }]
-      })
-    )
-  , [assets])
-
-  const groupItems = useMemo(() =>
-    selectedGroup ? assets.filter(a => a.category === selectedGroup) : []
-  , [assets, selectedGroup])
-
-  const activeGroupMeta = ASSET_GROUPS.find(g => g.id === selectedGroup)
-
-  const displayAssetCount = useMemo(() =>
-    assets.filter(a => !(a.category === 'Bank' && isTopUp(a.notes))).length
-  , [assets])
-
-  void saveOrder
-
-  return (
-    <div style={{ padding: '20px 20px 0', minHeight: '100%', display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 'calc(var(--nav-h, 100px) + 24px)' }}>
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
-        style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
-      >
-        {error && (
-          <div style={{ padding: 16, borderRadius: 16, background: 'rgba(248,113,113,0.1)', color: '#fca5a5', fontSize: 14 }}>{error}</div>
-        )}
-
-        <AnimatePresence mode="wait">
-          {selectedGroup === null ? (
-            <motion.div key="grid" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 18 }}
-            >
-              <SummaryCard totalValue={totalValue} assetCount={displayAssetCount} loading={loading} />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {ASSET_GROUPS.map((g, i) => (
-                  <motion.div key={g.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.28, ease: [0.16, 1, 0.3, 1] }}>
-                    <GroupCard group={g} total={groupStats[g.id]?.total ?? 0} count={groupStats[g.id]?.count ?? 0} loading={loading} onPress={() => setSelectedGroup(g.id)} />
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          ) : (
-            activeGroupMeta && (
-              <GroupDetailView
-                key={'detail-' + selectedGroup}
-                group={activeGroupMeta}
-                items={groupItems}
-                loading={loading}
-                reorderMode={reorderMode}
-                onToggleReorder={() => setReorderMode(r => !r)}
-                onBack={() => { setSelectedGroup(null); setReorderMode(false) }}
-                onAddPress={() => setSheetGroup(selectedGroup)}
-                onDelete={requestDelete}
-                onTopUp={(asset) => setTopUpAsset(asset)}
-                onLog={(asset) => setLogAsset(asset)}
-                onEdit={(asset) => setEditAsset(asset)}
-                working={working}
-                reorderedIds={bankOrder}
-                onReorder={handleReorder}
-              />
-            )
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      <BankAssetSheet open={sheetGroup === 'Bank'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
-      <RealEstateAssetSheet open={sheetGroup === 'Real Estate'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
-      <StockAssetSheet open={sheetGroup === 'Stock'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
-      <MutualFundAssetSheet open={sheetGroup === 'Mutual Fund'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
-      <CryptoAssetSheet open={sheetGroup === 'Crypto'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
-      <PreciousMetalAssetSheet open={sheetGroup === 'Precious Metal'} onClose={() => setSheetGroup(undefined)} onSave={async (a) => { await add(a); setSheetGroup(undefined) }} />
-
-      <BankTopUpSheet open={topUpAsset !== null} onClose={() => setTopUpAsset(null)} bankLabel={topUpAsset?.label ?? ''} rate={topUpRate} onSave={async (a) => { await add(a); setTopUpAsset(null) }} />
-
-      <BankLogSheet open={logAsset !== null} asset={logAsset} allBankItems={groupItems} onClose={() => setLogAsset(null)} />
-
-      <BankEditSheet open={editAsset !== null} asset={editAsset} allBankItems={groupItems} onClose={() => setEditAsset(null)} onSave={handleEditSave} />
-
-      <ConfirmSheet
-        open={confirmId !== null}
-        title="Delete Asset?"
-        message={confirmLabel ? `"${confirmLabel}" will be permanently removed.` : 'This asset will be permanently removed.'}
-        confirmLabel="Delete"
-        onConfirm={() => { const id = confirmId!; setConfirmId(null); setConfirmLabel(''); handleDelete(id) }}
-        onCancel={() => { setConfirmId(null); setConfirmLabel('') }}
-      />
-    </div>
-  )
-}
-
-export default AssetScreen
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={reorderMode ? '#fcd34d' : 'rgba(255,255,255,0.75)'}
