@@ -288,8 +288,9 @@ export interface NewAsset {
 }
 
 export interface AssetPatch {
-  label?: string
-  notes?: string | null
+  label?:      string
+  notes?:      string | null
+  sort_order?: number
 }
 
 export async function fetchAssets(): Promise<AssetEntry[]> {
@@ -370,73 +371,4 @@ export async function fetchLoans(): Promise<LoanEntry[]> {
   return (data ?? []) as LoanEntry[]
 }
 
-export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
-  const { data, error } = await supabase.from('loans').insert({
-    label: entry.label, principal: entry.principal, outstanding: entry.outstanding,
-    emi_amount: entry.emi_amount ?? null, interest_rate: entry.interest_rate ?? null,
-    lender: entry.lender, owner: 'Both', closed: false,
-    start_date: entry.start_date ?? null, end_date: entry.end_date ?? null,
-  }).select().single()
-  if (error) throw new Error(error.message)
-  return data as LoanEntry
-}
-
-export async function closeLoan(id: string): Promise<void> {
-  const { error } = await supabase.from('loans').update({ closed: true, outstanding: 0 }).eq('id', id)
-  if (error) throw new Error(error.message)
-}
-
-export async function deleteLoan(id: string): Promise<void> {
-  const { error } = await supabase.from('loans').delete().eq('id', id)
-  if (error) throw new Error(error.message)
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// RECURRING PAYMENTS MODULE
-// ════════════════════════════════════════════════════════════════════════════
-
-export interface RecurringEntry {
-  id: string
-  label: string
-  amount: number
-  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
-  next_due: string | null
-  owner: 'Isaac' | 'Jenifa' | 'Both'
-  active: boolean
-  notes: string | null
-  created_at: string
-}
-
-export interface NewRecurring {
-  label: string
-  amount: number
-  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
-  next_due?: string | null
-  owner: 'Isaac' | 'Jenifa' | 'Both'
-  notes?: string | null
-}
-
-export async function fetchRecurring(): Promise<RecurringEntry[]> {
-  const { data, error } = await supabase.from('recurring_payments').select('*').order('created_at', { ascending: false })
-  if (error) throw new Error(error.message)
-  return (data ?? []) as RecurringEntry[]
-}
-
-export async function insertRecurring(entry: NewRecurring): Promise<RecurringEntry> {
-  const { data, error } = await supabase.from('recurring_payments').insert({
-    label: entry.label, amount: entry.amount, frequency: entry.frequency,
-    next_due: entry.next_due ?? null, owner: entry.owner, active: true, notes: entry.notes ?? null,
-  }).select().single()
-  if (error) throw new Error(error.message)
-  return data as RecurringEntry
-}
-
-export async function toggleRecurring(id: string, active: boolean): Promise<void> {
-  const { error } = await supabase.from('recurring_payments').update({ active }).eq('id', id)
-  if (error) throw new Error(error.message)
-}
-
-export async function deleteRecurring(id: string): Promise<void> {
-  const { error } = await supabase.from('recurring_payments').delete().eq('id', id)
-  if (error) throw new Error(error.message)
-}
+export async function insertL
