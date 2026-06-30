@@ -13,6 +13,7 @@ import { ConfirmSheet }            from '../../components/shared/ConfirmSheet'
 import { formatINR, formatShortDate } from '../../utils/format'
 import { parseBankNotes, compoundWithTopUps } from '../../utils/bankCalc'
 import type { BankDeposit } from '../../utils/bankCalc'
+import type { AssetEntry, AssetPatch } from '../../lib/db'
 
 const ACCOUNT_TYPES = ['Savings', 'Current', 'FD', 'RD', 'NRE', 'NRO'] as const
 type AccountType = typeof ACCOUNT_TYPES[number]
@@ -989,7 +990,20 @@ function GroupDetailView({
 
 // ─── Main AssetScreen ─────────────────────────────────────────────────────────
 export function AssetScreen() {
-  const { assets, loading, addAsset, updateAsset, deleteAsset, updateMultipleAssets } = useAssets()
+  // FIX 1: destructure with the actual hook names (add / remove / update)
+  const { assets, loading, add: addAsset, remove: deleteAsset, update: updateAsset } = useAssets()
+
+  // FIX 2: local updateMultipleAssets helper (hook has no batch method)
+  const updateMultipleAssets = useCallback(
+    async (ids: string[], patchFn: (entry: AssetEntry, idx: number) => AssetPatch) => {
+      await Promise.all(ids.map((id, idx) => {
+        const entry = assets.find(a => a.id === id)
+        if (!entry) return Promise.resolve()
+        return updateAsset(id, patchFn(entry, idx))
+      }))
+    },
+    [assets, updateAsset],
+  )
 
   const [activeGroup, setActiveGroup] = useState<AssetGroupId | null>(null)
   const [addSheet,    setAddSheet]    = useState(false)
@@ -1047,7 +1061,8 @@ export function AssetScreen() {
     newLabel: string,
     newNotesFn: (oldNotes: string | null) => string,
   ) => {
-    await updateMultipleAssets(ids, (old) => ({ label: newLabel, notes: newNotesFn(old.notes) }))
+    // FIX 3: explicit AssetEntry type on 'old'
+    await updateMultipleAssets(ids, (old: AssetEntry) => ({ label: newLabel, notes: newNotesFn(old.notes ?? null) }))
   }, [updateMultipleAssets])
 
   const handleReorder = useCallback((fromIdx: number, toIdx: number) => {
@@ -1069,7 +1084,8 @@ export function AssetScreen() {
 
   const handleSaveReorder = useCallback(async () => {
     if (reorderedIds.length === 0) { setReorderMode(false); return }
-    await updateMultipleAssets(reorderedIds, (_old, idx) => ({ sort_order: idx }))
+    // FIX 4: explicit _old: AssetEntry, idx: number
+    await updateMultipleAssets(reorderedIds, (_old: AssetEntry, idx: number) => ({ sort_order: idx }))
     setReorderMode(false)
   }, [reorderedIds, updateMultipleAssets])
 
@@ -1080,21 +1096,27 @@ export function AssetScreen() {
     const props = {
       open: addSheet,
       onClose: () => setAddSheet(false),
+      // FIX 5: coerce notes undefined → null to satisfy NewAsset
       onSave: async (data: Omit<AssetItem, 'id' | 'created_at' | 'last_synced'>) => {
-        await addAsset({ ...data, category: group.id })
+        await addAsset({ ...data, notes: data.notes ?? null, category: group.id })
         setAddSheet(false)
       },
     }
+    // FIX 6: use spaced AssetGroupId strings that match the type union
     switch (group.id as AssetGroupId) {
       case 'Bank':          return <BankAssetSheet          {...props} />
-      case 'RealEstate':    return <RealEstateAssetSheet    {...props} />
+      case 'Real Estate':   return <RealEstateAssetSheet    {...props} />
       case 'Stock':         return <StockAssetSheet         {...props} />
-      case 'MutualFund':    return <MutualFundAssetSheet    {...props} />
+      case 'Mutual Fund':   return <MutualFundAssetSheet    {...props} />
       case 'Crypto':        return <CryptoAssetSheet        {...props} />
-      case 'PreciousMetal': return <PreciousMetalAssetSheet {...props} />
+      case 'Precious Metal': return <PreciousMetalAssetSheet {...props} />
       default:              return null
     }
   }, [group, addSheet, addAsset])
+
+  // Derive bankLabel and rate for BankTopUpSheet from the selected asset
+  const bankTopUpLabel = bankTopUpAsset?.label ?? ''
+  const bankTopUpRate  = parseBankNotes(bankTopUpAsset?.notes ?? null).rate ?? 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: 32 }}>
@@ -1157,10 +1179,11 @@ export function AssetScreen() {
       {/* Add sheet */}
       {AddSheet}
 
-      {/* Bank top-up sheet */}
+      {/* FIX 7: BankTopUpSheet expects bankLabel + rate, not asset prop */}
       <BankTopUpSheet
         open={bankTopUpAsset !== null}
-        asset={bankTopUpAsset}
+        bankLabel={bankTopUpLabel}
+        rate={bankTopUpRate}
         onClose={() => setBankTopUpAsset(null)}
         onSave={async (data) => { await addAsset(data); setBankTopUpAsset(null) }}
       />
@@ -1198,13 +1221,12 @@ export function AssetScreen() {
         onSave={handleBankSaveEdit}
       />
 
-      {/* Confirm delete */}
+      {/* FIX 8: ConfirmSheet has no danger prop — removed */}
       <ConfirmSheet
         open={confirmDelete !== null}
         title="Delete Asset"
         message={`Remove "${confirmDelete?.label ?? ''}" permanently?`}
         confirmLabel="Delete"
-        danger
         onConfirm={() => confirmDelete && handleDelete(confirmDelete.id, confirmDelete.label)}
         onCancel={() => setConfirmDelete(null)}
       />
