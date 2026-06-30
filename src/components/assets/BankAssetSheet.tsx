@@ -90,14 +90,14 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
             transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             style={{
               position: 'fixed',
-              bottom: 'var(--nav-h, 100px)',
+              bottom: 0,
               left: 0, right: 0, zIndex: 50,
               background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)',
               border: '1px solid rgba(96,165,250,0.22)',
-              borderBottom: '1px solid rgba(96,165,250,0.10)',
-              borderRadius: '28px 28px 20px 20px',
+              borderBottom: 'none',
+              borderRadius: '28px 28px 0 0',
               display: 'flex', flexDirection: 'column',
-              maxHeight: 'calc(92dvh - var(--nav-h, 100px))',
+              maxHeight: '92dvh',
             }}
           >
             {/* Drag handle */}
@@ -182,7 +182,7 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
                 />
               </label>
 
-              {/* 5. Start Date — pre-filled with today */}
+              {/* 5. Start Date */}
               <label style={{ display: 'block', marginBottom: 18 }}>
                 <p style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 8 }}>
                   Start Date
@@ -222,7 +222,8 @@ export function BankAssetSheet({ open, onClose, onSave }: Props) {
 
             {/* Save button */}
             <div style={{
-              flexShrink: 0, padding: '12px 20px 16px',
+              flexShrink: 0,
+              padding: '12px 20px calc(16px + env(safe-area-inset-bottom, 0px))',
               borderTop: '1px solid rgba(96,165,250,0.18)',
               background: 'linear-gradient(180deg, #0a0f1a 0%, #060a12 100%)',
             }}>
