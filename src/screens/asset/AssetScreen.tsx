@@ -875,7 +875,8 @@ function StockAssetCard({
 }
 
 export default function AssetScreen() {
-  const { assets, loading, addAsset, updateAsset, deleteAsset } = useAssets()
+  // Fix 1: use correct method names from useAssets hook (add/remove/update, not addAsset/deleteAsset/updateAsset)
+  const { assets, loading, add, remove, update } = useAssets()
   const [activeGroup, setActiveGroup] = useState<AssetGroupId | null>(null)
   const [addSheet,    setAddSheet]    = useState(false)
   const [topUpAsset,  setTopUpAsset]  = useState<AssetItem | null>(null)
@@ -909,12 +910,12 @@ export default function AssetScreen() {
     if (!confirmDel) return
     try {
       setWorking(confirmDel.id)
-      await deleteAsset(confirmDel.id)
+      await remove(confirmDel.id)
     } finally {
       setWorking(null)
       setConfirmDel(null)
     }
-  }, [confirmDel, deleteAsset])
+  }, [confirmDel, remove])
 
   const handleBankSaveEdit = useCallback(async (
     ids: string[], newLabel: string, newNotes: (old: string | null) => string
@@ -922,14 +923,18 @@ export default function AssetScreen() {
     for (const id of ids) {
       const asset = assets.find(a => a.id === id)
       if (!asset) continue
-      await updateAsset(id, { label: newLabel, notes: newNotes(asset.notes) } as AssetPatch)
+      await update(id, { label: newLabel, notes: newNotes(asset.notes) } as AssetPatch)
     }
-  }, [assets, updateAsset])
+  }, [assets, update])
 
   const activeGroupObj = ASSET_GROUPS.find(g => g.id === activeGroup)
   const activeItems    = activeGroup ? (grouped[activeGroup] ?? []) : []
 
   const nonTopUpCount = (cat: string) => (grouped[cat] ?? []).filter(a => !isTopUp(a.notes)).length
+
+  // Fix 2: derive bankLabel and rate from topUpAsset for BankTopUpSheet
+  const topUpBankLabel = topUpAsset?.label ?? ''
+  const topUpBankRate  = topUpAsset ? (parseBankNotes(topUpAsset.notes).rate ?? 0) : 0
 
   if (activeGroup && activeGroupObj) {
     const isBank  = activeGroup === 'Bank'
@@ -1012,13 +1017,15 @@ export default function AssetScreen() {
             <BankAssetSheet
               open={addSheet}
               onClose={() => setAddSheet(false)}
-              onSave={async (data) => { await addAsset(data as NewAsset); setAddSheet(false) }}
+              onSave={async (data) => { await add(data as NewAsset); setAddSheet(false) }}
             />
+            {/* Fix 3: BankTopUpSheet takes bankLabel + rate, not asset */}
             <BankTopUpSheet
               open={!!topUpAsset}
-              asset={topUpAsset}
+              bankLabel={topUpBankLabel}
+              rate={topUpBankRate}
               onClose={() => setTopUpAsset(null)}
-              onSave={async (data) => { await addAsset(data as NewAsset); setTopUpAsset(null) }}
+              onSave={async (data) => { await add(data as NewAsset); setTopUpAsset(null) }}
             />
             <BankLogSheet
               open={!!logAsset}
@@ -1040,13 +1047,13 @@ export default function AssetScreen() {
             <StockAssetSheet
               open={addSheet}
               onClose={() => setAddSheet(false)}
-              onSave={async (data) => { await addAsset(data as NewAsset); setAddSheet(false) }}
+              onSave={async (data) => { await add(data as NewAsset); setAddSheet(false) }}
             />
             <StockTopUpSheet
               open={!!stockTopUpAsset}
               stockLabel={stockTopUpAsset?.label ?? ''}
               onClose={() => setStockTopUpAsset(null)}
-              onSave={async (data) => { await addAsset(data as NewAsset); setStockTopUpAsset(null) }}
+              onSave={async (data) => { await add(data as NewAsset); setStockTopUpAsset(null) }}
             />
             <StockLogSheet
               open={!!stockLogAsset}
@@ -1056,32 +1063,33 @@ export default function AssetScreen() {
             />
           </>
         )}
-        {!isBank && !isStock && activeGroup === 'RealEstate' && (
+        {/* Fix 4: AssetGroupId literals use spaces, matching ASSET_GROUPS definition */}
+        {!isBank && !isStock && activeGroup === 'Real Estate' && (
           <RealEstateAssetSheet
             open={addSheet}
             onClose={() => setAddSheet(false)}
-            onSave={async (data) => { await addAsset(data as NewAsset); setAddSheet(false) }}
+            onSave={async (data) => { await add(data as NewAsset); setAddSheet(false) }}
           />
         )}
-        {!isBank && !isStock && activeGroup === 'MutualFund' && (
+        {!isBank && !isStock && activeGroup === 'Mutual Fund' && (
           <MutualFundAssetSheet
             open={addSheet}
             onClose={() => setAddSheet(false)}
-            onSave={async (data) => { await addAsset(data as NewAsset); setAddSheet(false) }}
+            onSave={async (data) => { await add(data as NewAsset); setAddSheet(false) }}
           />
         )}
         {!isBank && !isStock && activeGroup === 'Crypto' && (
           <CryptoAssetSheet
             open={addSheet}
             onClose={() => setAddSheet(false)}
-            onSave={async (data) => { await addAsset(data as NewAsset); setAddSheet(false) }}
+            onSave={async (data) => { await add(data as NewAsset); setAddSheet(false) }}
           />
         )}
-        {!isBank && !isStock && activeGroup === 'PreciousMetal' && (
+        {!isBank && !isStock && activeGroup === 'Precious Metal' && (
           <PreciousMetalAssetSheet
             open={addSheet}
             onClose={() => setAddSheet(false)}
-            onSave={async (data) => { await addAsset(data as NewAsset); setAddSheet(false) }}
+            onSave={async (data) => { await add(data as NewAsset); setAddSheet(false) }}
           />
         )}
 
