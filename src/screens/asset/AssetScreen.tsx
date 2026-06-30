@@ -678,7 +678,7 @@ function BankAssetCard({
   )
 }
 
-// ─── Stock asset card ─────────────────────────────────────────────────────────
+// ─── Stock asset card (bank-style) ────────────────────────────────────────────
 function StockAssetCard({
   asset, allStockItems, reorderMode, dragHandleProps,
   onDelete, onTopUp, onLog, working,
@@ -703,10 +703,14 @@ function StockAssetCard({
     return s + (p.qty ?? 0)
   }, 0)
 
-  const currentVal   = asset.current_price != null && totalQty > 0 ? asset.current_price * totalQty : null
-  const isGain       = currentVal != null && currentVal >= totalInvested
+  const currentVal = asset.current_price != null && totalQty > 0 ? asset.current_price * totalQty : null
+  const isGain     = currentVal != null && currentVal >= totalInvested
 
-  const iconBtn = (color: string, bg: string, border: string) => ({ width: 34, height: 34, borderRadius: 10, background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color })
+  const iconBtn = (color: string, bg: string, border: string) => ({
+    width: 34, height: 34, borderRadius: 10, background: bg,
+    border: `1px solid ${border}`, display: 'flex', alignItems: 'center',
+    justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color,
+  })
 
   return (
     <motion.div
@@ -714,33 +718,79 @@ function StockAssetCard({
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -30, scale: 0.95 }}
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      style={{ borderRadius: 18, background: 'rgba(251,191,36,0.07)', border: '1px solid rgba(251,191,36,0.16)', overflow: 'hidden', cursor: reorderMode ? 'grab' : 'pointer' }}
+      style={{ borderRadius: 18, background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.16)', overflow: 'hidden', cursor: reorderMode ? 'grab' : 'pointer' }}
       onClick={() => { if (!reorderMode) setExpanded(e => !e) }}
     >
+      {/* ── Main row ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px 10px' }}>
+        {/* Left: drag handle or dot indicator */}
         {reorderMode
           ? <div {...dragHandleProps} style={{ fontSize: 18, color: 'rgba(255,255,255,0.35)', flexShrink: 0, cursor: 'grab', padding: '2px 4px', touchAction: 'none' }}>☰</div>
-          : <span style={{ fontSize: 22, flexShrink: 0 }}>💼</span>
+          : <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: '#fcd34d', boxShadow: '0 0 8px rgba(252,211,77,0.7)' }} />
         }
+
+        {/* Centre: name + live price pill, shares badge below */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{asset.label}</p>
+          {/* Name row with live price pill */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 5, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#f5f7ff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+              {asset.label}
+            </span>
+            {asset.current_price != null && (
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: '#fcd34d',
+                background: 'rgba(251,191,36,0.15)', padding: '2px 9px',
+                borderRadius: 99, border: '1px solid rgba(251,191,36,0.35)',
+                fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' as const,
+              }}>
+                \u20b9{asset.current_price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </span>
+            )}
+          </div>
+
+          {/* Shares + P&L badges */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {totalQty > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(253,211,77,0.7)', fontVariantNumeric: 'tabular-nums' }}>{totalQty} shares</span>
+              <span style={{
+                fontSize: 11, fontWeight: 700, color: '#fcd34d',
+                background: 'rgba(251,191,36,0.12)', padding: '2px 9px',
+                borderRadius: 99, border: '1px solid rgba(251,191,36,0.28)',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {totalQty} shares
+              </span>
             )}
             <PnlBadge asset={{ ...asset, quantity: totalQty, value: totalInvested }} />
           </div>
         </div>
+
+        {/* Right: invested (dimmed) → current (bright) */}
         <div style={{ textAlign: 'right', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-end' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.45)', fontVariantNumeric: 'tabular-nums' }}>{formatINR(totalInvested)}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.38)', fontVariantNumeric: 'tabular-nums' }}>
+            {formatINR(totalInvested)}
+          </span>
           {currentVal !== null && (
-            <span style={{ fontSize: 14, fontWeight: 900, color: isGain ? '#34d399' : '#f87171', fontVariantNumeric: 'tabular-nums', textShadow: isGain ? '0 0 12px rgba(52,211,153,0.5)' : '0 0 12px rgba(248,113,113,0.4)' }}>{formatINR(currentVal)}</span>
+            <span style={{
+              fontSize: 14, fontWeight: 900,
+              color: isGain ? '#34d399' : '#f87171',
+              fontVariantNumeric: 'tabular-nums',
+              textShadow: isGain ? '0 0 12px rgba(52,211,153,0.5)' : '0 0 12px rgba(248,113,113,0.4)',
+            }}>
+              {formatINR(currentVal)}
+            </span>
           )}
         </div>
       </div>
+
+      {/* ── Expanded action row ── */}
       <AnimatePresence initial={false}>
         {expanded && !reorderMode && (
-          <motion.div key="sactions" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} style={{ overflow: 'hidden' }}>
+          <motion.div
+            key="sactions"
+            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
             <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, padding: '8px 14px 10px', borderTop: '1px solid rgba(251,191,36,0.10)', background: 'rgba(251,191,36,0.04)' }}>
               <motion.button whileTap={{ scale: 0.9 }} onClick={() => { setExpanded(false); onTopUp(asset) }} style={iconBtn('#fcd34d', 'rgba(251,191,36,0.14)', 'rgba(251,191,36,0.3)')} title="Add Stocks">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -1087,7 +1137,6 @@ export function AssetScreen() {
 
   const currentGroupItems = group ? (groupedAssets[group.id] ?? []) : []
 
-  // FIX: onSave now passes a proper NewAsset with owner field included
   const AddSheet = useMemo(() => {
     if (!group) return null
     const props = {
@@ -1185,7 +1234,6 @@ export function AssetScreen() {
         onSave={async (data) => { await addAsset(data); setBankTopUpAsset(null) }}
       />
 
-      {/* FIX: Stock top-up — owner defaults to 'Both' for top-up rows (they inherit parent's owner) */}
       <StockTopUpSheet
         open={stockTopUpAsset !== null}
         stockLabel={stockTopUpAsset?.label ?? ''}
