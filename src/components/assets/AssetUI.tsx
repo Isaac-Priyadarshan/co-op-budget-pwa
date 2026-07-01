@@ -11,73 +11,7 @@ import { parseBankNotes, compoundWithTopUps } from '../../utils/bankCalc'
 import type { BankDeposit } from '../../utils/bankCalc'
 import { isTopUp } from '../../utils/assetHelpers'
 import type { AssetItem } from '../../utils/assetHelpers'
-
-// ─── ASSET_GROUPS (inlined — no external dependency) ──────────
-export const ASSET_GROUPS = [
-  {
-    id: 'Bank',
-    label: 'Bank Accounts',
-    emoji: '🏦',
-    categories: ['Bank Account'],
-    color: 'rgba(56,189,248,0.08)',
-    border: 'rgba(56,189,248,0.35)',
-    text: '#7dd3fc',
-  },
-  {
-    id: 'Stock',
-    label: 'Stocks',
-    emoji: '📈',
-    categories: ['Stock'],
-    color: 'rgba(74,222,128,0.08)',
-    border: 'rgba(74,222,128,0.35)',
-    text: '#86efac',
-  },
-  {
-    id: 'Crypto',
-    label: 'Crypto',
-    emoji: '🪙',
-    categories: ['Crypto'],
-    color: 'rgba(251,146,60,0.08)',
-    border: 'rgba(251,146,60,0.35)',
-    text: '#fdba74',
-  },
-  {
-    id: 'MutualFund',
-    label: 'Mutual Funds',
-    emoji: '💰',
-    categories: ['Mutual Fund'],
-    color: 'rgba(167,139,250,0.08)',
-    border: 'rgba(167,139,250,0.35)',
-    text: '#c4b5fd',
-  },
-  {
-    id: 'PreciousMetal',
-    label: 'Precious Metals',
-    emoji: '🥇',
-    categories: ['Precious Metal'],
-    color: 'rgba(251,191,36,0.08)',
-    border: 'rgba(251,191,36,0.35)',
-    text: '#fde68a',
-  },
-  {
-    id: 'RealEstate',
-    label: 'Real Estate',
-    emoji: '🏠',
-    categories: ['Real Estate'],
-    color: 'rgba(251,146,60,0.08)',
-    border: 'rgba(251,146,60,0.30)',
-    text: '#fdba74',
-  },
-  {
-    id: 'Other',
-    label: 'Other',
-    emoji: '📦',
-    categories: ['Other'],
-    color: 'rgba(148,163,184,0.08)',
-    border: 'rgba(148,163,184,0.30)',
-    text: '#cbd5e1',
-  },
-] as const
+import { ASSET_GROUPS } from '../shared/AssetGroupPicker'
 
 // ─── Shared bottom-sheet style constants ──────────────────────
 export const sheetShell: React.CSSProperties = {
