@@ -1,5 +1,5 @@
 // src/components/assets/GenericAssetView.tsx
-// Generic asset card used for non-Bank, non-Stock asset groups
+// Generic asset card for non-Bank, non-Stock groups
 // (Real Estate, Mutual Fund, Crypto, Precious Metal, etc.).
 
 import { motion } from 'framer-motion'
@@ -43,14 +43,14 @@ export function GenericAssetCard({
         transition: 'opacity 0.2s',
       }}
     >
-      {/* Icon */}
+      {/* Emoji icon */}
       <div
         style={{
-          width: 40,
-          height: 40,
-          borderRadius: 12,
+          width: 42,
+          height: 42,
+          borderRadius: 13,
           background: 'rgba(255,255,255,0.06)',
-          border: '1px solid rgba(255,255,255,0.1)',
+          border: '1px solid rgba(255,255,255,0.10)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -61,14 +61,14 @@ export function GenericAssetCard({
         {emoji}
       </div>
 
-      {/* Label + badges */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* Label + value + badge — flex: 1 + minWidth: 0 prevents overflow */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
         <p
           style={{
             fontSize: 14,
             fontWeight: 700,
             color: '#f5f7ff',
-            margin: '0 0 4px',
+            margin: 0,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -76,13 +76,14 @@ export function GenericAssetCard({
         >
           {asset.label}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', minWidth: 0 }}>
           <span
             style={{
               fontSize: 13,
               fontWeight: 800,
               color: '#34d399',
               fontVariantNumeric: 'tabular-nums',
+              flexShrink: 0,
             }}
           >
             {formatINR(asset.value)}
@@ -93,8 +94,8 @@ export function GenericAssetCard({
           <p
             style={{
               fontSize: 11,
-              color: 'rgba(255,255,255,0.35)',
-              margin: '3px 0 0',
+              color: 'rgba(255,255,255,0.32)',
+              margin: 0,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
@@ -105,49 +106,71 @@ export function GenericAssetCard({
         ) : null}
       </div>
 
-      {/* Delete button (hidden in reorder mode) */}
-      {!reorderMode && (
+      {/* Action button */}
+      {!reorderMode ? (
         <motion.button
           whileTap={{ scale: 0.85 }}
           onClick={() => onDelete(asset.id, asset.label)}
           disabled={isWorking}
+          aria-label={`Delete ${asset.label}`}
           style={{
-            width: 32,
-            height: 32,
+            width: 34,
+            height: 34,
             borderRadius: '50%',
-            background: 'rgba(239,68,68,0.12)',
-            border: '1px solid rgba(239,68,68,0.25)',
+            background: 'rgba(239,68,68,0.10)',
+            border: '1px solid rgba(239,68,68,0.22)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: 'pointer',
+            cursor: isWorking ? 'not-allowed' : 'pointer',
             flexShrink: 0,
-            fontSize: 14,
           }}
         >
-          🗑️
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#f87171"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <path d="M10 11v6M14 11v6" />
+            <path d="M9 6V4h6v2" />
+          </svg>
         </motion.button>
-      )}
-
-      {/* Drag handle (shown in reorder mode) */}
-      {reorderMode && (
+      ) : (
         <div
+          aria-hidden
           style={{
-            width: 32,
-            height: 32,
+            width: 34,
+            height: 34,
             borderRadius: '50%',
-            background: 'rgba(96,165,250,0.10)',
-            border: '1px solid rgba(96,165,250,0.22)',
+            background: 'rgba(96,165,250,0.09)',
+            border: '1px solid rgba(96,165,250,0.20)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             cursor: 'grab',
             flexShrink: 0,
-            color: '#60a5fa',
-            fontSize: 15,
           }}
         >
-          ≡
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#60a5fa"
+            strokeWidth="2"
+            strokeLinecap="round"
+          >
+            <line x1="4" y1="8" x2="20" y2="8" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="16" x2="20" y2="16" />
+          </svg>
         </div>
       )}
     </motion.div>

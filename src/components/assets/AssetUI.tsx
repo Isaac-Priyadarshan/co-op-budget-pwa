@@ -150,7 +150,7 @@ export function SummaryCard({
     <div
       style={{
         borderRadius: 24,
-        padding: '22px 24px',
+        padding: '20px 22px',
         background:
           'linear-gradient(135deg, rgba(52,211,153,0.10) 0%, rgba(16,185,129,0.07) 100%)',
         border: '1px solid rgba(52,211,153,0.22)',
@@ -160,65 +160,126 @@ export function SummaryCard({
         WebkitBackdropFilter: 'blur(12px)',
       }}
     >
+      {/* Top row: label row */}
+      <p
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'rgba(110,231,183,0.55)',
+          margin: '0 0 6px',
+        }}
+      >
+        Total Portfolio
+      </p>
+
+      {/* Hero net worth value */}
+      <motion.p
+        key={totalValue}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        style={{
+          fontSize: 28,
+          fontWeight: 900,
+          color: '#34d399',
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: '-0.03em',
+          margin: '0 0 14px',
+          textShadow: '0 0 28px rgba(52,211,153,0.50)',
+          lineHeight: 1,
+        }}
+      >
+        {loading ? '—' : formatINR(totalValue)}
+      </motion.p>
+
+      {/* Divider */}
+      <div
+        style={{
+          height: 1,
+          background: 'rgba(52,211,153,0.14)',
+          marginBottom: 12,
+        }}
+      />
+
+      {/* Bottom row: two stats side by side */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr auto 1fr',
+          gridTemplateColumns: '1fr 1px 1fr',
           alignItems: 'center',
+          gap: 0,
         }}
       >
-        <div className="flex flex-col gap-1">
-          <p className="text-[10px] font-bold tracking-widest uppercase text-emerald-300/60 m-0">
-            Asset Value
-          </p>
-          <motion.p
-            key={totalValue}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-            className="text-base font-extrabold text-emerald-300 tabular-nums m-0"
+        {/* Left stat: Net Worth label */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.10em',
+              textTransform: 'uppercase',
+              color: 'rgba(110,231,183,0.50)',
+              margin: 0,
+            }}
           >
-            {loading ? '—' : formatINR(totalValue)}
-          </motion.p>
-        </div>
-        <div className="flex flex-col items-center gap-1 px-4">
-          <p className="text-[10px] font-bold tracking-widest uppercase text-emerald-300/60 m-0">
             Net Worth
           </p>
           <motion.p
             key={totalValue + '-nw'}
-            initial={{ opacity: 0, y: 4 }}
+            initial={{ opacity: 0, y: 3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.04 }}
             style={{
-              fontSize: 24,
-              fontWeight: 900,
-              color: '#34d399',
+              fontSize: 15,
+              fontWeight: 800,
+              color: '#6ee7b7',
               fontVariantNumeric: 'tabular-nums',
               margin: 0,
-              textShadow: '0 0 24px rgba(52,211,153,0.55)',
-              letterSpacing: '-0.02em',
+              letterSpacing: '-0.01em',
             }}
           >
             {loading ? '—' : formatINR(totalValue)}
           </motion.p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <p className="text-[10px] font-bold tracking-widest uppercase text-emerald-300/60 m-0 text-right">
+
+        {/* Vertical divider */}
+        <div
+          style={{
+            width: 1,
+            height: 28,
+            background: 'rgba(52,211,153,0.18)',
+            margin: '0 16px',
+          }}
+        />
+
+        {/* Right stat: Asset count */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <p
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: '0.10em',
+              textTransform: 'uppercase',
+              color: 'rgba(110,231,183,0.50)',
+              margin: 0,
+            }}
+          >
             Assets
           </p>
           <motion.p
             key={assetCount}
-            initial={{ opacity: 0, y: 4 }}
+            initial={{ opacity: 0, y: 3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.08 }}
             style={{
-              fontSize: 24,
-              fontWeight: 900,
+              fontSize: 15,
+              fontWeight: 800,
               color: '#6ee7b7',
               fontVariantNumeric: 'tabular-nums',
               margin: 0,
-              textShadow: '0 0 20px rgba(110,231,183,0.4)',
+              letterSpacing: '-0.01em',
             }}
           >
             {loading ? '—' : assetCount}
@@ -251,18 +312,22 @@ export function GroupCard({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-start',
-        gap: 10,
-        padding: '18px 16px',
+        justifyContent: 'space-between',
+        gap: 0,
+        padding: '16px 16px 14px',
         background: group.color,
         border: `1px solid ${group.border}`,
         borderRadius: 22,
         cursor: 'pointer',
         width: '100%',
+        minHeight: 118,
         boxShadow: `0 4px 20px ${group.color}`,
         position: 'relative',
         overflow: 'hidden',
+        textAlign: 'left',
       }}
     >
+      {/* Ambient glow blob */}
       <div
         style={{
           position: 'absolute',
@@ -276,52 +341,72 @@ export function GroupCard({
           pointerEvents: 'none',
         }}
       />
-      <span className="text-[30px] leading-none">{group.emoji}</span>
-      <div className="w-full">
+
+      {/* Top: emoji */}
+      <span style={{ fontSize: 28, lineHeight: 1, position: 'relative', zIndex: 1 }}>
+        {group.emoji}
+      </span>
+
+      {/* Bottom: label + value */}
+      <div style={{ width: '100%', position: 'relative', zIndex: 1, marginTop: 10 }}>
         <p
-          style={{ fontSize: 13, fontWeight: 700, color: group.text, margin: '0 0 5px', letterSpacing: '-0.01em' }}
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: group.text,
+            margin: '0 0 3px',
+            letterSpacing: '-0.01em',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
         >
           {group.label}
         </p>
         {loading ? (
-          <div className="h-3.5 w-14 rounded bg-white/[0.08]" />
+          <div style={{ height: 14, width: 56, borderRadius: 6, background: 'rgba(255,255,255,0.08)' }} />
+        ) : count === 0 ? (
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0, fontWeight: 500 }}>
+            No entries yet
+          </p>
         ) : (
           <p
             style={{
-              fontSize: 15,
+              fontSize: 14,
               fontWeight: 900,
               color: '#f5f7ff',
               margin: 0,
               fontVariantNumeric: 'tabular-nums',
               letterSpacing: '-0.02em',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            {count === 0 ? (
-              <span className="text-[11px] font-normal text-white/30">No entries yet</span>
-            ) : (
-              formatINR(total)
-            )}
+            {formatINR(total)}
           </p>
         )}
       </div>
+
+      {/* Asset count pill — bottom right, only when there are assets */}
       {count > 0 && (
         <div
           style={{
             position: 'absolute',
-            bottom: 12,
+            top: 12,
             right: 12,
             fontSize: 9,
             fontWeight: 800,
-            letterSpacing: '0.1em',
+            letterSpacing: '0.08em',
             color: group.text,
-            opacity: 0.7,
-            background: group.border.replace('0.35', '0.18'),
-            padding: '2px 8px',
+            background: group.border.replace('0.35', '0.15').replace('0.30', '0.12'),
+            padding: '2px 7px',
             borderRadius: 99,
             border: `1px solid ${group.border}`,
+            zIndex: 1,
           }}
         >
-          {count} {count === 1 ? 'asset' : 'assets'}
+          {count}
         </div>
       )}
     </motion.button>
@@ -427,11 +512,13 @@ export function GroupSummaryCard({
           position: 'relative',
           zIndex: 1,
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 16,
+          gridTemplateColumns: '1fr 1px 1fr',
+          alignItems: 'center',
+          gap: 0,
           marginBottom: 14,
         }}
       >
+        {/* Left: Total Invested */}
         <div>
           <p
             style={{
@@ -451,7 +538,7 @@ export function GroupSummaryCard({
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             style={{
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: 900,
               color: '#f5f7ff',
               fontVariantNumeric: 'tabular-nums',
@@ -462,6 +549,18 @@ export function GroupSummaryCard({
             {formatINR(totalInvested)}
           </motion.p>
         </div>
+
+        {/* Vertical divider */}
+        <div
+          style={{
+            width: 1,
+            height: 36,
+            background: group.border.replace('0.35', '0.25').replace('0.30', '0.22'),
+            margin: '0 18px',
+          }}
+        />
+
+        {/* Right: Net Worth */}
         <div style={{ textAlign: 'right' }}>
           <p
             style={{
@@ -481,7 +580,7 @@ export function GroupSummaryCard({
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             style={{
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: 900,
               color: group.text,
               fontVariantNumeric: 'tabular-nums',
@@ -494,10 +593,13 @@ export function GroupSummaryCard({
           </motion.p>
         </div>
       </div>
+
+      {/* Badge row */}
       <div
         style={{
           display: 'flex',
           gap: 8,
+          alignItems: 'center',
           flexWrap: 'wrap',
           position: 'relative',
           zIndex: 1,
@@ -505,13 +607,14 @@ export function GroupSummaryCard({
       >
         <div
           style={{
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             gap: 5,
-            padding: '5px 12px',
+            padding: '4px 11px',
             borderRadius: 99,
             background: 'rgba(0,0,0,0.18)',
             border: `1px solid ${group.border}`,
+            flexShrink: 0,
           }}
         >
           <svg
@@ -554,10 +657,10 @@ export function GroupSummaryCard({
         {!isBank && hasLive && Math.abs(pnlAbs) >= 0.01 && (
           <div
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
               gap: 5,
-              padding: '5px 12px',
+              padding: '4px 11px',
               borderRadius: 99,
               background: pnlGain
                 ? 'rgba(52,211,153,0.18)'
@@ -565,6 +668,7 @@ export function GroupSummaryCard({
               border: `1px solid ${
                 pnlGain ? 'rgba(52,211,153,0.4)' : 'rgba(248,113,113,0.4)'
               }`,
+              flexShrink: 0,
             }}
           >
             {pnlGain ? (
@@ -600,13 +704,14 @@ export function GroupSummaryCard({
           bankNetWorth > totalInvested && (
             <div
               style={{
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
-                padding: '5px 12px',
+                padding: '4px 11px',
                 borderRadius: 99,
                 background: 'rgba(52,211,153,0.18)',
                 border: '1px solid rgba(52,211,153,0.4)',
+                flexShrink: 0,
               }}
             >
               <ArrowUp color="#34d399" />

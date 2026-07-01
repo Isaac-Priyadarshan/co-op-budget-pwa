@@ -112,15 +112,30 @@ export default function AssetScreen() {
         style={{ background: '#070c16' }}
       >
         <div className="px-5 pt-14">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
+          {/* ── Header ─────────────────────────────────────────── */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              marginBottom: 24,
+            }}
+          >
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => { setActiveGroup(null); setReorderMode(false) }}
-              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 cursor-pointer"
+              aria-label="Back"
               style={{
+                width: 40,
+                height: 40,
+                borderRadius: 14,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                cursor: 'pointer',
                 background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.10)',
                 color: '#f5f7ff',
               }}
             >
@@ -128,36 +143,64 @@ export default function AssetScreen() {
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </motion.button>
-            <h1 className="text-[22px] font-black text-[#f5f7ff] m-0 tracking-tight">
+
+            <h1
+              style={{
+                fontSize: 22,
+                fontWeight: 900,
+                color: '#f5f7ff',
+                margin: 0,
+                letterSpacing: '-0.02em',
+                flex: 1,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {activeGroupObj.emoji} {activeGroupObj.label}
             </h1>
+
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => setReorderMode((r) => !r)}
-              className="ml-auto px-3.5 py-1.5 rounded-[10px] text-xs font-bold cursor-pointer border"
               style={{
-                background: reorderMode
-                  ? 'rgba(96,165,250,0.18)'
-                  : 'rgba(255,255,255,0.05)',
+                padding: '7px 14px',
+                borderRadius: 12,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                flexShrink: 0,
+                border: '1px solid',
                 borderColor: reorderMode
-                  ? 'rgba(96,165,250,0.4)'
-                  : 'rgba(255,255,255,0.1)',
-                color: reorderMode ? '#93c5fd' : 'rgba(255,255,255,0.45)',
+                  ? 'rgba(96,165,250,0.40)'
+                  : 'rgba(255,255,255,0.10)',
+                background: reorderMode
+                  ? 'rgba(96,165,250,0.14)'
+                  : 'rgba(255,255,255,0.05)',
+                color: reorderMode ? '#93c5fd' : 'rgba(255,255,255,0.40)',
               }}
             >
               {reorderMode ? 'Done' : 'Reorder'}
             </motion.button>
           </div>
 
-          {/* Group Summary */}
+          {/* ── Group Summary ──────────────────────────────────── */}
           {activeItems.filter((a) => !isTopUp(a.notes)).length > 0 && (
-            <div className="mb-5">
+            <div style={{ marginBottom: 20 }}>
               <GroupSummaryCard group={activeGroupObj} items={activeItems} />
             </div>
           )}
 
-          {/* Asset Cards */}
-          <div className="flex flex-col gap-2.5 mb-5">
+          {/* ── Asset Cards ────────────────────────────────────── */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10,
+              marginBottom: 20,
+            }}
+          >
             <AnimatePresence>
               {isBank
                 ? activeItems.map((asset) => (
@@ -199,14 +242,22 @@ export default function AssetScreen() {
             </AnimatePresence>
           </div>
 
-          {/* Add Button */}
+          {/* ── Add Button ─────────────────────────────────────── */}
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={() => setAddSheet(true)}
-            className="w-full py-4 rounded-2xl text-white text-[15px] font-extrabold border-none cursor-pointer"
             style={{
-              background: `linear-gradient(135deg, ${activeGroupObj.border.replace('0.35', '0.9')}, ${activeGroupObj.border.replace('0.35', '0.6')})`,
+              width: '100%',
+              padding: '15px 20px',
+              borderRadius: 18,
+              color: '#fff',
+              fontSize: 15,
+              fontWeight: 800,
+              border: 'none',
+              cursor: 'pointer',
+              background: `linear-gradient(135deg, ${activeGroupObj.border.replace('0.35', '0.90').replace('0.30', '0.85')}, ${activeGroupObj.border.replace('0.35', '0.55').replace('0.30', '0.50')})`,
               boxShadow: `0 4px 20px ${activeGroupObj.color}`,
+              letterSpacing: '-0.01em',
             }}
           >
             + Add {activeGroupObj.label} Asset
@@ -319,16 +370,27 @@ export default function AssetScreen() {
       style={{ background: '#070c16' }}
     >
       <div className="px-5 pt-14">
-        <div className="mb-6">
-          <h1 className="text-[28px] font-black text-[#f5f7ff] m-0 mb-1 tracking-[-0.03em]">
+        {/* Page header */}
+        <div style={{ marginBottom: 22 }}>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 900,
+              color: '#f5f7ff',
+              margin: '0 0 4px',
+              letterSpacing: '-0.03em',
+              lineHeight: 1.1,
+            }}
+          >
             Assets
           </h1>
-          <p className="text-[13px] text-white/35 m-0">
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
             Track and manage your wealth
           </p>
         </div>
 
-        <div className="mb-6">
+        {/* Summary card */}
+        <div style={{ marginBottom: 22 }}>
           <SummaryCard
             totalValue={totalValue}
             assetCount={assets.filter((a) => !isTopUp(a.notes)).length}
@@ -336,7 +398,15 @@ export default function AssetScreen() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        {/* Group grid — 2 columns, equal-height rows */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 12,
+            alignItems: 'stretch',
+          }}
+        >
           {ASSET_GROUPS.map((group) => (
             <GroupCard
               key={group.id}
