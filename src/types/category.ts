@@ -10,6 +10,7 @@ export interface Category {
   bg: string
   type: 'expense' | 'income'
   sort_order?: number | null
+  created_at?: string | null
 }
 
 export interface Subcategory {
@@ -17,4 +18,5 @@ export interface Subcategory {
   category_id: string
   label: string
   sort_order?: number | null
+  created_at?: string | null
 }
