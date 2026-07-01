@@ -128,6 +128,7 @@ export function PnlBadge({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
+        flexShrink: 0,
       }}
     >
       {gain ? <ArrowUp color="#34d399" /> : <ArrowDown color="#f87171" />}
@@ -137,6 +138,10 @@ export function PnlBadge({
 }
 
 // ─── SummaryCard ──────────────────────────────────────────────
+// Layout: hero total value on top, then a divider, then two
+// equal-width stat cells (Invested | Assets) separated by a
+// 1 px vertical rule.  The divider is rendered as a real grid
+// column so it never bleeds into adjacent cells.
 export function SummaryCard({
   totalValue,
   assetCount,
@@ -160,7 +165,7 @@ export function SummaryCard({
         WebkitBackdropFilter: 'blur(12px)',
       }}
     >
-      {/* Top row: label row */}
+      {/* Label */}
       <p
         style={{
           fontSize: 10,
@@ -174,7 +179,7 @@ export function SummaryCard({
         Total Portfolio
       </p>
 
-      {/* Hero net worth value */}
+      {/* Hero value */}
       <motion.p
         key={totalValue}
         initial={{ opacity: 0, y: 4 }}
@@ -194,7 +199,7 @@ export function SummaryCard({
         {loading ? '—' : formatINR(totalValue)}
       </motion.p>
 
-      {/* Divider */}
+      {/* Horizontal divider */}
       <div
         style={{
           height: 1,
@@ -203,17 +208,17 @@ export function SummaryCard({
         }}
       />
 
-      {/* Bottom row: two stats side by side */}
+      {/* Two-stat row: use flexbox so the vertical rule stays centred
+          and never bleeds.  Each stat takes equal space via flex:1. */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1px 1fr',
+          display: 'flex',
           alignItems: 'center',
           gap: 0,
         }}
       >
-        {/* Left stat: Net Worth label */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {/* Left stat: Portfolio Value */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <p
             style={{
               fontSize: 10,
@@ -224,10 +229,10 @@ export function SummaryCard({
               margin: 0,
             }}
           >
-            Net Worth
+            Portfolio Value
           </p>
           <motion.p
-            key={totalValue + '-nw'}
+            key={totalValue + '-pv'}
             initial={{ opacity: 0, y: 3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.04 }}
@@ -244,18 +249,19 @@ export function SummaryCard({
           </motion.p>
         </div>
 
-        {/* Vertical divider */}
+        {/* Vertical rule — self-contained, no margin bleed */}
         <div
           style={{
             width: 1,
             height: 28,
             background: 'rgba(52,211,153,0.18)',
+            flexShrink: 0,
             margin: '0 16px',
           }}
         />
 
         {/* Right stat: Asset count */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <p
             style={{
               fontSize: 10,
@@ -291,6 +297,8 @@ export function SummaryCard({
 }
 
 // ─── GroupCard ────────────────────────────────────────────────
+// Fixed: count pill moved to bottom-right so it no longer
+// overlaps the large emoji at the top.
 export function GroupCard({
   group,
   total,
@@ -342,31 +350,82 @@ export function GroupCard({
         }}
       />
 
-      {/* Top: emoji */}
+      {/* Top: emoji only — no badge here anymore */}
       <span style={{ fontSize: 28, lineHeight: 1, position: 'relative', zIndex: 1 }}>
         {group.emoji}
       </span>
 
-      {/* Bottom: label + value */}
+      {/* Bottom: label + value row with count pill inline */}
       <div style={{ width: '100%', position: 'relative', zIndex: 1, marginTop: 10 }}>
-        <p
+        {/* Label row: label + count pill side by side */}
+        <div
           style={{
-            fontSize: 12,
-            fontWeight: 700,
-            color: group.text,
-            margin: '0 0 3px',
-            letterSpacing: '-0.01em',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 6,
+            marginBottom: 3,
           }}
         >
-          {group.label}
-        </p>
+          <p
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: group.text,
+              margin: 0,
+              letterSpacing: '-0.01em',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              flex: 1,
+              minWidth: 0,
+            }}
+          >
+            {group.label}
+          </p>
+
+          {/* Count pill — aligned next to label, never overlaps emoji */}
+          {count > 0 && (
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: '0.08em',
+                color: group.text,
+                background: group.border
+                  .replace('0.35', '0.15')
+                  .replace('0.30', '0.12'),
+                padding: '2px 7px',
+                borderRadius: 99,
+                border: `1px solid ${group.border}`,
+                flexShrink: 0,
+                lineHeight: 1.6,
+              }}
+            >
+              {count}
+            </div>
+          )}
+        </div>
+
+        {/* Value row */}
         {loading ? (
-          <div style={{ height: 14, width: 56, borderRadius: 6, background: 'rgba(255,255,255,0.08)' }} />
+          <div
+            style={{
+              height: 14,
+              width: 56,
+              borderRadius: 6,
+              background: 'rgba(255,255,255,0.08)',
+            }}
+          />
         ) : count === 0 ? (
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0, fontWeight: 500 }}>
+          <p
+            style={{
+              fontSize: 11,
+              color: 'rgba(255,255,255,0.28)',
+              margin: 0,
+              fontWeight: 500,
+            }}
+          >
             No entries yet
           </p>
         ) : (
@@ -387,33 +446,14 @@ export function GroupCard({
           </p>
         )}
       </div>
-
-      {/* Asset count pill — bottom right, only when there are assets */}
-      {count > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            fontSize: 9,
-            fontWeight: 800,
-            letterSpacing: '0.08em',
-            color: group.text,
-            background: group.border.replace('0.35', '0.15').replace('0.30', '0.12'),
-            padding: '2px 7px',
-            borderRadius: 99,
-            border: `1px solid ${group.border}`,
-            zIndex: 1,
-          }}
-        >
-          {count}
-        </div>
-      )}
     </motion.button>
   )
 }
 
 // ─── GroupSummaryCard ─────────────────────────────────────────
+// Fixed: replaced `1fr 1px 1fr` grid (where margin on the
+// divider div bled into sibling cells) with a plain flexbox
+// layout so the vertical rule is fully self-contained.
 export function GroupSummaryCard({
   group,
   items,
@@ -493,6 +533,7 @@ export function GroupSummaryCard({
         overflow: 'hidden',
       }}
     >
+      {/* Ambient glow */}
       <div
         style={{
           position: 'absolute',
@@ -507,19 +548,19 @@ export function GroupSummaryCard({
           opacity: 0.6,
         }}
       />
+
+      {/* Two-stat row — flexbox, vertical rule self-contained */}
       <div
         style={{
           position: 'relative',
           zIndex: 1,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1px 1fr',
+          display: 'flex',
           alignItems: 'center',
-          gap: 0,
           marginBottom: 14,
         }}
       >
         {/* Left: Total Invested */}
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <p
             style={{
               fontSize: 10,
@@ -544,24 +585,30 @@ export function GroupSummaryCard({
               fontVariantNumeric: 'tabular-nums',
               letterSpacing: '-0.02em',
               margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {formatINR(totalInvested)}
           </motion.p>
         </div>
 
-        {/* Vertical divider */}
+        {/* Vertical rule — self-contained */}
         <div
           style={{
             width: 1,
             height: 36,
-            background: group.border.replace('0.35', '0.25').replace('0.30', '0.22'),
+            background: group.border
+              .replace('0.35', '0.25')
+              .replace('0.30', '0.22'),
+            flexShrink: 0,
             margin: '0 18px',
           }}
         />
 
         {/* Right: Net Worth */}
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
           <p
             style={{
               fontSize: 10,
@@ -586,7 +633,9 @@ export function GroupSummaryCard({
               fontVariantNumeric: 'tabular-nums',
               letterSpacing: '-0.02em',
               margin: 0,
-              textShadow: `0 0 20px ${group.border}`,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {formatINR(displayNetWorth)}
@@ -605,6 +654,7 @@ export function GroupSummaryCard({
           zIndex: 1,
         }}
       >
+        {/* Asset count badge */}
         <div
           style={{
             display: 'inline-flex',
@@ -654,6 +704,7 @@ export function GroupSummaryCard({
           </span>
         </div>
 
+        {/* PnL badge — non-bank live assets */}
         {!isBank && hasLive && Math.abs(pnlAbs) >= 0.01 && (
           <div
             style={{
@@ -699,6 +750,7 @@ export function GroupSummaryCard({
           </div>
         )}
 
+        {/* Interest badge — bank only */}
         {isBank &&
           bankNetWorth !== null &&
           bankNetWorth > totalInvested && (

@@ -24,6 +24,12 @@ export function GenericAssetCard({
 }: GenericAssetCardProps) {
   const isWorking = working === asset.id
 
+  // Only show notes that look like human-readable descriptions,
+  // not raw metadata strings (contain '|' separators used by
+  // bankCalc / stockCalc).
+  const displayNotes =
+    asset.notes && !asset.notes.includes('|') ? asset.notes : null
+
   return (
     <motion.div
       layout
@@ -61,8 +67,16 @@ export function GenericAssetCard({
         {emoji}
       </div>
 
-      {/* Label + value + badge — flex: 1 + minWidth: 0 prevents overflow */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {/* Label + value + badge — flex:1 + minWidth:0 prevents overflow */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 3,
+        }}
+      >
         <p
           style={{
             fontSize: 14,
@@ -76,7 +90,16 @@ export function GenericAssetCard({
         >
           {asset.label}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', minWidth: 0 }}>
+
+        {/* Value + PnL badge on the same line */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            minWidth: 0,
+          }}
+        >
           <span
             style={{
               fontSize: 13,
@@ -90,7 +113,9 @@ export function GenericAssetCard({
           </span>
           <PnlBadge asset={asset} />
         </div>
-        {asset.notes ? (
+
+        {/* Notes — only shown when human-readable */}
+        {displayNotes && (
           <p
             style={{
               fontSize: 11,
@@ -101,12 +126,12 @@ export function GenericAssetCard({
               whiteSpace: 'nowrap',
             }}
           >
-            {asset.notes}
+            {displayNotes}
           </p>
-        ) : null}
+        )}
       </div>
 
-      {/* Action button */}
+      {/* Action button — delete or reorder handle */}
       {!reorderMode ? (
         <motion.button
           whileTap={{ scale: 0.85 }}
