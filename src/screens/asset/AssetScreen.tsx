@@ -1,6 +1,7 @@
 // src/screens/asset/AssetScreen.tsx
 // Parent coordinator — manages state and renders layout only.
 // All card/sheet logic lives in dedicated view components.
+// HOME VIEW: fixed header (summary + group grid), scrollable content below.
 
 import { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -364,26 +365,28 @@ export default function AssetScreen() {
   }
 
   // ════════════════════════════════════════════════════════════
-  // HOME VIEW — group grid
+  // HOME VIEW — fixed header + scrollable group grid
   // ════════════════════════════════════════════════════════════
   return (
     <div
       style={{
-        paddingTop: 'max(20px, env(safe-area-inset-top))',
-        paddingBottom: 'calc(var(--nav-h, 90px) + 24px)',
+        position: 'relative',
+        height: '100dvh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
-      {/* ── Sticky Summary Card ─────────────────────────────── */}
+      {/* ── FIXED HEADER: Summary card ───────────────────────── */}
       <div
         style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 10,
-          paddingTop: 'max(12px, env(safe-area-inset-top))',
-          paddingBottom: 12,
+          flexShrink: 0,
+          paddingTop: 'max(16px, env(safe-area-inset-top))',
+          paddingBottom: 14,
           paddingLeft: 20,
           paddingRight: 20,
-          background: 'linear-gradient(180deg, #000000 60%, transparent 100%)',
+          background: 'linear-gradient(180deg, #000000 70%, rgba(0,0,0,0.85) 100%)',
+          zIndex: 10,
         }}
       >
         <SummaryCard
@@ -393,31 +396,41 @@ export default function AssetScreen() {
         />
       </div>
 
-      {/* ── Group grid — 2 columns, equal-height rows ────────── */}
+      {/* ── SCROLLABLE GROUP GRID ────────────────────────────── */}
       <div
         style={{
+          flex: 1,
+          overflowY: 'auto',
           paddingLeft: 20,
           paddingRight: 20,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 12,
-          alignItems: 'stretch',
+          paddingTop: 4,
+          paddingBottom: 'calc(var(--nav-h, 90px) + 24px)',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
-        {ASSET_GROUPS.map((group) => (
-          <GroupCard
-            key={group.id}
-            group={group}
-            total={
-              grouped[group.id]
-                ?.filter((a) => !isTopUp(a.notes))
-                .reduce((s, a) => s + a.value, 0) ?? 0
-            }
-            count={nonTopUpCount(group.id)}
-            loading={loading}
-            onPress={() => setActiveGroup(group.id as AssetGroupId)}
-          />
-        ))}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 12,
+            alignItems: 'stretch',
+          }}
+        >
+          {ASSET_GROUPS.map((group) => (
+            <GroupCard
+              key={group.id}
+              group={group}
+              total={
+                grouped[group.id]
+                  ?.filter((a) => !isTopUp(a.notes))
+                  .reduce((s, a) => s + a.value, 0) ?? 0
+              }
+              count={nonTopUpCount(group.id)}
+              loading={loading}
+              onPress={() => setActiveGroup(group.id as AssetGroupId)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )

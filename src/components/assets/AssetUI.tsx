@@ -1,10 +1,10 @@
 // src/components/assets/AssetUI.tsx
 // Shared UI primitives used across all asset views.
 // Includes: ArrowUp, ArrowDown, ArrowRight, PnlBadge,
-//           SummaryCard, GroupCard, GroupSummaryCard,
+//           SummaryCard (animated wave), GroupCard, GroupSummaryCard,
 //           and shared sheet style constants.
 
-import { useMemo } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { formatINR } from '../../utils/format'
 import { parseBankNotes, compoundWithTopUps } from '../../utils/bankCalc'
@@ -136,6 +136,86 @@ export function PnlBadge({
   )
 }
 
+// ─── Animated Wave Canvas (Assets theme — emerald/teal) ────────
+function SummaryWaveCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const rafRef    = useRef<number>(0)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    let t = 0
+
+    const draw = () => {
+      const W = canvas.width
+      const H = canvas.height
+      ctx.clearRect(0, 0, W, H)
+
+      // Wave 1 — emerald
+      ctx.beginPath()
+      for (let x = 0; x <= W; x += 2) {
+        const y =
+          H * 0.52 +
+          Math.sin((x / W) * Math.PI * 2.4 + t * 0.6) * H * 0.14 +
+          Math.sin((x / W) * Math.PI * 1.1 + t * 0.35) * H * 0.07
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.lineTo(W, H)
+      ctx.lineTo(0, H)
+      ctx.closePath()
+      const g1 = ctx.createLinearGradient(0, 0, 0, H)
+      g1.addColorStop(0, 'rgba(52,211,153,0.22)')
+      g1.addColorStop(1, 'rgba(52,211,153,0.04)')
+      ctx.fillStyle = g1
+      ctx.fill()
+
+      // Wave 2 — teal
+      ctx.beginPath()
+      for (let x = 0; x <= W; x += 2) {
+        const y =
+          H * 0.64 +
+          Math.sin((x / W) * Math.PI * 3.2 + t * 0.9 + 1.2) * H * 0.09 +
+          Math.sin((x / W) * Math.PI * 1.8 + t * 0.5 + 0.6) * H * 0.05
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+      }
+      ctx.lineTo(W, H)
+      ctx.lineTo(0, H)
+      ctx.closePath()
+      const g2 = ctx.createLinearGradient(0, 0, 0, H)
+      g2.addColorStop(0, 'rgba(110,231,183,0.14)')
+      g2.addColorStop(1, 'rgba(110,231,183,0.03)')
+      ctx.fillStyle = g2
+      ctx.fill()
+
+      t += 0.012
+      rafRef.current = requestAnimationFrame(draw)
+    }
+
+    draw()
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={600}
+      height={130}
+      style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
+        height: '100%',
+        borderRadius: 22,
+        pointerEvents: 'none',
+      }}
+    />
+  )
+}
+
 // ─── SummaryCard ──────────────────────────────────────────────
 export function SummaryCard({
   totalValue,
@@ -149,144 +229,164 @@ export function SummaryCard({
   return (
     <div
       style={{
-        borderRadius: 24,
-        padding: '20px 22px',
+        borderRadius: 22,
+        padding: '20px 22px 18px',
         background:
-          'linear-gradient(135deg, rgba(52,211,153,0.10) 0%, rgba(16,185,129,0.07) 100%)',
+          'linear-gradient(135deg, rgba(16,24,20,0.97) 0%, rgba(10,20,16,0.98) 100%)',
         border: '1px solid rgba(52,211,153,0.22)',
         boxShadow:
-          '0 4px 32px rgba(52,211,153,0.10), 0 1px 0 rgba(255,255,255,0.04) inset',
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+          '0 4px 32px rgba(52,211,153,0.12), 0 1px 0 rgba(255,255,255,0.04) inset',
+        backdropFilter: 'blur(14px)',
+        WebkitBackdropFilter: 'blur(14px)',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      {/* Top row: label row */}
-      <p
-        style={{
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          color: 'rgba(110,231,183,0.55)',
-          margin: '0 0 6px',
-        }}
-      >
-        Total Portfolio
-      </p>
+      {/* Animated wave canvas */}
+      <SummaryWaveCanvas />
 
-      {/* Hero net worth value */}
-      <motion.p
-        key={totalValue}
-        initial={{ opacity: 0, y: 4 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        style={{
-          fontSize: 28,
-          fontWeight: 900,
-          color: '#34d399',
-          fontVariantNumeric: 'tabular-nums',
-          letterSpacing: '-0.03em',
-          margin: '0 0 14px',
-          textShadow: '0 0 28px rgba(52,211,153,0.50)',
-          lineHeight: 1,
-        }}
-      >
-        {loading ? '—' : formatINR(totalValue)}
-      </motion.p>
-
-      {/* Divider */}
+      {/* Ambient glow blob */}
       <div
         style={{
-          height: 1,
-          background: 'rgba(52,211,153,0.14)',
-          marginBottom: 12,
+          position: 'absolute',
+          top: -28,
+          right: -28,
+          width: 110,
+          height: 110,
+          borderRadius: '50%',
+          background: 'rgba(52,211,153,0.18)',
+          filter: 'blur(36px)',
+          pointerEvents: 'none',
         }}
       />
 
-      {/* Bottom row: two stats side by side */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 0,
-        }}
-      >
-        {/* Left stat: Net Worth label */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
-          <p
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.10em',
-              textTransform: 'uppercase',
-              color: 'rgba(110,231,183,0.50)',
-              margin: 0,
-            }}
-          >
-            Net Worth
-          </p>
-          <motion.p
-            key={totalValue + '-nw'}
-            initial={{ opacity: 0, y: 3 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.04 }}
-            style={{
-              fontSize: 15,
-              fontWeight: 800,
-              color: '#6ee7b7',
-              fontVariantNumeric: 'tabular-nums',
-              margin: 0,
-              letterSpacing: '-0.01em',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {loading ? '—' : formatINR(totalValue)}
-          </motion.p>
-        </div>
+      {/* Content — above canvas */}
+      <div style={{ position: 'relative', zIndex: 1 }}>
 
-        {/* Vertical divider */}
+        {/* Label */}
+        <p
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'rgba(110,231,183,0.55)',
+            margin: '0 0 6px',
+          }}
+        >
+          Total Portfolio
+        </p>
+
+        {/* Hero value */}
+        <motion.p
+          key={totalValue}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          style={{
+            fontSize: 30,
+            fontWeight: 900,
+            color: '#34d399',
+            fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '-0.03em',
+            margin: '0 0 16px',
+            textShadow: '0 0 32px rgba(52,211,153,0.55)',
+            lineHeight: 1,
+          }}
+        >
+          {loading ? '—' : formatINR(totalValue)}
+        </motion.p>
+
+        {/* Divider */}
         <div
           style={{
-            flexShrink: 0,
-            width: 1,
-            height: 28,
-            background: 'rgba(52,211,153,0.18)',
-            margin: '0 16px',
+            height: 1,
+            background: 'rgba(52,211,153,0.15)',
+            marginBottom: 14,
           }}
         />
 
-        {/* Right stat: Asset count */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
-          <p
+        {/* Two stat columns */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+
+          {/* Left: Net Worth */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+            <p
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.10em',
+                textTransform: 'uppercase',
+                color: 'rgba(110,231,183,0.50)',
+                margin: 0,
+              }}
+            >
+              Net Worth
+            </p>
+            <motion.p
+              key={totalValue + '-nw'}
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.04 }}
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: '#6ee7b7',
+                fontVariantNumeric: 'tabular-nums',
+                margin: 0,
+                letterSpacing: '-0.01em',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {loading ? '—' : formatINR(totalValue)}
+            </motion.p>
+          </div>
+
+          {/* Vertical divider */}
+          <div
             style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.10em',
-              textTransform: 'uppercase',
-              color: 'rgba(110,231,183,0.50)',
-              margin: 0,
+              flexShrink: 0,
+              width: 1,
+              height: 28,
+              background: 'rgba(52,211,153,0.18)',
+              margin: '0 16px',
             }}
-          >
-            Assets
-          </p>
-          <motion.p
-            key={assetCount}
-            initial={{ opacity: 0, y: 3 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.08 }}
-            style={{
-              fontSize: 15,
-              fontWeight: 800,
-              color: '#6ee7b7',
-              fontVariantNumeric: 'tabular-nums',
-              margin: 0,
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {loading ? '—' : assetCount}
-          </motion.p>
+          />
+
+          {/* Right: Asset count */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+            <p
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.10em',
+                textTransform: 'uppercase',
+                color: 'rgba(110,231,183,0.50)',
+                margin: 0,
+              }}
+            >
+              Assets
+            </p>
+            <motion.p
+              key={assetCount}
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.08 }}
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: '#6ee7b7',
+                fontVariantNumeric: 'tabular-nums',
+                margin: 0,
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {loading ? '—' : assetCount}
+            </motion.p>
+          </div>
+
         </div>
       </div>
     </div>
@@ -559,7 +659,7 @@ export function GroupSummaryCard({
           </motion.p>
         </div>
 
-        {/* Vertical divider — fixed width, no margin eating into columns */}
+        {/* Vertical divider */}
         <div
           style={{
             flexShrink: 0,
