@@ -108,161 +108,163 @@ export default function AssetScreen() {
 
     return (
       <div
-        className="min-h-dvh pb-[100px]"
-        style={{ background: '#070c16' }}
+        style={{
+          paddingTop: 'max(20px, env(safe-area-inset-top))',
+          paddingBottom: 'calc(var(--nav-h, 90px) + 24px)',
+          paddingLeft: 20,
+          paddingRight: 20,
+        }}
       >
-        <div className="px-5 pt-14">
-          {/* ── Header ─────────────────────────────────────────── */}
-          <div
+        {/* ── Header ─────────────────────────────────────────── */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 24,
+          }}
+        >
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => { setActiveGroup(null); setReorderMode(false) }}
+            aria-label="Back"
             style={{
+              width: 40,
+              height: 40,
+              borderRadius: 14,
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
-              marginBottom: 24,
-            }}
-          >
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => { setActiveGroup(null); setReorderMode(false) }}
-              aria-label="Back"
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 14,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                cursor: 'pointer',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.10)',
-                color: '#f5f7ff',
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </motion.button>
-
-            <h1
-              style={{
-                fontSize: 22,
-                fontWeight: 900,
-                color: '#f5f7ff',
-                margin: 0,
-                letterSpacing: '-0.02em',
-                flex: 1,
-                minWidth: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {activeGroupObj.emoji} {activeGroupObj.label}
-            </h1>
-
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setReorderMode((r) => !r)}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 12,
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: 'pointer',
-                flexShrink: 0,
-                border: '1px solid',
-                borderColor: reorderMode
-                  ? 'rgba(96,165,250,0.40)'
-                  : 'rgba(255,255,255,0.10)',
-                background: reorderMode
-                  ? 'rgba(96,165,250,0.14)'
-                  : 'rgba(255,255,255,0.05)',
-                color: reorderMode ? '#93c5fd' : 'rgba(255,255,255,0.40)',
-              }}
-            >
-              {reorderMode ? 'Done' : 'Reorder'}
-            </motion.button>
-          </div>
-
-          {/* ── Group Summary ──────────────────────────────────── */}
-          {activeItems.filter((a) => !isTopUp(a.notes)).length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <GroupSummaryCard group={activeGroupObj} items={activeItems} />
-            </div>
-          )}
-
-          {/* ── Asset Cards ────────────────────────────────────── */}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-              marginBottom: 20,
-            }}
-          >
-            <AnimatePresence>
-              {isBank
-                ? activeItems.map((asset) => (
-                    <BankAssetCard
-                      key={asset.id}
-                      asset={asset}
-                      allBankItems={activeItems}
-                      reorderMode={reorderMode}
-                      onDelete={handleDelete}
-                      onTopUp={(a) => setTopUpAsset(a)}
-                      onLog={(a) => setLogAsset(a)}
-                      onEdit={(a) => setEditAsset(a)}
-                      working={working}
-                    />
-                  ))
-                : isStock
-                ? activeItems.map((asset) => (
-                    <StockAssetCard
-                      key={asset.id}
-                      asset={asset}
-                      allStockItems={activeItems}
-                      reorderMode={reorderMode}
-                      onDelete={handleDelete}
-                      onTopUp={(a) => setStockTopUpAsset(a)}
-                      onLog={(a) => setStockLogAsset(a)}
-                      working={working}
-                    />
-                  ))
-                : activeItems.map((asset) => (
-                    <GenericAssetCard
-                      key={asset.id}
-                      asset={asset}
-                      reorderMode={reorderMode}
-                      onDelete={handleDelete}
-                      working={working}
-                      emoji={emoji}
-                    />
-                  ))}
-            </AnimatePresence>
-          </div>
-
-          {/* ── Add Button ─────────────────────────────────────── */}
-          <motion.button
-            whileTap={{ scale: 0.97 }}
-            onClick={() => setAddSheet(true)}
-            style={{
-              width: '100%',
-              padding: '15px 20px',
-              borderRadius: 18,
-              color: '#fff',
-              fontSize: 15,
-              fontWeight: 800,
-              border: 'none',
+              justifyContent: 'center',
+              flexShrink: 0,
               cursor: 'pointer',
-              background: `linear-gradient(135deg, ${activeGroupObj.border.replace('0.35', '0.90').replace('0.30', '0.85')}, ${activeGroupObj.border.replace('0.35', '0.55').replace('0.30', '0.50')})`,
-              boxShadow: `0 4px 20px ${activeGroupObj.color}`,
-              letterSpacing: '-0.01em',
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.10)',
+              color: '#f5f7ff',
             }}
           >
-            + Add {activeGroupObj.label} Asset
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </motion.button>
+
+          <h1
+            style={{
+              fontSize: 22,
+              fontWeight: 900,
+              color: '#f5f7ff',
+              margin: 0,
+              letterSpacing: '-0.02em',
+              flex: 1,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {activeGroupObj.emoji} {activeGroupObj.label}
+          </h1>
+
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setReorderMode((r) => !r)}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 12,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: 'pointer',
+              flexShrink: 0,
+              border: '1px solid',
+              borderColor: reorderMode
+                ? 'rgba(96,165,250,0.40)'
+                : 'rgba(255,255,255,0.10)',
+              background: reorderMode
+                ? 'rgba(96,165,250,0.14)'
+                : 'rgba(255,255,255,0.05)',
+              color: reorderMode ? '#93c5fd' : 'rgba(255,255,255,0.40)',
+            }}
+          >
+            {reorderMode ? 'Done' : 'Reorder'}
           </motion.button>
         </div>
+
+        {/* ── Group Summary ──────────────────────────────────── */}
+        {activeItems.filter((a) => !isTopUp(a.notes)).length > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <GroupSummaryCard group={activeGroupObj} items={activeItems} />
+          </div>
+        )}
+
+        {/* ── Asset Cards ────────────────────────────────────── */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+            marginBottom: 20,
+          }}
+        >
+          <AnimatePresence>
+            {isBank
+              ? activeItems.map((asset) => (
+                  <BankAssetCard
+                    key={asset.id}
+                    asset={asset}
+                    allBankItems={activeItems}
+                    reorderMode={reorderMode}
+                    onDelete={handleDelete}
+                    onTopUp={(a) => setTopUpAsset(a)}
+                    onLog={(a) => setLogAsset(a)}
+                    onEdit={(a) => setEditAsset(a)}
+                    working={working}
+                  />
+                ))
+              : isStock
+              ? activeItems.map((asset) => (
+                  <StockAssetCard
+                    key={asset.id}
+                    asset={asset}
+                    allStockItems={activeItems}
+                    reorderMode={reorderMode}
+                    onDelete={handleDelete}
+                    onTopUp={(a) => setStockTopUpAsset(a)}
+                    onLog={(a) => setStockLogAsset(a)}
+                    working={working}
+                  />
+                ))
+              : activeItems.map((asset) => (
+                  <GenericAssetCard
+                    key={asset.id}
+                    asset={asset}
+                    reorderMode={reorderMode}
+                    onDelete={handleDelete}
+                    working={working}
+                    emoji={emoji}
+                  />
+                ))}
+          </AnimatePresence>
+        </div>
+
+        {/* ── Add Button ─────────────────────────────────────── */}
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => setAddSheet(true)}
+          style={{
+            width: '100%',
+            padding: '15px 20px',
+            borderRadius: 18,
+            color: '#fff',
+            fontSize: 15,
+            fontWeight: 800,
+            border: 'none',
+            cursor: 'pointer',
+            background: `linear-gradient(135deg, ${activeGroupObj.border.replace('0.35', '0.90').replace('0.30', '0.85')}, ${activeGroupObj.border.replace('0.35', '0.55').replace('0.30', '0.50')})`,
+            boxShadow: `0 4px 20px ${activeGroupObj.color}`,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          + Add {activeGroupObj.label} Asset
+        </motion.button>
 
         {/* ── Bank Sheets ───────────────────────────────────── */}
         {isBank && (
@@ -366,62 +368,64 @@ export default function AssetScreen() {
   // ════════════════════════════════════════════════════════════
   return (
     <div
-      className="min-h-dvh pb-[100px]"
-      style={{ background: '#070c16' }}
+      style={{
+        paddingTop: 'max(20px, env(safe-area-inset-top))',
+        paddingBottom: 'calc(var(--nav-h, 90px) + 24px)',
+        paddingLeft: 20,
+        paddingRight: 20,
+      }}
     >
-      <div className="px-5 pt-14">
-        {/* Page header */}
-        <div style={{ marginBottom: 22 }}>
-          <h1
-            style={{
-              fontSize: 28,
-              fontWeight: 900,
-              color: '#f5f7ff',
-              margin: '0 0 4px',
-              letterSpacing: '-0.03em',
-              lineHeight: 1.1,
-            }}
-          >
-            Assets
-          </h1>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
-            Track and manage your wealth
-          </p>
-        </div>
-
-        {/* Summary card */}
-        <div style={{ marginBottom: 22 }}>
-          <SummaryCard
-            totalValue={totalValue}
-            assetCount={assets.filter((a) => !isTopUp(a.notes)).length}
-            loading={loading}
-          />
-        </div>
-
-        {/* Group grid — 2 columns, equal-height rows */}
-        <div
+      {/* Page header */}
+      <div style={{ marginBottom: 22 }}>
+        <h1
           style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 12,
-            alignItems: 'stretch',
+            fontSize: 28,
+            fontWeight: 900,
+            color: '#f5f7ff',
+            margin: '0 0 4px',
+            letterSpacing: '-0.03em',
+            lineHeight: 1.1,
           }}
         >
-          {ASSET_GROUPS.map((group) => (
-            <GroupCard
-              key={group.id}
-              group={group}
-              total={
-                grouped[group.id]
-                  ?.filter((a) => !isTopUp(a.notes))
-                  .reduce((s, a) => s + a.value, 0) ?? 0
-              }
-              count={nonTopUpCount(group.id)}
-              loading={loading}
-              onPress={() => setActiveGroup(group.id as AssetGroupId)}
-            />
-          ))}
-        </div>
+          Assets
+        </h1>
+        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
+          Track and manage your wealth
+        </p>
+      </div>
+
+      {/* Summary card */}
+      <div style={{ marginBottom: 22 }}>
+        <SummaryCard
+          totalValue={totalValue}
+          assetCount={assets.filter((a) => !isTopUp(a.notes)).length}
+          loading={loading}
+        />
+      </div>
+
+      {/* Group grid — 2 columns, equal-height rows */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 12,
+          alignItems: 'stretch',
+        }}
+      >
+        {ASSET_GROUPS.map((group) => (
+          <GroupCard
+            key={group.id}
+            group={group}
+            total={
+              grouped[group.id]
+                ?.filter((a) => !isTopUp(a.notes))
+                .reduce((s, a) => s + a.value, 0) ?? 0
+            }
+            count={nonTopUpCount(group.id)}
+            loading={loading}
+            onPress={() => setActiveGroup(group.id as AssetGroupId)}
+          />
+        ))}
       </div>
     </div>
   )
