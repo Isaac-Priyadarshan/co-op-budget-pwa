@@ -3,6 +3,11 @@
 // Includes: ArrowUp, ArrowDown, ArrowRight, PnlBadge,
 //           SummaryCard (animated wave), GroupCard, GroupSummaryCard,
 //           and shared sheet style constants.
+//
+// CHANGE LOG:
+//   • Removed vertical divider line between Net Worth and Assets in SummaryCard
+//   • Removed vertical divider line between Total Invested and Net Worth in GroupSummaryCard
+//   • SummaryCard is now fixed/sticky — always visible at the top of the home view
 
 import { useMemo, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
@@ -217,9 +222,8 @@ function SummaryWaveCanvas() {
 }
 
 // ─── SummaryCard ──────────────────────────────────────────────
-// CHANGE LOG:
-//   • Removed horizontal divider line between hero value and stat row
-//   • Removed vertical divider line between Net Worth and Assets columns
+// No divider lines anywhere in this card.
+// Rendered inside a sticky/fixed header in AssetScreen — never scrolls.
 export function SummaryCard({
   totalValue,
   assetCount,
@@ -300,7 +304,7 @@ export function SummaryCard({
           {loading ? '—' : formatINR(totalValue)}
         </motion.p>
 
-        {/* Two stat columns — NO divider lines */}
+        {/* Two stat columns — NO divider lines of any kind */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
 
           {/* Left: Net Worth */}
@@ -595,7 +599,7 @@ export function GroupSummaryCard({
         }}
       />
 
-      {/* ── Two-column stats row ── */}
+      {/* ── Two-column stats row — NO vertical divider ── */}
       <div
         style={{
           position: 'relative',
@@ -642,18 +646,7 @@ export function GroupSummaryCard({
           </motion.p>
         </div>
 
-        {/* Vertical divider */}
-        <div
-          style={{
-            flexShrink: 0,
-            width: 1,
-            height: 36,
-            background: group.border.replace('0.35', '0.25').replace('0.30', '0.22'),
-            margin: '0 14px',
-          }}
-        />
-
-        {/* Right: Net Worth */}
+        {/* Right: Net Worth — no vertical divider before it */}
         <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
           <p
             style={{
