@@ -371,31 +371,21 @@ export default function AssetScreen() {
       style={{
         paddingTop: 'max(20px, env(safe-area-inset-top))',
         paddingBottom: 'calc(var(--nav-h, 90px) + 24px)',
-        paddingLeft: 20,
-        paddingRight: 20,
       }}
     >
-      {/* Page header */}
-      <div style={{ marginBottom: 22 }}>
-        <h1
-          style={{
-            fontSize: 28,
-            fontWeight: 900,
-            color: '#f5f7ff',
-            margin: '0 0 4px',
-            letterSpacing: '-0.03em',
-            lineHeight: 1.1,
-          }}
-        >
-          Assets
-        </h1>
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.32)', margin: 0 }}>
-          Track and manage your wealth
-        </p>
-      </div>
-
-      {/* Summary card */}
-      <div style={{ marginBottom: 22 }}>
+      {/* ── Sticky Summary Card ─────────────────────────────── */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          paddingTop: 'max(12px, env(safe-area-inset-top))',
+          paddingBottom: 12,
+          paddingLeft: 20,
+          paddingRight: 20,
+          background: 'linear-gradient(180deg, #000000 60%, transparent 100%)',
+        }}
+      >
         <SummaryCard
           totalValue={totalValue}
           assetCount={assets.filter((a) => !isTopUp(a.notes)).length}
@@ -403,9 +393,11 @@ export default function AssetScreen() {
         />
       </div>
 
-      {/* Group grid — 2 columns, equal-height rows */}
+      {/* ── Group grid — 2 columns, equal-height rows ────────── */}
       <div
         style={{
+          paddingLeft: 20,
+          paddingRight: 20,
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: 12,
