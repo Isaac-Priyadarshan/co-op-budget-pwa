@@ -217,6 +217,9 @@ function SummaryWaveCanvas() {
 }
 
 // ─── SummaryCard ──────────────────────────────────────────────
+// CHANGE LOG:
+//   • Removed horizontal divider line between hero value and stat row
+//   • Removed vertical divider line between Net Worth and Assets columns
 export function SummaryCard({
   totalValue,
   assetCount,
@@ -289,7 +292,7 @@ export function SummaryCard({
             color: '#34d399',
             fontVariantNumeric: 'tabular-nums',
             letterSpacing: '-0.03em',
-            margin: '0 0 16px',
+            margin: '0 0 14px',
             textShadow: '0 0 32px rgba(52,211,153,0.55)',
             lineHeight: 1,
           }}
@@ -297,16 +300,7 @@ export function SummaryCard({
           {loading ? '—' : formatINR(totalValue)}
         </motion.p>
 
-        {/* Divider */}
-        <div
-          style={{
-            height: 1,
-            background: 'rgba(52,211,153,0.15)',
-            marginBottom: 14,
-          }}
-        />
-
-        {/* Two stat columns */}
+        {/* Two stat columns — NO divider lines */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
 
           {/* Left: Net Worth */}
@@ -344,19 +338,8 @@ export function SummaryCard({
             </motion.p>
           </div>
 
-          {/* Vertical divider */}
-          <div
-            style={{
-              flexShrink: 0,
-              width: 1,
-              height: 28,
-              background: 'rgba(52,211,153,0.18)',
-              margin: '0 16px',
-            }}
-          />
-
-          {/* Right: Asset count */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+          {/* Right: Asset count — no vertical divider */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0, textAlign: 'right' }}>
             <p
               style={{
                 fontSize: 10,
