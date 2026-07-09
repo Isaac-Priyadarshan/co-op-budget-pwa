@@ -206,14 +206,13 @@ export function SummaryCard({
       {/* Bottom row: two stats side by side */}
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1px 1fr',
+          display: 'flex',
           alignItems: 'center',
           gap: 0,
         }}
       >
         {/* Left stat: Net Worth label */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
           <p
             style={{
               fontSize: 10,
@@ -238,6 +237,9 @@ export function SummaryCard({
               fontVariantNumeric: 'tabular-nums',
               margin: 0,
               letterSpacing: '-0.01em',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {loading ? '—' : formatINR(totalValue)}
@@ -247,6 +249,7 @@ export function SummaryCard({
         {/* Vertical divider */}
         <div
           style={{
+            flexShrink: 0,
             width: 1,
             height: 28,
             background: 'rgba(52,211,153,0.18)',
@@ -255,7 +258,7 @@ export function SummaryCard({
         />
 
         {/* Right stat: Asset count */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
           <p
             style={{
               fontSize: 10,
@@ -314,7 +317,7 @@ export function GroupCard({
         alignItems: 'flex-start',
         justifyContent: 'space-between',
         gap: 0,
-        padding: '16px 16px 14px',
+        padding: '16px 14px 14px',
         background: group.color,
         border: `1px solid ${group.border}`,
         borderRadius: 22,
@@ -343,15 +346,15 @@ export function GroupCard({
       />
 
       {/* Top: emoji */}
-      <span style={{ fontSize: 28, lineHeight: 1, position: 'relative', zIndex: 1 }}>
+      <span style={{ fontSize: 26, lineHeight: 1, position: 'relative', zIndex: 1 }}>
         {group.emoji}
       </span>
 
       {/* Bottom: label + value */}
-      <div style={{ width: '100%', position: 'relative', zIndex: 1, marginTop: 10 }}>
+      <div style={{ width: '100%', position: 'relative', zIndex: 1, marginTop: 10, minWidth: 0 }}>
         <p
           style={{
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 700,
             color: group.text,
             margin: '0 0 3px',
@@ -364,15 +367,15 @@ export function GroupCard({
           {group.label}
         </p>
         {loading ? (
-          <div style={{ height: 14, width: 56, borderRadius: 6, background: 'rgba(255,255,255,0.08)' }} />
+          <div style={{ height: 14, width: 48, borderRadius: 6, background: 'rgba(255,255,255,0.08)' }} />
         ) : count === 0 ? (
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', margin: 0, fontWeight: 500 }}>
+          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', margin: 0, fontWeight: 500 }}>
             No entries yet
           </p>
         ) : (
           <p
             style={{
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: 900,
               color: '#f5f7ff',
               margin: 0,
@@ -388,7 +391,7 @@ export function GroupCard({
         )}
       </div>
 
-      {/* Asset count pill — bottom right, only when there are assets */}
+      {/* Asset count pill — top right, only when there are assets */}
       {count > 0 && (
         <div
           style={{
@@ -493,6 +496,7 @@ export function GroupSummaryCard({
         overflow: 'hidden',
       }}
     >
+      {/* Ambient glow */}
       <div
         style={{
           position: 'absolute',
@@ -507,19 +511,20 @@ export function GroupSummaryCard({
           opacity: 0.6,
         }}
       />
+
+      {/* ── Two-column stats row ── */}
       <div
         style={{
           position: 'relative',
           zIndex: 1,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1px 1fr',
+          display: 'flex',
           alignItems: 'center',
           gap: 0,
           marginBottom: 14,
         }}
       >
         {/* Left: Total Invested */}
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <p
             style={{
               fontSize: 10,
@@ -529,6 +534,7 @@ export function GroupSummaryCard({
               color: group.text,
               opacity: 0.6,
               margin: '0 0 4px',
+              whiteSpace: 'nowrap',
             }}
           >
             Total Invested
@@ -538,30 +544,34 @@ export function GroupSummaryCard({
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             style={{
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: 900,
               color: '#f5f7ff',
               fontVariantNumeric: 'tabular-nums',
               letterSpacing: '-0.02em',
               margin: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {formatINR(totalInvested)}
           </motion.p>
         </div>
 
-        {/* Vertical divider */}
+        {/* Vertical divider — fixed width, no margin eating into columns */}
         <div
           style={{
+            flexShrink: 0,
             width: 1,
             height: 36,
             background: group.border.replace('0.35', '0.25').replace('0.30', '0.22'),
-            margin: '0 18px',
+            margin: '0 14px',
           }}
         />
 
         {/* Right: Net Worth */}
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ flex: 1, minWidth: 0, textAlign: 'right' }}>
           <p
             style={{
               fontSize: 10,
@@ -571,6 +581,7 @@ export function GroupSummaryCard({
               color: group.text,
               opacity: 0.6,
               margin: '0 0 4px',
+              whiteSpace: 'nowrap',
             }}
           >
             Net Worth
@@ -580,13 +591,16 @@ export function GroupSummaryCard({
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             style={{
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: 900,
               color: group.text,
               fontVariantNumeric: 'tabular-nums',
               letterSpacing: '-0.02em',
               margin: 0,
               textShadow: `0 0 20px ${group.border}`,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {formatINR(displayNetWorth)}
