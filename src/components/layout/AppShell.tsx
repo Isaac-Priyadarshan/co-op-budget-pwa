@@ -35,6 +35,11 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 
 const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
 
+// Screens that self-manage their own internal scroll zones.
+// For these, the AppShell scroll-area must be fully locked (overflow:hidden)
+// so the outer wrapper never competes with the screen's own scroll logic.
+const SELF_SCROLL_SCREENS: ScreenId[] = ['asset']
+
 export function AppShell() {
   const { activeUser } = useUser()
   const location = useLocation()
@@ -63,6 +68,10 @@ export function AppShell() {
   }, [location.search])
 
   const ActiveComponent = SCREEN_MAP[activeScreen]
+
+  // When the active screen self-manages scroll, lock the outer wrapper entirely
+  // so it cannot scroll. The screen's own internal overflow:auto zone takes over.
+  const isSelfScroll = SELF_SCROLL_SCREENS.includes(activeScreen)
 
   if (!activeUser) {
     return <UserSelectScreen />
@@ -111,15 +120,16 @@ export function AppShell() {
 
       {/*
         scroll-area: the container all screens mount into.
-        — overflow:hidden on the root AppShell div prevents page-level scroll.
-        — This div is position:relative so screens using position:absolute inset:0
-          (e.g. AssetScreen HOME VIEW) anchor themselves here correctly.
-        — height:0 + flex:1 constrains it to exactly the available space between
-          the top safe-area and the BottomNav — no more, no less.
-        — Screens that manage their own internal scroll (AssetScreen, etc.) use
-          position:absolute inset:0 and their own overflowY:auto scroll zone.
-        — Screens that are simple vertical pages (LedgerScreen, etc.) rely on
-          this div's overflowY:auto for their scroll as before.
+        — When isSelfScroll is true (e.g. AssetScreen), overflow is set to
+          'hidden' so this wrapper is completely locked and cannot scroll.
+          The screen itself owns its internal scroll zone via position:absolute
+          inset:0 with its own overflowY:auto child.
+        — When isSelfScroll is false, overflow remains 'auto' so normal
+          vertical-scrolling screens work exactly as before.
+        — position:relative is always set so that position:absolute children
+          (AssetScreen HOME VIEW) anchor against this div correctly.
+        — height:0 + flex:1 constrains it to exactly the available space
+          between the top safe-area and the BottomNav.
       */}
       <div
         className="scroll-area"
@@ -127,7 +137,7 @@ export function AppShell() {
           flex: 1,
           height: 0,
           paddingTop: 'env(safe-area-inset-top)',
-          overflowY: 'auto',
+          overflowY: isSelfScroll ? 'hidden' : 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
           position: 'relative',
@@ -144,9 +154,10 @@ export function AppShell() {
             style={{
               // height:100% ensures screens using position:absolute inset:0
               // have a sized parent to anchor against.
-              // Screens that are normal scrolling pages are unaffected because
-              // their content naturally defines the height.
+              // overflow:hidden on self-scroll screens prevents the motion.div
+              // itself from becoming a scroll container that fights AssetScreen.
               height: '100%',
+              overflow: isSelfScroll ? 'hidden' : 'visible',
             }}
           >
             <ActiveComponent />
