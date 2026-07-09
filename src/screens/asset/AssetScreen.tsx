@@ -1,7 +1,13 @@
 // src/screens/asset/AssetScreen.tsx
 // Parent coordinator — manages state and renders layout only.
 // All card/sheet logic lives in dedicated view components.
-// HOME VIEW: fixed header (summary + group grid), scrollable content below.
+//
+// HOME VIEW architecture:
+//   • Root div is position:absolute inset:0 — fills the AppShell scroll-area
+//     exactly without adding to its scroll height. This is the only way to
+//     get a truly fixed summary card while living inside AppShell's overflowY:auto.
+//   • Summary card wrapper: flexShrink:0 — never compresses, never scrolls.
+//   • Group grid wrapper: flex:1 height:0 overflowY:auto — the ONLY scroll zone.
 
 import { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -365,19 +371,24 @@ export default function AssetScreen() {
   }
 
   // ════════════════════════════════════════════════════════════
-  // HOME VIEW — fixed header + scrollable group grid
+  // HOME VIEW
+  // Root is position:absolute inset:0 so it fills the AppShell
+  // motion.div exactly — it does NOT add to the outer scroll height.
+  // The summary card header is flexShrink:0 (never scrolls).
+  // Only the group grid below has overflowY:auto.
   // ════════════════════════════════════════════════════════════
   return (
     <div
       style={{
-        position: 'relative',
-        height: '100dvh',
+        position: 'absolute',
+        inset: 0,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        background: 'transparent',
       }}
     >
-      {/* ── FIXED HEADER: Summary card ───────────────────────── */}
+      {/* ── FIXED HEADER: Summary card — never scrolls ───────── */}
       <div
         style={{
           flexShrink: 0,
@@ -396,11 +407,13 @@ export default function AssetScreen() {
         />
       </div>
 
-      {/* ── SCROLLABLE GROUP GRID ────────────────────────────── */}
+      {/* ── SCROLLABLE GROUP GRID — only this zone scrolls ───── */}
       <div
         style={{
           flex: 1,
+          height: 0,
           overflowY: 'auto',
+          overflowX: 'hidden',
           paddingLeft: 20,
           paddingRight: 20,
           paddingTop: 4,

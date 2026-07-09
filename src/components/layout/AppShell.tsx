@@ -109,6 +109,18 @@ export function AppShell() {
         }}
       />
 
+      {/*
+        scroll-area: the container all screens mount into.
+        — overflow:hidden on the root AppShell div prevents page-level scroll.
+        — This div is position:relative so screens using position:absolute inset:0
+          (e.g. AssetScreen HOME VIEW) anchor themselves here correctly.
+        — height:0 + flex:1 constrains it to exactly the available space between
+          the top safe-area and the BottomNav — no more, no less.
+        — Screens that manage their own internal scroll (AssetScreen, etc.) use
+          position:absolute inset:0 and their own overflowY:auto scroll zone.
+        — Screens that are simple vertical pages (LedgerScreen, etc.) rely on
+          this div's overflowY:auto for their scroll as before.
+      */}
       <div
         className="scroll-area"
         style={{
@@ -129,7 +141,13 @@ export function AppShell() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-            style={{ height: 'auto' }}
+            style={{
+              // height:100% ensures screens using position:absolute inset:0
+              // have a sized parent to anchor against.
+              // Screens that are normal scrolling pages are unaffected because
+              // their content naturally defines the height.
+              height: '100%',
+            }}
           >
             <ActiveComponent />
           </motion.div>
