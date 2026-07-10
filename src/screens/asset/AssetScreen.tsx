@@ -5,10 +5,11 @@
 // HOME VIEW architecture:
 //   • Root div is position:absolute inset:0 — fills the AppShell scroll-area
 //     exactly without adding to its scroll height.
-//   • The entire HOME VIEW (summary card + group grid) is NON-SCROLLABLE.
-//     overflow:hidden on root, summary wrapper, and grid wrapper.
-//     Nothing moves. Everything is pinned to the viewport.
-//   • The grid uses flex:1 height:0 to fill remaining space without overflow.
+//   • SummaryCard wrapper is flexShrink:0 — always pinned at the top.
+//   • Group grid wrapper is flex:1 overflowY:auto — scrolls when 6 cards
+//     don't fit the available height (small phones, landscape).
+//     height:100% is intentionally removed from the inner grid so it can
+//     grow naturally past the container and trigger scroll.
 
 import { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -365,8 +366,7 @@ export default function AssetScreen() {
           message={`Delete "${confirmDel?.label}"? This cannot be undone.`}
           confirmLabel="Delete"
           onConfirm={confirmDelete}
-          onCancel={() => setConfirmDel(null)
-          }
+          onCancel={() => setConfirmDel(null)}
         />
       </div>
     )
@@ -374,16 +374,10 @@ export default function AssetScreen() {
 
   // ════════════════════════════════════════════════════════════
   // HOME VIEW
-  // The entire screen is NON-SCROLLABLE. Both the summary card
-  // and the 2-column group grid are fully pinned. No element on
-  // this screen moves on swipe.
-  //
-  // Layout contract:
-  //   Root: position:absolute inset:0, display:flex column, overflow:hidden
-  //   Summary wrapper: flexShrink:0, overflow:hidden  → fixed height, never grows
-  //   Grid wrapper: flex:1 minHeight:0 overflow:hidden → fills remaining space,
-  //                 clips content, never scrolls
-  //   Grid inner: width/height 100%, overflow:hidden   → hard clipped
+  // SummaryCard is pinned (flexShrink:0) at the top.
+  // Group grid wrapper is flex:1 overflowY:auto so all 6 cards
+  // are reachable by scrolling on small screens. The inner grid
+  // div has NO height:100% — it grows naturally to fit content.
   // ════════════════════════════════════════════════════════════
   return (
     <div
@@ -416,15 +410,17 @@ export default function AssetScreen() {
         />
       </div>
 
-      {/* ── PINNED: Group grid — also never scrolls ───────────── */}
-      {/* flex:1 minHeight:0 fills the remaining space exactly.    */}
-      {/* overflow:hidden on both wrapper and inner grid prevents  */}
-      {/* any scroll — grid cards are clipped to the available area.*/}
+      {/* ── SCROLLABLE: Group grid — scrolls on small screens ─── */}
+      {/* flex:1 fills remaining space. overflowY:auto enables     */}
+      {/* scroll when 6 cards exceed available height. Inner grid  */}
+      {/* has no height:100% so it grows freely to natural height. */}
       <div
         style={{
           flex: 1,
           minHeight: 0,
-          overflow: 'hidden',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
           paddingLeft: 20,
           paddingRight: 20,
           paddingTop: 4,
@@ -435,8 +431,6 @@ export default function AssetScreen() {
         <div
           style={{
             width: '100%',
-            height: '100%',
-            overflow: 'hidden',
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             gap: 12,
