@@ -208,7 +208,6 @@ function CategoryCard({
   const [expanded, setExpanded] = useState(false)
   const accent = cat.accent ?? '#FBBF24'
 
-  // Derive a pastel bg from the accent — semi-transparent tint
   const pastelBg   = cat.bg   ?? `${accent}18`
   const pastelGlow = cat.glow ?? `${accent}22`
   const isOver     = parentBudget > 0 && parentSpent > parentBudget
@@ -258,15 +257,32 @@ function CategoryCard({
             </div>
           </div>
 
-          {/* Right: amount + chevron */}
+          {/* Right: spent / totalBudget + chevron */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: 14, fontWeight: 900, color: isOver ? '#F87171' : accent, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 }}>
-                {formatINR(parentSpent)}
-              </p>
-              {parentBudget > 0 && (
-                <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontVariantNumeric: 'tabular-nums' }}>
-                  of {formatINR(parentBudget)}
+              {parentBudget > 0 ? (
+                // ── FIXED: show "₹spent / ₹totalBudget" on one line ──
+                <p style={{
+                  fontSize: 14, fontWeight: 900,
+                  color: isOver ? '#F87171' : accent,
+                  fontVariantNumeric: 'tabular-nums',
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {formatINR(parentSpent)}
+                  <span style={{ fontWeight: 500, color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>
+                    {' / '}{formatINR(parentBudget)}
+                  </span>
+                </p>
+              ) : (
+                // No subcategory budgets set yet — show spent alone
+                <p style={{
+                  fontSize: 14, fontWeight: 900,
+                  color: accent,
+                  fontVariantNumeric: 'tabular-nums',
+                  lineHeight: 1.2,
+                }}>
+                  {formatINR(parentSpent)}
                 </p>
               )}
             </div>
@@ -283,7 +299,7 @@ function CategoryCard({
           </div>
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar — driven by corrected parentBudget */}
         {parentBudget > 0 && (
           <div style={{ height: 5, borderRadius: 99, background: `${accent}18`, overflow: 'hidden' }}>
             <motion.div
@@ -404,7 +420,7 @@ export default function BudgetScreen() {
 
   const { transactions, loading: txLoading }              = useTransactions()
   const { expenseCategories, subcategories }              = useCategories()
-  const { totalPlanned, getBudget, getParentTotal, upsertBudget, loading: budgetLoading } = useBudgets(mKey)
+  const { totalPlanned, getBudget, upsertBudget, loading: budgetLoading } = useBudgets(mKey)
 
   // ── Month-scoped expense transactions ────────────────────────────────────────
   const monthTxs = useMemo(() => {
@@ -596,9 +612,12 @@ export default function BudgetScreen() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {expenseCategories.map((cat, ci) => {
-              const subs         = (subcategories[cat.id] ?? []) as Subcategory[]
-              const parentBudget = getParentTotal(cat.label)
-              const parentSpent  = spentByParent[cat.label] ?? 0
+              const subs        = (subcategories[cat.id] ?? []) as Subcategory[]
+              const parentSpent = spentByParent[cat.label] ?? 0
+
+              // ── FIXED: parentBudget = sum of all subcategory budgets under this parent ──
+              const parentBudget = subs.reduce((sum, sub) => sum + (getBudget(sub.label) ?? 0), 0)
+
               return (
                 <CategoryCard
                   key={cat.id}
