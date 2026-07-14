@@ -151,17 +151,19 @@ export function EntryScreen() {
     if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
     setSaving(true); setErrMsg(null)
 
-    // subLabel is used only for the human-readable description.
-    // category_id (UUID) is now saved for reliable matching in HomeScreen / BudgetScreen.
-    const subLabel    = subs.find(s => s.id === selectedSub)?.label ?? ''
-    const descParts   = [subLabel, note].filter(Boolean)
+    const subLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
+    // FIX: category field stores the subcategory label when one is selected,
+    // so BudgetScreen.spentBySub can match it directly by name.
+    // Falls back to parent label if no subcategory exists for this category.
+    const categoryLabel = subLabel || category.label
+    const descParts     = [subLabel, note].filter(Boolean)
 
     try {
       await addTransaction({
         amount:           amountValue,
         description:      descParts.join(' · ') || category.label,
-        category:         category.label,        // parent category label (for display)
-        category_id:      category.id,           // ← NEW: UUID for reliable matching
+        category:         categoryLabel,         // subcategory label (e.g. "Fuel"), or parent if no subs
+        category_id:      category.id,           // parent UUID for category grouping
         created_by:       activeUser,
         type:             (type as 'income' | 'expense') ?? 'expense',
         wallet_id:        walletId ?? undefined,

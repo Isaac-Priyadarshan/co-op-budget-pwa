@@ -163,7 +163,6 @@ function BudgetSheet({
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block' }}>
                   Subcategory
                 </label>
-                {/* Read-only display — subcategory name cannot be edited */}
                 <div style={readOnlyStyle}>
                   {initialLabel ?? '—'}
                 </div>
@@ -261,7 +260,6 @@ function CategoryCard({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ textAlign: 'right' }}>
               {parentBudget > 0 ? (
-                // ── FIXED: show "₹spent / ₹totalBudget" on one line ──
                 <p style={{
                   fontSize: 14, fontWeight: 900,
                   color: isOver ? '#F87171' : accent,
@@ -275,7 +273,6 @@ function CategoryCard({
                   </span>
                 </p>
               ) : (
-                // No subcategory budgets set yet — show spent alone
                 <p style={{
                   fontSize: 14, fontWeight: 900,
                   color: accent,
@@ -299,7 +296,7 @@ function CategoryCard({
           </div>
         </div>
 
-        {/* Progress bar — driven by corrected parentBudget */}
+        {/* Progress bar */}
         {parentBudget > 0 && (
           <div style={{ height: 5, borderRadius: 99, background: `${accent}18`, overflow: 'hidden' }}>
             <motion.div
@@ -361,7 +358,6 @@ function CategoryCard({
                       {/* Sub row top */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          {/* Dot indicator */}
                           <div style={{
                             width: 7, height: 7, borderRadius: '50%',
                             background: subOver ? '#F87171' : accent,
@@ -384,7 +380,6 @@ function CategoryCard({
                               </p>
                             )}
                           </div>
-                          {/* Edit pencil icon */}
                           <div style={{ width: 26, height: 26, borderRadius: 8, background: `${accent}18`, border: `1px solid ${accent}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -436,6 +431,9 @@ export default function BudgetScreen() {
   const totalSpent = useMemo(() => monthTxs.reduce((s, t) => s + t.amount, 0), [monthTxs])
 
   // ── Spent per parent category ─────────────────────────────────────────────
+  // tx.category now stores the subcategory label (e.g. "Fuel") for new transactions,
+  // or the parent label (e.g. "Transport") for old transactions without a sub selection.
+  // Either way, we walk up to the parent by checking both parent label AND all sub labels.
   const spentByParent = useMemo(() => {
     const map: Record<string, number> = {}
     for (const tx of monthTxs) {
@@ -450,6 +448,9 @@ export default function BudgetScreen() {
   }, [monthTxs, expenseCategories, subcategories])
 
   // ── Spent per subcategory ──────────────────────────────────────────────────
+  // tx.category is now the subcategory label — direct lowercase key match.
+  // Old transactions (stored as parent label) won't match any sub name,
+  // so they only appear in spentByParent, never double-counted here.
   const spentBySub = useMemo(() => {
     const map: Record<string, number> = {}
     for (const tx of monthTxs) {
@@ -614,8 +615,6 @@ export default function BudgetScreen() {
             {expenseCategories.map((cat, ci) => {
               const subs        = (subcategories[cat.id] ?? []) as Subcategory[]
               const parentSpent = spentByParent[cat.label] ?? 0
-
-              // ── FIXED: parentBudget = sum of all subcategory budgets under this parent ──
               const parentBudget = subs.reduce((sum, sub) => sum + (getBudget(sub.label) ?? 0), 0)
 
               return (
