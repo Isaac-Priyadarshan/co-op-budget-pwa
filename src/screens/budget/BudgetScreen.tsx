@@ -103,7 +103,6 @@ function BudgetSheet({
   onClose: () => void
   onSave: (label: string, amount: number) => Promise<void>
 }) {
-  const [label,  setLabel]  = useState(initialLabel  ?? '')
   const [amount, setAmount] = useState(initialBudget ? String(initialBudget) : '')
   const [saving, setSaving] = useState(false)
   const [err,    setErr]    = useState('')
@@ -111,17 +110,16 @@ function BudgetSheet({
 
   useEffect(() => {
     if (open) {
-      setLabel(initialLabel  ?? '')
       setAmount(initialBudget ? String(initialBudget) : '')
       setErr('')
     }
-  }, [open, initialLabel, initialBudget])
+  }, [open, initialBudget])
 
   const handleSave = async () => {
-    if (!label.trim())                { setErr('Enter a category name'); return }
-    if (!amount || Number(amount) < 0){ setErr('Enter a valid amount');  return }
+    if (!initialLabel?.trim())        { setErr('No category selected');   return }
+    if (!amount || Number(amount) < 0){ setErr('Enter a valid amount');   return }
     setSaving(true); setErr('')
-    try   { await onSave(label.trim(), Number(amount)) }
+    try   { await onSave(initialLabel.trim(), Number(amount)) }
     catch { setErr('Failed to save. Try again.') }
     finally { setSaving(false) }
   }
@@ -130,6 +128,15 @@ function BudgetSheet({
     width: '100%', padding: '13px 14px', borderRadius: 14,
     background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
     color: '#f5f7ff', fontSize: 15, fontWeight: 500, outline: 'none', WebkitAppearance: 'none',
+  }
+
+  const readOnlyStyle: React.CSSProperties = {
+    ...inputStyle,
+    background: 'rgba(255,255,255,0.03)',
+    border: `1px solid ${col}28`,
+    color: 'rgba(255,255,255,0.45)',
+    cursor: 'default',
+    userSelect: 'none',
   }
 
   return (
@@ -153,12 +160,24 @@ function BudgetSheet({
             <p style={{ fontSize: 17, fontWeight: 800, color: '#f5f7ff', marginBottom: 24 }}>Edit Budget</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block' }}>Category / Subcategory</label>
-                <input value={label} onChange={e => setLabel(e.target.value)} placeholder="e.g. Food, Rent…" style={inputStyle} />
+                <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block' }}>
+                  Subcategory
+                </label>
+                {/* Read-only display — subcategory name cannot be edited */}
+                <div style={readOnlyStyle}>
+                  {initialLabel ?? '—'}
+                </div>
               </div>
               <div>
                 <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', marginBottom: 6, display: 'block' }}>Budget Amount (₹)</label>
-                <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" style={inputStyle} />
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  placeholder="0"
+                  style={inputStyle}
+                />
               </div>
               {err && <p style={{ fontSize: 13, color: '#F87171', textAlign: 'center' }}>{err}</p>}
               <motion.button whileTap={{ scale: 0.97 }} onClick={handleSave} disabled={saving}
