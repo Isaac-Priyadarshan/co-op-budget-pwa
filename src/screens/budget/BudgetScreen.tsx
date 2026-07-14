@@ -394,10 +394,10 @@ export default function BudgetScreen() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {expenseCategories.map((cat, ci) => {
-              const subs       = (subcategories[cat.id] ?? []) as Subcategory[]
-              const parentBudget = getParentTotal(cat.label, subs.map(s => s.label))
+              const subs         = (subcategories[cat.id] ?? []) as Subcategory[]
+              const parentBudget = getParentTotal(cat.label)
               const parentSpent  = spentByParent[cat.label] ?? 0
-              const accent = cat.accent ?? '#FBBF24'
+              const accent       = cat.accent ?? '#FBBF24'
 
               return (
                 <motion.div key={cat.id}
@@ -459,6 +459,7 @@ export default function BudgetScreen() {
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                               </svg>
                             </div>
+
                           </div>
                           {subBudget > 0 && <BudgetBar spent={subSpent} planned={subBudget} accent={accent} />}
                         </div>
