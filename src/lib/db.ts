@@ -50,9 +50,9 @@ function uuidv4(): string {
 }
 
 // ── Atomic wallet balance helper ─────────────────────────────────────────────
-// Bug #3 fix: uses the Supabase RPC `adjust_wallet_balance` which executes
+// Uses the Supabase RPC `adjust_wallet_balance` which executes
 // UPDATE wallets SET balance = balance + delta WHERE id = ?  in a single
-// atomic statement. No more read-then-write race condition.
+// atomic statement — no read-then-write race condition.
 async function atomicAdjustBalance(walletId: string, delta: number): Promise<void> {
   const { error } = await supabase.rpc('adjust_wallet_balance', {
     p_wallet_id: walletId,
@@ -93,8 +93,8 @@ export async function insertTransaction(tx: NewTransaction): Promise<Transaction
   return data as Transaction
 }
 
-// Bug #4 fix: insertTransferPair now atomically adjusts both wallet balances.
-// Bug #2 fix: transfer_direction column ('out' / 'in') is stored on each leg
+// insertTransferPair: atomically adjusts both wallet balances.
+// transfer_direction column ('out' / 'in') is stored on each leg
 // so deletion never parses arrow characters from the user's note string.
 export async function insertTransferPair(
   fromId: string,
@@ -135,8 +135,7 @@ export async function insertTransferPair(
   const { error } = await supabase.from('transactions').insert([outRow, inRow])
   if (error) throw new Error(error.message)
 
-  // Bug #4 fix: adjust both wallet balances after the rows are committed.
-  // Deduct from source, add to destination.
+  // Adjust both wallet balances after the rows are committed.
   await Promise.all([
     atomicAdjustBalance(fromId, -amount),
     atomicAdjustBalance(toId,    amount),
@@ -144,8 +143,8 @@ export async function insertTransferPair(
 }
 
 // deleteTransaction — fully hardened:
-// Bug #2 fix: uses transfer_direction column (not arrow chars) to tell legs apart.
-// Bug #3 fix: all balance adjustments go through atomicAdjustBalance (RPC).
+// Uses transfer_direction column (not arrow chars) to tell legs apart.
+// All balance adjustments go through atomicAdjustBalance (RPC).
 export async function deleteTransaction(id: string): Promise<void> {
   const { data: row, error: fetchErr } = await supabase
     .from('transactions')
@@ -167,7 +166,6 @@ export async function deleteTransaction(id: string): Promise<void> {
   const pairId = typedRow.transfer_pair_id ?? null
 
   if (typedRow.type === 'transfer' && pairId) {
-    // Fetch both legs of the transfer pair
     const { data: legs, error: legsErr } = await supabase
       .from('transactions')
       .select('id, wallet_id, amount, transfer_direction')
@@ -181,18 +179,10 @@ export async function deleteTransaction(id: string): Promise<void> {
       transfer_direction: 'in' | 'out' | null
     }[]
 
-    // Bug #2 fix: identify legs by transfer_direction, never by description string.
-    // Fall back to description arrow chars only for legacy rows that pre-date
-    // this migration (transfer_direction will be null on those rows).
-    const outLeg = rows.find(r =>
-      r.transfer_direction === 'out',
-    )
-    const inLeg = rows.find(r =>
-      r.transfer_direction === 'in',
-    )
+    const outLeg = rows.find(r => r.transfer_direction === 'out')
+    const inLeg  = rows.find(r => r.transfer_direction === 'in')
 
     const balanceOps: Promise<void>[] = []
-    // Reversing a transfer: restore fromWallet (+amount), drain toWallet (-amount)
     if (outLeg?.wallet_id) balanceOps.push(atomicAdjustBalance(outLeg.wallet_id,  outLeg.amount))
     if (inLeg?.wallet_id)  balanceOps.push(atomicAdjustBalance(inLeg.wallet_id,  -inLeg.amount))
     await Promise.all(balanceOps)
@@ -207,7 +197,6 @@ export async function deleteTransaction(id: string): Promise<void> {
 
   // Income / expense: reverse the wallet impact before deleting
   if (typedRow.wallet_id) {
-    // Reversing income means subtracting; reversing expense means adding back.
     const delta = typedRow.type === 'expense' ? typedRow.amount : -typedRow.amount
     await atomicAdjustBalance(typedRow.wallet_id, delta)
   }
@@ -270,15 +259,12 @@ export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
   return data as WalletEntry
 }
 
-// Public wrapper kept for backwards compat — delegates to atomic RPC.
-// Bug #3 fix: no more read-then-write.
+// Public wrapper — delegates to atomic RPC. Kept for callers in DataContext.
 export async function adjustWalletBalance(walletId: string, delta: number): Promise<void> {
   return atomicAdjustBalance(walletId, delta)
 }
-
-export async function updateWalletBalance(walletId: string, delta: number): Promise<void> {
-  return atomicAdjustBalance(walletId, delta)
-}
+// LEFTOVER-02 REMOVED: updateWalletBalance was a dead duplicate of adjustWalletBalance.
+// It was never imported anywhere. Removed to keep the public API surface clean.
 
 export async function deleteWallet(id: string): Promise<void> {
   const { error } = await supabase.from('wallets').delete().eq('id', id)
@@ -327,7 +313,7 @@ export interface AssetPatch {
   last_synced?:   string | null
 }
 
-// Bug #8 fix: ORDER BY sort_order first so drag-reorder persists across fetches.
+// ORDER BY sort_order first so drag-reorder persists across fetches.
 // Falls back to created_at DESC for rows where sort_order is not yet set.
 export async function fetchAssets(): Promise<AssetEntry[]> {
   const { data, error } = await supabase
@@ -439,16 +425,19 @@ export async function deleteLoan(id: string): Promise<void> {
 // RECURRING PAYMENTS MODULE
 // ════════════════════════════════════════════════════════════════════════════
 
+// BUG-03 FIX: Added 'quarterly' to both RecurringEntry and NewRecurring
+// The Supabase schema supports this enum value but TypeScript was missing it,
+// causing type errors when quarterly records were fetched from the database.
 export interface RecurringEntry {
   id: string; label: string; amount: number
-  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
   next_due: string | null; owner: 'Isaac' | 'Jenifa' | 'Both'
   active: boolean; notes: string | null; created_at: string
 }
 
 export interface NewRecurring {
   label: string; amount: number
-  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
   next_due?: string | null; owner: 'Isaac' | 'Jenifa' | 'Both'
   notes?: string | null
 }

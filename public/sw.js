@@ -1,15 +1,22 @@
-const CACHE = 'ij-budget-v1'
-const OFFLINE_URL = '/'
+// LEFTOVER-04 FIX: Service worker now pre-caches and serves a branded
+// offline.html fallback page instead of silently returning nothing.
+// The offline page auto-reloads when connectivity is restored (window.online event).
+
+const CACHE = 'co-op-budget-v2'
+const OFFLINE_PAGE = '/offline.html'
 
 const PRECACHE = [
   '/',
+  '/offline.html',
   '/manifest.webmanifest',
   '/icons/favicon.svg',
 ]
 
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(PRECACHE)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then(cache => cache.addAll(PRECACHE))
+      .then(() => self.skipWaiting())
   )
 })
 
@@ -25,7 +32,7 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return
   const url = new URL(event.request.url)
 
-  // Skip Supabase API calls — always go network
+  // Skip Supabase API calls — always go network-first
   if (url.hostname.includes('supabase')) return
 
   event.respondWith(
@@ -37,9 +44,9 @@ self.addEventListener('fetch', event => {
         }
         return response
       }).catch(() => {
-        // Offline fallback: return cached index.html for navigation
+        // Offline fallback: return branded offline page for navigation requests
         if (event.request.mode === 'navigate') {
-          return caches.match(OFFLINE_URL)
+          return caches.match(OFFLINE_PAGE)
         }
       })
       return cached || networkFetch

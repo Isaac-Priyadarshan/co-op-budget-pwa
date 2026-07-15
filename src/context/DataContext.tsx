@@ -47,7 +47,7 @@ interface DataContextValue {
     glow: string,
     bg: string,
   ) => Promise<{ error: string | null }>
-  // Bug #7 fix: interface now matches implementation — type param removed.
+  // BUG-07 (prev session): type param removed — interface matches implementation.
   deleteCategory: (id: string) => Promise<{ error: string | null }>
   updateCategory: (
     id: string,
@@ -58,7 +58,11 @@ interface DataContextValue {
     bg: string,
   ) => Promise<{ error: string | null }>
   addSubcategory: (categoryId: string, label: string) => Promise<{ error: string | null }>
-  deleteSubcategory: (subcategoryId: string, categoryId: string) => Promise<{ error: string | null }>
+  // BUG-01 FIX: Removed phantom categoryId param from interface.
+  // The DB delete only needs the subcategoryId (PK). The categoryId was never
+  // used in the implementation and was silently dropped — the interface was a lie.
+  // All callers must now pass only (subcategoryId: string).
+  deleteSubcategory: (subcategoryId: string) => Promise<{ error: string | null }>
   updateSubcategory: (subcategoryId: string, label: string) => Promise<{ error: string | null }>
   reorderCategories: (
     type: 'expense' | 'income',
@@ -71,7 +75,7 @@ interface DataContextValue {
   transactions: Transaction[]
   transactionsLoading: boolean
   transactionsError: string | null
-  // Bug #1 fix: addTransaction now returns { error: string | null } so callers
+  // addTransaction returns { error: string | null } so callers
   // can surface a visible alert if the wallet balance adjustment fails.
   addTransaction: (tx: NewTransaction) => Promise<{ error: string | null }>
   removeTransaction: (id: string) => Promise<void>
@@ -198,7 +202,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         payload => {
           const newRow = payload.new as Transaction
           if (!newRow?.id) return
-          // Bug #5 fix: guard against resurrected transfer rows.
+          // Guard against resurrected transfer rows.
           // If the ID is currently mid-delete, discard this realtime INSERT event.
           if (deletingIds.current.has(newRow.id)) return
           setTransactions(prev => {
@@ -253,7 +257,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     ) => {
       const existing = type === 'expense' ? expenseCategories : incomeCategories
 
-      // Bug #6 fix: use max existing sort_order + 1 instead of array length.
+      // Use max existing sort_order + 1 instead of array length.
       // If you delete index 2 of 5, next item gets max(0,1,3,4)+1 = 5, not 4
       // (which would collide with the existing item at sort_order 4).
       const maxSortOrder = existing.reduce(
@@ -270,7 +274,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [expenseCategories, incomeCategories],
   )
 
-  // Bug #7 fix: removed unused `type` param from both interface and implementation.
   const deleteCategory = useCallback(async (id: string) => {
     await supabase.from('subcategories').delete().eq('category_id', id)
     const { error } = await supabase.from('categories').delete().eq('id', id)
@@ -292,7 +295,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     async (categoryId: string, label: string) => {
       const existing = subcategories[categoryId] ?? []
 
-      // Bug #6 fix (subcategories): same max+1 approach.
       const maxSortOrder = existing.reduce(
         (max, s) => Math.max(max, s.sort_order ?? -1),
         -1,
@@ -307,6 +309,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [subcategories],
   )
 
+  // BUG-01 FIX: Implementation already only accepted subcategoryId — the interface
+  // now matches. Single param, single responsibility. categoryId was phantom.
   const deleteSubcategory = useCallback(async (subcategoryId: string) => {
     const { error } = await supabase.from('subcategories').delete().eq('id', subcategoryId)
     return { error: error ? error.message : null }
@@ -380,11 +384,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   //   income  → delta = +amount  (wallet balance increases)
   //   expense → delta = −amount  (wallet balance decreases)
   //
-  // Bug #1 fix: no longer swallows the balance failure silently.
-  // Returns { error: string | null } so the calling screen can render
-  // a visible toast/alert if the balance adjustment fails.
-  // The transaction row is always committed; only the balance sync can fail.
+  // BUG-05 FIX: Transfer type now returns an explicit error immediately.
+  // Transfers must always go through insertTransferPair (which handles both
+  // legs + both balance adjustments atomically). Routing a transfer through
+  // addTransaction would silently apply the wrong delta (−amount as if expense).
   const addTransaction = useCallback(async (tx: NewTransaction): Promise<{ error: string | null }> => {
+    // BUG-05 FIX: Guard against transfer type being routed through this function.
+    if (tx.type === 'transfer') {
+      return { error: 'Use insertTransferPair() for transfer transactions. addTransaction() does not support transfers.' }
+    }
+
     await insertTransaction(tx)
 
     if (tx.wallet_id) {
