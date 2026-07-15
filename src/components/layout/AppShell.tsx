@@ -102,7 +102,12 @@ export function AppShell() {
         zIndex: 0,
       }} />
 
-      {/* Scroll area — no safe-area padding, fills full screen */}
+      {/*
+       * Scroll area.
+       * paddingTop: env(safe-area-inset-top) — KEPT.
+       * Prevents screen content from rendering behind the iPhone
+       * status bar (time / battery / signal indicators).
+       */}
       <div
         className="scroll-area"
         style={{
@@ -111,6 +116,7 @@ export function AppShell() {
           left: 0,
           right: 0,
           bottom: 0,
+          paddingTop: 'env(safe-area-inset-top)',
           overflowY: isSelfScroll ? 'hidden' : 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
@@ -137,8 +143,9 @@ export function AppShell() {
 
       {/*
        * NAV WRAPPER — flush at absolute bottom of screen.
-       * No safe-area padding. No JS measurement.
-       * bottom: 0 means the nav sits at the very last pixel of the viewport.
+       * No bottom safe-area padding.
+       * The nav glass sits at bottom: 0, the iPhone home indicator
+       * overlaps it naturally — this is the intended behaviour.
        */}
       <div
         style={{
