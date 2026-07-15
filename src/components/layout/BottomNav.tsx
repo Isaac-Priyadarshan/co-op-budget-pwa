@@ -31,7 +31,6 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeScreen])
 
-  // Keep --nav-h in sync for any screen that needs it
   useLayoutEffect(() => {
     const el = navRef.current
     if (!el) return
@@ -78,21 +77,22 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       style={{
-        // Floating pill shape
-        borderRadius: 28,
-        background: 'rgba(14, 12, 6, 0.82)',
+        borderRadius: '24px 24px 0 0',
+        background: 'rgba(14, 12, 6, 0.88)',
         backdropFilter: 'blur(32px) saturate(180%)',
         WebkitBackdropFilter: 'blur(32px) saturate(180%)',
         border: '1px solid rgba(251,191,36,0.18)',
+        borderBottom: 'none',
         boxShadow: [
-          '0 8px 32px rgba(0,0,0,0.55)',
-          '0 2px 8px rgba(0,0,0,0.4)',
+          '0 -4px 24px rgba(0,0,0,0.5)',
+          '0 -1px 0 rgba(251,191,36,0.10)',
           '0 0 0 0.5px rgba(255,255,255,0.04) inset',
-          '0 1px 0 rgba(251,191,36,0.08) inset',
         ].join(', '),
         overflow: 'hidden',
         userSelect: 'none',
         touchAction: 'pan-y',
+        // No bottom padding — flush to screen edge
+        paddingBottom: 0,
       }}
     >
       <AnimatePresence mode="wait" custom={swipeDir}>

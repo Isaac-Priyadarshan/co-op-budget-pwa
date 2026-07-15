@@ -71,11 +71,8 @@ export function AppShell() {
       style={{
         position: 'fixed',
         inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
         background: '#000000',
         overflow: 'hidden',
-        paddingTop: 'env(safe-area-inset-top)',
       }}
     >
       {/* Global gold top-glow */}
@@ -134,8 +131,7 @@ export function AppShell() {
         </AnimatePresence>
       </div>
 
-      {/* Floating nav — pinned flush to the very bottom */}
-      {/* Safe-area padding is handled INSIDE BottomNav via paddingBottom */}
+      {/* Floating nav — absolute bottom, zero safe-area, flush to screen edge */}
       <div
         style={{
           position: 'absolute',
@@ -146,7 +142,7 @@ export function AppShell() {
           width: 'calc(100% - 24px)',
           maxWidth: 480,
           pointerEvents: 'auto',
-          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingBottom: 0,
         }}
       >
         <BottomNav
