@@ -38,6 +38,9 @@ const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
 // Screens that self-manage their own internal scroll zones.
 const SELF_SCROLL_SCREENS: ScreenId[] = ['asset']
 
+// Height of floating nav + its bottom margin — used to pad scrollable content
+const NAV_FLOAT_CLEARANCE = 100
+
 export function AppShell() {
   const { activeUser } = useUser()
   const location = useLocation()
@@ -110,16 +113,15 @@ export function AppShell() {
         }}
       />
 
-      {/* Scroll area */}
+      {/* Full-height scroll area — nav floats on top */}
       <div
         className="scroll-area"
         style={{
-          flex: 1,
-          height: 0,
+          position: 'absolute',
+          inset: 0,
           overflowY: isSelfScroll ? 'hidden' : 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
-          position: 'relative',
           zIndex: 1,
         }}
       >
@@ -131,7 +133,9 @@ export function AppShell() {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              height: '100%',
+              minHeight: '100%',
+              // Bottom padding so last content clears the floating nav
+              paddingBottom: NAV_FLOAT_CLEARANCE,
               overflow: isSelfScroll ? 'hidden' : 'visible',
             }}
           >
@@ -140,11 +144,24 @@ export function AppShell() {
         </AnimatePresence>
       </div>
 
-      {/* Bottom navigation */}
-      <BottomNav
-        activeScreen={activeScreen}
-        onNavigate={setActiveScreen}
-      />
+      {/* Floating nav — sits above content, not in document flow */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: `calc(16px + env(safe-area-inset-bottom))`,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          width: 'calc(100% - 32px)',
+          maxWidth: 480,
+          pointerEvents: 'auto',
+        }}
+      >
+        <BottomNav
+          activeScreen={activeScreen}
+          onNavigate={setActiveScreen}
+        />
+      </div>
     </div>
   )
 }
