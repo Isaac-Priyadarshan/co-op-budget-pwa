@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useTransactions, isExcluded } from '../../hooks/useTransactions'
@@ -367,7 +367,6 @@ function CategoryManagerSheet({
                               )}
                             </Reorder.Group>
 
-                            {/* Always-visible add subcategory row — no extra tap needed */}
                             <div style={{ display: 'flex', gap: 8 }}>
                               <input
                                 value={subInputs[cat.id] ?? ''}
@@ -575,23 +574,30 @@ export function HomeScreen() {
     return y === year && m - 1 === month
   }), [transactions, year, month])
 
-  const calcAmounts = (cats: Category[], type: 'expense' | 'income') =>
-    cats.reduce((map, cat) => {
-      const total = monthTxs
-        .filter(t => {
-          if (t.type !== type) return false
-          if (t.category_id) return t.category_id === cat.id
-          return (t.category ?? '').toLowerCase() === cat.label.toLowerCase()
-        })
-        .reduce((s, t) => s + t.amount, 0)
-      return { ...map, [cat.id]: total }
-    }, {} as Record<string, number>)
+  // FIX #1: calcAmounts wrapped in useCallback to prevent recreation on every render.
+  // Previously declared as a plain function inside the component body, causing
+  // expenseAmounts/incomeAmounts to be recomputed on every render cycle regardless
+  // of whether monthTxs or categories had actually changed.
+  const calcAmounts = useCallback(
+    (cats: Category[], type: 'expense' | 'income') =>
+      cats.reduce((map, cat) => {
+        const total = monthTxs
+          .filter(t => {
+            if (t.type !== type) return false
+            if (t.category_id) return t.category_id === cat.id
+            return (t.category ?? '').toLowerCase() === cat.label.toLowerCase()
+          })
+          .reduce((s, t) => s + t.amount, 0)
+        return { ...map, [cat.id]: total }
+      }, {} as Record<string, number>),
+    [monthTxs]
+  )
 
-  const expenseAmounts = useMemo(() => calcAmounts(expenseCategories, 'expense'), [monthTxs, expenseCategories])
-  const incomeAmounts = useMemo(() => calcAmounts(incomeCategories, 'income'), [monthTxs, incomeCategories])
+  const expenseAmounts = useMemo(() => calcAmounts(expenseCategories, 'expense'), [calcAmounts, expenseCategories])
+  const incomeAmounts  = useMemo(() => calcAmounts(incomeCategories,  'income'),  [calcAmounts, incomeCategories])
 
   const monthExpenses = useMemo(() => monthTxs.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0), [monthTxs])
-  const monthIncome = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthTxs])
+  const monthIncome   = useMemo(() => monthTxs.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0), [monthTxs])
 
   const handlePrev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const handleNext = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }

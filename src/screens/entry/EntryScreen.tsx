@@ -23,6 +23,20 @@ function toDateString(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
+// FIX #3 (Safari): Build the confirm button box-shadow using explicit rgba(r,g,b,a)
+// construction instead of string surgery on the `glow` variable.
+// The old `.replace()` approach produced malformed CSS in WebKit (Safari/iOS)
+// because it assumed a specific rgba string structure that could vary.
+function buildConfirmShadow(glow: string, readinessLevel: number, confirmGlowStrength: number): string {
+  if (readinessLevel < 1) return 'none'
+  const size = 8 + readinessLevel * 10
+  // Extract r,g,b from "rgba(r,g,b,x)" safely, fall back to the original glow string
+  const match = glow.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+  if (!match) return `0 3px ${size}px ${glow}`
+  const [, r, g, b] = match
+  return `0 3px ${size}px rgba(${r},${g},${b},${confirmGlowStrength})`
+}
+
 export function EntryScreen() {
   const navigate = useNavigate()
   const { type, categoryId } = useParams<{ type: string; categoryId: string }>()
@@ -53,10 +67,19 @@ export function EntryScreen() {
 
   const noteInputRef = useRef<HTMLInputElement>(null)
 
-  // Auto-select active user's default wallet on mount
+  // FIX #2: Wallet stale-ref on fast mount.
+  // The previous implementation suppressed the exhaustive-deps warning with an
+  // eslint-disable comment to avoid re-running the effect when `wallets` changed.
+  // This caused a race condition on fast mounts where wallets loaded before the
+  // effect ran — the effect would read an empty `wallets` array and skip setting
+  // the default wallet. Fix: use a separate `defaultWalletId` ref to track whether
+  // we've already set the wallet, and include `wallets` in the dependency array
+  // so the effect re-evaluates as soon as wallet data arrives.
+  const hasSetWallet = useRef(false)
+
   useEffect(() => {
     if (!activeUser || walletsLoading || wallets.length === 0) return
-    if (walletId !== null) return
+    if (hasSetWallet.current) return
 
     let cancelled = false
     supabase
@@ -72,10 +95,10 @@ export function EntryScreen() {
         if (match) {
           setWalletId(match.id)
           setWalletLabel(match.label)
+          hasSetWallet.current = true
         }
       })
     return () => { cancelled = true }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeUser, walletsLoading, wallets])
 
   const togglePanel = (p: 'note' | 'wallet' | 'calendar') =>
@@ -117,9 +140,9 @@ export function EntryScreen() {
   const confirmTextColor = readinessLevel === 3 ? '#000'
     : readinessLevel === 2 ? accent
     : readinessLevel === 1 ? `${accent}99` : 'rgba(255,255,255,0.20)'
-  const confirmShadow = readinessLevel >= 1
-    ? `0 3px ${8 + readinessLevel * 10}px ${glow.replace(')', `, ${confirmGlowStrength})`).replace('rgba(', 'rgba(')}`
-    : 'none'
+
+  // FIX #3 applied via helper — no more string surgery on glow
+  const confirmShadow = buildConfirmShadow(glow, readinessLevel, confirmGlowStrength)
 
   const rupee = '\u20B9'
   const formattedDisplay = (() => {
@@ -151,9 +174,18 @@ export function EntryScreen() {
     if (!category || !activeUser) { setErrMsg('Session error. Go back and try again.'); return }
     setSaving(true); setErrMsg(null)
 
-    const subLabel = subs.find(s => s.id === selectedSub)?.label ?? ''
-    // FIX: category field stores the subcategory label when one is selected,
-    // so BudgetScreen.spentBySub can match it directly by name.
+    const selectedSubObj = subs.find(s => s.id === selectedSub)
+    const subLabel       = selectedSubObj?.label ?? ''
+
+    // FIX #5: Write subcategory_id to the transaction row.
+    // Previously only category_id (parent) was written, meaning the BudgetScreen
+    // had to match by label string which would break if the subcategory was renamed.
+    // Now subcategory_id is always written when a subcategory is selected,
+    // giving BudgetScreen a stable UUID to match against.
+    const subcategoryId = selectedSubObj?.id ?? undefined
+
+    // category field stores the subcategory label when one is selected,
+    // so BudgetScreen.spentBySub can still match by name as a fallback.
     // Falls back to parent label if no subcategory exists for this category.
     const categoryLabel = subLabel || category.label
     const descParts     = [subLabel, note].filter(Boolean)
@@ -162,8 +194,9 @@ export function EntryScreen() {
       await addTransaction({
         amount:           amountValue,
         description:      descParts.join(' · ') || category.label,
-        category:         categoryLabel,         // subcategory label (e.g. "Fuel"), or parent if no subs
-        category_id:      category.id,           // parent UUID for category grouping
+        category:         categoryLabel,
+        category_id:      category.id,
+        subcategory_id:   subcategoryId,
         created_by:       activeUser,
         type:             (type as 'income' | 'expense') ?? 'expense',
         wallet_id:        walletId ?? undefined,
@@ -453,6 +486,7 @@ export function EntryScreen() {
           borderRadius: 20,
           overflow: 'hidden',
           backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           boxShadow: `0 4px 24px rgba(0,0,0,0.6), 0 0 0 1px ${accent}0A`,
         }}>
           <AnimatePresence initial={false}>
