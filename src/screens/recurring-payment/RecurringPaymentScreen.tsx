@@ -6,20 +6,38 @@ import { RecurringSheet } from '../../components/shared/RecurringSheet'
 import { ConfirmSheet } from '../../components/shared/ConfirmSheet'
 import { formatINR } from '../../utils/format'
 
+// BUG-03 / LEFTOVER-01 FIX: 'quarterly' added to both FREQ_LABEL and FREQ_COLOR.
+// Previously, records fetched from Supabase with frequency='quarterly' rendered
+// a blank badge and no color accent — both maps silently returned undefined.
 const FREQ_LABEL: Record<string, string> = {
-  daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly',
+  daily:     'Daily',
+  weekly:    'Weekly',
+  monthly:   'Monthly',
+  quarterly: 'Quarterly',
+  yearly:    'Yearly',
 }
 
 const FREQ_COLOR: Record<string, { bg: string; text: string }> = {
-  daily:   { bg: 'rgba(96,165,250,0.15)',  text: '#93c5fd' },
-  weekly:  { bg: 'rgba(167,139,250,0.15)', text: '#c4b5fd' },
-  monthly: { bg: 'rgba(251,191,36,0.15)',  text: '#fcd34d' },
-  yearly:  { bg: 'rgba(52,211,153,0.15)',  text: '#6ee7b7' },
+  daily:     { bg: 'rgba(96,165,250,0.15)',   text: '#93c5fd' },
+  weekly:    { bg: 'rgba(167,139,250,0.15)',  text: '#c4b5fd' },
+  monthly:   { bg: 'rgba(251,191,36,0.15)',   text: '#fcd34d' },
+  quarterly: { bg: 'rgba(45,212,191,0.15)',   text: '#5eead4' },
+  yearly:    { bg: 'rgba(52,211,153,0.15)',   text: '#6ee7b7' },
 }
 
+// LEFTOVER-06 FIX: bare new Date('YYYY-MM-DD') parses as UTC midnight.
+// In IST (UTC+5:30) that rolls back to the previous calendar day, e.g.
+// '2026-07-15' → shows '14 Jul 26' on an Indian device.
+// Fix: split the ISO string and construct Date with explicit local-time parts.
 function formatNextDue(dateStr: string | null): string {
   if (!dateStr) return ''
-  const d = new Date(dateStr)
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return dateStr
+  const d = new Date(
+    parseInt(parts[0], 10),
+    parseInt(parts[1], 10) - 1,  // month is 0-indexed
+    parseInt(parts[2], 10)
+  )
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' })
 }
 

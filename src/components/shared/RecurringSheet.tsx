@@ -3,7 +3,21 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { NewRecurring } from '../../lib/db'
 
 const CATEGORIES = ['Streaming', 'Utilities', 'Insurance', 'Rent', 'Subscriptions', 'EMI', 'Phone', 'Internet', 'Other']
-const FREQUENCIES: Array<'daily' | 'weekly' | 'monthly' | 'yearly'> = ['daily', 'weekly', 'monthly', 'yearly']
+
+// LEFTOVER-04 FIX: 'quarterly' added to the frequency options array and the type.
+// Previously the UI only offered daily/weekly/monthly/yearly. A user could never
+// create a quarterly payment from the UI even though the DB schema and db.ts
+// fully support it. Type widened throughout to include 'quarterly'.
+type Frequency = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+const FREQUENCIES: Frequency[] = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly']
+
+const FREQ_LABELS: Record<Frequency, string> = {
+  daily:     'Daily',
+  weekly:    'Weekly',
+  monthly:   'Monthly',
+  quarterly: 'Quarterly',
+  yearly:    'Yearly',
+}
 
 interface Props { open: boolean; onClose: () => void; onSave: (r: NewRecurring) => Promise<void> }
 
@@ -11,7 +25,7 @@ export function RecurringSheet({ open, onClose, onSave }: Props) {
   const [label, setLabel]         = useState('')
   const [amount, setAmount]       = useState('')
   const [_category, setCategory] = useState('')
-  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly')
+  const [frequency, setFrequency] = useState<Frequency>('monthly')
   const [nextDue, setNextDue]     = useState('')
   const [notes, setNotes]         = useState('')
   const [saving, setSaving]       = useState(false)
@@ -34,7 +48,7 @@ export function RecurringSheet({ open, onClose, onSave }: Props) {
         amount: parseFloat(Number(amount).toFixed(2)),
         frequency,
         next_due: nextDue,
-        owner: 'Both',          // always Both — field removed from UI
+        owner: 'Both',
         notes: notes.trim(),
       })
       reset(); onClose()
@@ -111,8 +125,8 @@ export function RecurringSheet({ open, onClose, onSave }: Props) {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
               {FREQUENCIES.map(f => (
                 <button key={f} onClick={() => setFrequency(f)}
-                  style={{ padding: '7px 16px', borderRadius: 100, border: frequency === f ? '1px solid rgba(165,180,252,0.5)' : '1px solid rgba(255,255,255,0.08)', background: frequency === f ? 'rgba(165,180,252,0.15)' : 'rgba(255,255,255,0.04)', color: frequency === f ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: frequency === f ? 600 : 400, cursor: 'pointer', textTransform: 'capitalize', transition: 'all 0.14s ease' }}
-                >{f}</button>
+                  style={{ padding: '7px 16px', borderRadius: 100, border: frequency === f ? '1px solid rgba(165,180,252,0.5)' : '1px solid rgba(255,255,255,0.08)', background: frequency === f ? 'rgba(165,180,252,0.15)' : 'rgba(255,255,255,0.04)', color: frequency === f ? '#a5b4fc' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: frequency === f ? 600 : 400, cursor: 'pointer', transition: 'all 0.14s ease' }}
+                >{FREQ_LABELS[f]}</button>
               ))}
             </div>
 
