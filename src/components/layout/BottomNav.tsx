@@ -91,8 +91,24 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
         overflow: 'hidden',
         userSelect: 'none',
         touchAction: 'pan-y',
-        // No bottom padding — flush to screen edge
-        paddingBottom: 0,
+        /*
+         * ─── FIX: env(safe-area-inset-bottom) ─────────────────────────────────
+         * On iPhone X and later, the home indicator zone is
+         * env(safe-area-inset-bottom) tall (~34px on most models).
+         *
+         * Previously paddingBottom was 0, which left a gap between
+         * the bottom of the nav content and the physical screen edge.
+         * iOS fills that gap with whatever is behind the element —
+         * the shell div’s background (#000000) — which shows as a
+         * black bar on first paint before the nav has measured itself.
+         *
+         * Setting paddingBottom: env(safe-area-inset-bottom) makes the
+         * nav’s own background (the dark glass) extend into and fill
+         * the home indicator zone on every paint, including the very
+         * first frame. No flash, no black bar, no race condition.
+         * ────────────────────────────────────────────────────────────
+         */
+        paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
       <AnimatePresence mode="wait" custom={swipeDir}>
