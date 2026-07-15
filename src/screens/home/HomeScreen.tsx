@@ -574,10 +574,6 @@ export function HomeScreen() {
     return y === year && m - 1 === month
   }), [transactions, year, month])
 
-  // FIX #1: calcAmounts wrapped in useCallback to prevent recreation on every render.
-  // Previously declared as a plain function inside the component body, causing
-  // expenseAmounts/incomeAmounts to be recomputed on every render cycle regardless
-  // of whether monthTxs or categories had actually changed.
   const calcAmounts = useCallback(
     (cats: Category[], type: 'expense' | 'income') =>
       cats.reduce((map, cat) => {
@@ -630,7 +626,7 @@ export function HomeScreen() {
             subcategories={subcategories}
             onClose={() => setManagerOpen(null)}
             onAddCategory={(label, icon, accent, glow, bg) => addCategory(managerOpen, label, icon, accent, glow, bg)}
-            onDeleteCategory={id => deleteCategory(id, managerOpen)}
+            onDeleteCategory={id => deleteCategory(id)}
             onUpdateCategory={(id, label, icon, accent, glow, bg) => updateCategory(id, label, icon, accent, glow, bg)}
             onAddSubcategory={addSubcategory}
             onDeleteSubcategory={deleteSubcategory}
