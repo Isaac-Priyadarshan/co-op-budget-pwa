@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useWallets } from '../../hooks/useWallets'
 import { useUser } from '../../context/UserContext'
-import { updateWalletBalance, insertTransferPair } from '../../lib/db'
+import { insertTransferPair } from '../../lib/db'
 import { formatINR } from '../../utils/format'
 import type { WalletEntry } from '../../lib/db'
 
@@ -101,21 +101,14 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
     if (!amount || isNaN(amt) || amt <= 0) { setErr('Enter a valid amount greater than 0'); return }
     if (fromWallet && amt > fromWallet.balance) { setErr(`Insufficient balance in "${fromWallet.label}"`); return }
 
-    // activeUser can be null before a user is selected. Guard here so the
-    // rest of the function is safe and TypeScript is satisfied.
     if (!activeUser) { setErr('No active user. Please select Isaac or Jenifa first.'); return }
 
     try {
       setSaving(true)
 
-      const newFromBalance = parseFloat(((fromWallet?.balance ?? 0) - amt).toFixed(2))
-      const newToBalance   = parseFloat(((toWallet?.balance   ?? 0) + amt).toFixed(2))
-
-      await Promise.all([
-        updateWalletBalance(fromId, newFromBalance),
-        updateWalletBalance(toId,   newToBalance),
-      ])
-
+      // insertTransferPair inserts both transaction legs AND atomically
+      // adjusts both wallet balances via the adjust_wallet_balance RPC.
+      // No separate balance updates needed here.
       await insertTransferPair(
         fromId,
         fromWallet?.label ?? 'Unknown',
@@ -123,7 +116,7 @@ export function TransferSheet({ open, onClose }: TransferSheetProps) {
         toWallet?.label ?? 'Unknown',
         amt,
         note.trim(),
-        activeUser,           // guaranteed non-null by the guard above
+        activeUser,
       )
 
       await refresh()
