@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useUser } from '../../context/UserContext'
@@ -36,50 +36,10 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
 const SELF_SCROLL_SCREENS: ScreenId[] = ['asset']
 
-/**
- * Read the real safe-area-inset-bottom in JS.
- * CSS env() can return 0px on the very first synchronous paint of an iOS PWA
- * because the viewport geometry hasn’t been finalised yet.
- * Reading it via getComputedStyle on a live element gives the true value
- * once the browser has committed the layout — and we can use it to set
- * a hard pixel paddingBottom on the bottom bar so there’s zero reliance
- * on CSS env() timing.
- */
-function readSafeAreaBottom(): number {
-  try {
-    const el = document.createElement('div')
-    el.style.cssText =
-      'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);pointer-events:none;visibility:hidden'
-    document.body.appendChild(el)
-    const h = el.getBoundingClientRect().height
-    document.body.removeChild(el)
-    return h
-  } catch {
-    return 0
-  }
-}
-
 export function AppShell() {
   const { activeUser } = useUser()
   const location = useLocation()
   const navigate = useNavigate()
-  // JS-read safe-area value — immune to CSS env() first-paint timing bug
-  const [safeBottom, setSafeBottom] = useState(0)
-  const safeBottomRead = useRef(false)
-
-  useEffect(() => {
-    if (safeBottomRead.current) return
-    safeBottomRead.current = true
-    // Read immediately, then re-read after a short tick in case iOS
-    // hasn’t committed the viewport geometry yet on the very first mount.
-    const v1 = readSafeAreaBottom()
-    setSafeBottom(v1)
-    const t = setTimeout(() => {
-      const v2 = readSafeAreaBottom()
-      if (v2 !== v1) setSafeBottom(v2)
-    }, 80)
-    return () => clearTimeout(t)
-  }, [])
 
   const initialScreen = (): ScreenId => {
     const params = new URLSearchParams(location.search)
@@ -111,9 +71,6 @@ export function AppShell() {
       style={{
         position: 'fixed',
         inset: 0,
-        // Nav background colour — fills every pixel behind the nav from frame 0.
-        // Previously #000000 which showed as a black flash whenever the nav
-        // hadn’t yet painted its own background.
         background: 'rgb(14, 12, 6)',
         overflow: 'hidden',
       }}
@@ -145,7 +102,7 @@ export function AppShell() {
         zIndex: 0,
       }} />
 
-      {/* Scroll area */}
+      {/* Scroll area — no safe-area padding, fills full screen */}
       <div
         className="scroll-area"
         style={{
@@ -154,7 +111,6 @@ export function AppShell() {
           left: 0,
           right: 0,
           bottom: 0,
-          paddingTop: 'env(safe-area-inset-top)',
           overflowY: isSelfScroll ? 'hidden' : 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
@@ -180,21 +136,10 @@ export function AppShell() {
       </div>
 
       {/*
-       * ─── NAV WRAPPER: DEFINITIVE BOTTOM FIX ───────────────────────────────
-       * Previous design: width: calc(100%-24px), centered with left:50%
-       * transform. This left 12px gaps on each side where the shell
-       * background (was #000) showed through as a black bar.
-       *
-       * New design:
-       *   • Full width (left:0, right:0) — no side gaps
-       *   • Shell background is now rgb(14,12,6) — matches nav glass
-       *     exactly, so even the side gaps are the correct colour
-       *   • Nav inner content is still centred with maxWidth:480
-       *     via the BottomNav’s own wrapper
-       *   • paddingBottom uses JS-read safeBottom value (integer px)
-       *     so it never depends on CSS env() first-paint timing
-       *   • CSS env() is kept as the fallback in BottomNav itself
-       * ────────────────────────────────────────────────────────────── */}
+       * NAV WRAPPER — flush at absolute bottom of screen.
+       * No safe-area padding. No JS measurement.
+       * bottom: 0 means the nav sits at the very last pixel of the viewport.
+       */}
       <div
         style={{
           position: 'absolute',
@@ -203,13 +148,7 @@ export function AppShell() {
           right: 0,
           zIndex: 100,
           pointerEvents: 'auto',
-          // Solid floor: this background paints behind the nav’s
-          // rounded top corners and fills the home indicator zone
-          // from the very first frame, before any JS runs.
           background: 'rgb(14, 12, 6)',
-          // JS-read safe-area guarantees the home indicator zone
-          // is always covered even on cold boot.
-          paddingBottom: safeBottom > 0 ? safeBottom : undefined,
         }}
       >
         <BottomNav

@@ -72,7 +72,6 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
   }
 
   return (
-    // Inner centred wrapper — maxWidth keeps the pill shape on wide screens
     <div
       style={{
         maxWidth: 480,
@@ -98,9 +97,6 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
           overflow: 'hidden',
           userSelect: 'none',
           touchAction: 'pan-y',
-          // No paddingBottom here — the AppShell wrapper handles
-          // the safe-area zone via JS-read safeBottom value.
-          // This keeps the glass container a clean rectangle.
           paddingBottom: 0,
         }}
       >
