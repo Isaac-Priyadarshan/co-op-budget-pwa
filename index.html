@@ -2,35 +2,77 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
+    <!-- VIEWPORT: viewport-fit=cover extends the rendered surface behind the
+         iOS home indicator and status bar. Without this, iOS clips the app
+         to the 'safe area' rectangle, leaving raw black bars at top and bottom. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-    <!-- Primary theme -->
+    <!-- PRIMARY THEME COLOURS -->
+    <!-- theme-color: sets the browser/OS chrome colour around the app -->
     <meta name="theme-color" content="#04050b" />
-    <meta name="background-color" content="#04050b" />
+    <!-- msapplication-navbutton-color: Windows Phone / Edge legacy -->
+    <meta name="msapplication-navbutton-color" content="#04050b" />
 
-    <!-- PWA -->
+    <!-- PWA MANIFEST -->
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- iOS PWA -->
+    <!-- ANDROID PWA -->
+    <!-- mobile-web-app-capable: tells Android Chrome this is an installable app -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- iOS PWA
+         IMPORTANT: apple-mobile-web-app-capable must appear EXACTLY ONCE.
+         Duplicate meta tags cause Safari to ignore or de-prioritise later
+         occurrences, which can silently break viewport-fit=cover behaviour.
+
+         apple-mobile-web-app-status-bar-style values:
+           'default'             → white/grey status bar (light mode look)
+           'black'               → black status bar, app starts below it (safe area respected)
+           'black-translucent'   → status bar overlays app content; app starts at (0,0).
+                                   Combined with viewport-fit=cover, this is what allows
+                                   our background to extend behind the status bar and
+                                   home indicator. env(safe-area-inset-*) then pads
+                                   the actual content away from those zones.
+    -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="I &amp; J Budget" />
+
+    <!-- iOS TOUCH ICONS (Apple Home Screen icons)
+         iOS uses the largest icon it can find. We provide 4 sizes to cover
+         iPhone SE (120), iPhone (180), iPad (167), iPad Pro (152). -->
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
     <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
 
-    <!-- iOS splash screens (portrait) -->
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" href="/icons/splash-390x844.png" />
-    <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" href="/icons/splash-390x844.png" />
-    <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" href="/icons/splash-390x844.png" />
+    <!-- iOS SPLASH SCREENS (shown while app is loading after launch from Home Screen)
+         These are device-specific. Without them iOS shows a white flash before
+         the app finishes loading. Sizes must match EXACT device pixel dimensions. -->
+    <!-- iPhone 14 Pro / 15 / 15 Pro (390×844 @3x) -->
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"
+      href="/icons/splash-390x844.png"
+    />
+    <!-- iPhone 14 Plus / 15 Plus (414×896 @2x) -->
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)"
+      href="/icons/splash-390x844.png"
+    />
+    <!-- iPhone 13 mini / 12 mini / SE 3rd gen (375×812 @3x) -->
+    <link
+      rel="apple-touch-startup-image"
+      media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)"
+      href="/icons/splash-390x844.png"
+    />
 
-    <!-- SEO / Description -->
+    <!-- SEO -->
     <meta name="description" content="Private Co-Op Budget App for Isaac &amp; Jenifa" />
-    <meta name="mobile-web-app-capable" content="yes" />
 
-    <!-- Favicon -->
+    <!-- FAVICON -->
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
 
     <title>I &amp; J Budget</title>
