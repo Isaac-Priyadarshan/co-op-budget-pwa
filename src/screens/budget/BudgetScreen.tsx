@@ -211,15 +211,16 @@ function BudgetSheet({
 
 // ─── Pastel Category Card ─────────────────────────────────────────────────────
 function CategoryCard({
-  cat, subs, parentBudget, parentSpent, spentBySub, getBudget,
+  cat, subs, parentBudget, parentSpent, spentBySubId, getBudgetBySubId,
   delay, onEditSub,
 }: {
   cat: { id: string; label: string; icon: string; accent: string; bg: string; glow: string }
   subs: Subcategory[]
   parentBudget: number
   parentSpent: number
-  spentBySub: Record<string, number>
-  getBudget: (label: string) => number
+  // ── KEY CHANGE: keyed by subcategory UUID, not label ──
+  spentBySubId: Record<string, number>
+  getBudgetBySubId: (subId: string) => number
   delay: number
   onEditSub: (subId: string, label: string, parentLabel: string, budget: number, accent: string) => void
 }) {
@@ -352,8 +353,9 @@ function CategoryCard({
                 </div>
               ) : (
                 subs.map((sub, si) => {
-                  const subBudget   = getBudget(sub.label) ?? 0
-                  const subSpent    = spentBySub[sub.label.toLowerCase()] ?? 0
+                  // ── UUID-based lookups: rename-proof ──────────────────────
+                  const subBudget   = getBudgetBySubId(sub.id)
+                  const subSpent    = spentBySubId[sub.id] ?? 0
                   const hasSpend    = subSpent > 0
                   const hasBudget   = subBudget > 0
                   const subOver     = hasBudget && subSpent > subBudget
@@ -465,11 +467,10 @@ export default function BudgetScreen() {
   const mStart = monthStart(year, month)
   const mEnd   = monthEnd(year, month)
 
-  const { transactions, loading: txLoading }              = useTransactions()
-  // expenseCategories is already fetched here — we use it to resolve
-  // the parent category UUID (category_id) at save time.
-  const { expenseCategories, subcategories }              = useCategories()
-  const { totalPlanned, getBudget, upsertBudget, loading: budgetLoading } = useBudgets(mKey)
+  const { transactions, loading: txLoading }                            = useTransactions()
+  const { expenseCategories, subcategories }                            = useCategories()
+  const { totalPlanned, getBudgetBySubId, getParentTotalById,
+          upsertBudget, loading: budgetLoading }                        = useBudgets(mKey)
 
   // ── Month-scoped expense transactions ────────────────────────────────────────
   const monthTxs = useMemo(() => {
@@ -484,29 +485,60 @@ export default function BudgetScreen() {
 
   const totalSpent = useMemo(() => monthTxs.reduce((s, t) => s + t.amount, 0), [monthTxs])
 
-  // ── Spent per parent category ─────────────────────────────────────────────
-  const spentByParent = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const tx of monthTxs) {
-      const cat = (tx.category ?? '').toLowerCase()
-      const parent = expenseCategories.find(c =>
-        c.label.toLowerCase() === cat ||
-        (subcategories[c.id] ?? []).some((s: Subcategory) => s.label.toLowerCase() === cat)
-      )
-      if (parent) map[parent.label] = (map[parent.label] ?? 0) + tx.amount
+  // ── Build a lookup: subcategory UUID → its parent category UUID ───────────
+  // We need this to aggregate spend by parent (UUID-safe).
+  const subIdToParentId = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const cat of expenseCategories) {
+      for (const sub of (subcategories[cat.id] ?? []) as Subcategory[]) {
+        map[sub.id] = cat.id
+      }
     }
     return map
-  }, [monthTxs, expenseCategories, subcategories])
+  }, [expenseCategories, subcategories])
 
-  // ── Spent per subcategory ──────────────────────────────────────────────────
-  const spentBySub = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const tx of monthTxs) {
-      const key = (tx.category ?? '').toLowerCase()
-      map[key] = (map[key] ?? 0) + tx.amount
+  // ── Build a lookup: subcategory label (lowercase) → its UUID ─────────────
+  // Used ONLY as a fallback for legacy transactions that were saved before
+  // subcategory_id was written to the transactions table.
+  const subLabelToId = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const cat of expenseCategories) {
+      for (const sub of (subcategories[cat.id] ?? []) as Subcategory[]) {
+        map[sub.label.toLowerCase()] = sub.id
+      }
     }
     return map
-  }, [monthTxs])
+  }, [expenseCategories, subcategories])
+
+  // ── Spent per subcategory UUID (rename-proof) ──────────────────────────────
+  // Primary key: tx.subcategory_id  (UUID written at transaction entry time)
+  // Fallback key: resolve tx.category label → UUID via subLabelToId
+  //   (covers transactions entered before subcategory_id was stored)
+  const spentBySubId = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const tx of monthTxs) {
+      let subId = tx.subcategory_id as string | null | undefined
+      if (!subId) {
+        // fallback: resolve label → UUID
+        const labelKey = (tx.category ?? '').toLowerCase()
+        subId = subLabelToId[labelKey]
+      }
+      if (subId) {
+        map[subId] = (map[subId] ?? 0) + tx.amount
+      }
+    }
+    return map
+  }, [monthTxs, subLabelToId])
+
+  // ── Spent per parent category UUID (rename-proof) ─────────────────────────
+  const spentByParentId = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const [subId, amount] of Object.entries(spentBySubId)) {
+      const parentId = subIdToParentId[subId]
+      if (parentId) map[parentId] = (map[parentId] ?? 0) + amount
+    }
+    return map
+  }, [spentBySubId, subIdToParentId])
 
   // ── Most overspent & most available ───────────────────────────────────────
   const { mostOverspent, mostAvailable } = useMemo(() => {
@@ -515,9 +547,9 @@ export default function BudgetScreen() {
     for (const cat of expenseCategories) {
       const subs = (subcategories[cat.id] ?? []) as Subcategory[]
       for (const sub of subs) {
-        const budget = getBudget(sub.label)
-        if (budget == null || budget <= 0) continue
-        const spent = spentBySub[sub.label.toLowerCase()] ?? 0
+        const budget = getBudgetBySubId(sub.id)
+        if (budget <= 0) continue
+        const spent = spentBySubId[sub.id] ?? 0
         const over  = spent - budget
         const avail = budget - spent
         if (over  > 0 && (!topOver  || over  > topOver.amount))  topOver  = { name: sub.label, amount: over  }
@@ -525,7 +557,7 @@ export default function BudgetScreen() {
       }
     }
     return { mostOverspent: topOver, mostAvailable: topAvail }
-  }, [expenseCategories, subcategories, getBudget, spentBySub])
+  }, [expenseCategories, subcategories, getBudgetBySubId, spentBySubId])
 
   // ── Edit sheet state ───────────────────────────────────────────────────────
   const [sheetOpen,        setSheetOpen]        = useState(false)
@@ -535,7 +567,6 @@ export default function BudgetScreen() {
   const [sheetBudget,      setSheetBudget]       = useState<number | undefined>()
   const [sheetAccent,      setSheetAccent]       = useState('#FBBF24')
 
-  // openEditSub stores everything the sheet + handleSave will need
   const openEditSub = (
     subId: string,
     label: string,
@@ -551,21 +582,15 @@ export default function BudgetScreen() {
     setSheetOpen(true)
   }
 
-  // ── FIX: resolve parent category UUID from expenseCategories ──────────────
-  // upsertBudget() now requires 5 args:
-  //   (subcategoryId, categoryId, category, parentCategory, amount)
-  // We look up the parent category UUID by matching sheetParentLabel
-  // against the already-loaded expenseCategories list.
+  // ── handleSave: resolves parent UUID, writes all 5 fields ─────────────────
   const handleSave = async (amount: number) => {
-    const parentCat  = expenseCategories.find(
-      c => c.label === sheetParentLabel
-    )
+    const parentCat  = expenseCategories.find(c => c.label === sheetParentLabel)
     const categoryId = parentCat?.id ?? ''
     await upsertBudget(
-      sheetSubId,       // subcategory UUID
-      categoryId,       // parent category UUID  ← the missing 2nd arg
-      sheetLabel,       // subcategory label
-      sheetParentLabel, // parent category label
+      sheetSubId,
+      categoryId,
+      sheetLabel,
+      sheetParentLabel,
       amount,
     )
     setSheetOpen(false)
@@ -690,9 +715,10 @@ export default function BudgetScreen() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {expenseCategories.map((cat, ci) => {
-              const subs        = (subcategories[cat.id] ?? []) as Subcategory[]
-              const parentSpent = spentByParent[cat.label] ?? 0
-              const parentBudget = subs.reduce((sum, sub) => sum + (getBudget(sub.label) ?? 0), 0)
+              const subs         = (subcategories[cat.id] ?? []) as Subcategory[]
+              // ── UUID-based parent totals (rename-proof) ────────────────────
+              const parentSpent  = spentByParentId[cat.id] ?? 0
+              const parentBudget = getParentTotalById(cat.id)
 
               return (
                 <CategoryCard
@@ -708,8 +734,8 @@ export default function BudgetScreen() {
                   subs={subs}
                   parentBudget={parentBudget}
                   parentSpent={parentSpent}
-                  spentBySub={spentBySub}
-                  getBudget={getBudget}
+                  spentBySubId={spentBySubId}
+                  getBudgetBySubId={getBudgetBySubId}
                   delay={ci * 0.05}
                   onEditSub={openEditSub}
                 />

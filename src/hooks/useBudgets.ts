@@ -6,21 +6,20 @@ import { supabase } from '../lib/supabase'
 //
 // Mirrors the `budgets` table exactly.
 //
-// Column intent (as documented in the DB via COMMENT ON COLUMN):
-//   category        — subcategory label   e.g. "Oil", "Gym"
-//   parent_category — parent label        e.g. "Food and Drinks", "Self-care"
-//   subcategory_id  — subcategory UUID    FK → subcategories.id
-//                     Part of UNIQUE (subcategory_id, month) constraint.
-//   category_id     — parent category UUID  FK → categories.id  NOT NULL
-//                     Always written by upsertBudget().
-//                     Backfilled 2026-07-15 for all pre-existing rows.
+// Column intent:
+//   category        — subcategory label   (kept for display / legacy reads)
+//   parent_category — parent label        (kept for display / legacy reads)
+//   subcategory_id  — subcategory UUID    FK → subcategories.id  (primary key for lookups)
+//   category_id     — parent category UUID FK → categories.id   (primary key for parent lookups)
+//
+// ALL lookups should now use UUIDs so they survive subcategory renames.
 // ─────────────────────────────────────────────────────────────────────────────
 export interface BudgetRow {
   id:              string
-  category:        string        // subcategory label  (display + text-based spend matching)
-  parent_category: string        // parent label       (group totals by text)
-  subcategory_id:  string | null // subcategory UUID   (upsert conflict key)
-  category_id:     string        // parent UUID        (UUID-based lookups — NOT NULL)
+  category:        string        // subcategory label  (display only — do NOT use for lookups)
+  parent_category: string        // parent label       (display only — do NOT use for lookups)
+  subcategory_id:  string | null // subcategory UUID   (use for all lookups)
+  category_id:     string        // parent UUID        (use for all parent lookups)
   amount:          number
   month:           string        // 'YYYY-MM'
 }
@@ -52,12 +51,12 @@ export function useBudgets(month: string) {
   // Parameters:
   //   subcategoryId  — UUID from subcategories table (conflict-resolution key)
   //   categoryId     — UUID from categories table    (parent; stored in category_id)
-  //   category       — subcategory label             (stored in `category`)
-  //   parentCategory — parent label                  (stored in `parent_category`)
+  //   category       — subcategory label             (stored in `category` for display)
+  //   parentCategory — parent label                  (stored in `parent_category` for display)
   //   amount         — budget amount in ₹
   //
   // The UNIQUE (subcategory_id, month) constraint ensures one budget row
-  // per subcategory per month. The upsert resolves on that constraint.
+  // per subcategory per month.
   // ─────────────────────────────────────────────────────────────────────────
   const upsertBudget = useCallback(async (
     subcategoryId:  string,
@@ -71,7 +70,7 @@ export function useBudgets(month: string) {
       .upsert(
         {
           subcategory_id:  subcategoryId,
-          category_id:     categoryId,     // ← now always written
+          category_id:     categoryId,
           category,
           parent_category: parentCategory,
           amount,
@@ -96,41 +95,43 @@ export function useBudgets(month: string) {
   }, [month])
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Text-based helpers  (used by BudgetScreen — no callers need to change)
+  // UUID-based lookups — ALWAYS USE THESE (rename-proof)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /** Budget amount for a subcategory looked up by its label. */
-  const getBudget = useCallback(
-    (category: string): number =>
-      budgets.find(b => b.category === category)?.amount ?? 0,
-    [budgets],
-  )
-
-  /** Sum of all subcategory budgets under a parent, looked up by parent label. */
-  const getParentTotal = useCallback(
-    (parentCategory: string): number =>
-      budgets
-        .filter(b => b.parent_category === parentCategory)
-        .reduce((s, b) => s + b.amount, 0),
-    [budgets],
-  )
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // UUID-based helpers  (for future screens that have the UUID at hand)
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /** Budget amount for a subcategory looked up by its subcategory UUID. */
+  /** Budget amount for a subcategory looked up by its UUID. Rename-proof. */
   const getBudgetBySubId = useCallback(
     (subcategoryId: string): number =>
       budgets.find(b => b.subcategory_id === subcategoryId)?.amount ?? 0,
     [budgets],
   )
 
-  /** Sum of all subcategory budgets under a parent, looked up by parent UUID. */
+  /** Sum of all subcategory budgets under a parent, looked up by parent UUID. Rename-proof. */
   const getParentTotalById = useCallback(
     (categoryId: string): number =>
       budgets
         .filter(b => b.category_id === categoryId)
+        .reduce((s, b) => s + b.amount, 0),
+    [budgets],
+  )
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Label-based lookups — DEPRECATED
+  // Kept only as a fallback for legacy data that may not have subcategory_id.
+  // Do NOT use these in new code.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  /** @deprecated Use getBudgetBySubId(sub.id) instead. Breaks on rename. */
+  const getBudget = useCallback(
+    (category: string): number =>
+      budgets.find(b => b.category === category)?.amount ?? 0,
+    [budgets],
+  )
+
+  /** @deprecated Use getParentTotalById(cat.id) instead. Breaks on rename. */
+  const getParentTotal = useCallback(
+    (parentCategory: string): number =>
+      budgets
+        .filter(b => b.parent_category === parentCategory)
         .reduce((s, b) => s + b.amount, 0),
     [budgets],
   )
@@ -147,12 +148,12 @@ export function useBudgets(month: string) {
     loading,
     error,
     upsertBudget,
-    // text-based lookups (BudgetScreen uses these — no breaking change)
-    getBudget,
-    getParentTotal,
-    // UUID-based lookups (for future screens)
+    // UUID-based (primary — always use these)
     getBudgetBySubId,
     getParentTotalById,
+    // Label-based (deprecated — fallback only)
+    getBudget,
+    getParentTotal,
     totalPlanned,
     refresh: fetchBudgets,
   }
