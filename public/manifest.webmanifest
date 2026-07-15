@@ -29,6 +29,14 @@
       "purpose": "maskable"
     }
   ],
-  "screenshots": [],
+  "screenshots": [
+    {
+      "src": "/icons/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Home screen — I & J Budget"
+    }
+  ],
   "prefer_related_applications": false
 }

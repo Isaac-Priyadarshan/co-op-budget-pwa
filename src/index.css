@@ -69,8 +69,16 @@ body {
 }
 
 #root {
-  height: 100%;
-  height: 100dvh;
+  /* ─── FIX (Issue 1 — iOS black bar) ─────────────────────────────────────
+     Previously this had BOTH `height: 100dvh` AND `position:fixed;inset:0`.
+     These two strategies fight each other on iOS Safari:
+       • `position:fixed; inset:0` already pins all four edges to the full
+         screen including the area behind the home indicator — correct.
+       • `height: 100dvh` adds an explicit height on top of that, which on
+         some iOS versions resolves BEFORE the dynamic viewport is finalised,
+         causing a 1-34px gap at the bottom filled by body's #000000.
+     Fix: keep only `position:fixed; inset:0`. The height is implicit and
+     always exactly right. Remove `height` entirely.                        */
   position: fixed;
   inset: 0;
   overflow: hidden;
