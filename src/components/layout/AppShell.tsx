@@ -88,6 +88,7 @@ export function AppShell() {
         pointerEvents: 'none',
         zIndex: 0,
       }} />
+
       {/* Bottom-corner gold warmth */}
       <div style={{
         position: 'absolute',
@@ -102,22 +103,37 @@ export function AppShell() {
       }} />
 
       {/*
-        ─── ROOT CAUSE FIX ──────────────────────────────────────────────────────
-        The shell div uses position:fixed;inset:0 which extends behind the
-        iOS status bar (viewport-fit=cover + black-translucent in index.html).
+        ─── BOTTOM BLACK BAR FIX ──────────────────────────────────────────────
+        iOS PWA issue: on first paint (before JS measures nav height
+        and sets --nav-h), the area below the nav is the shell’s raw
+        #000000 background. The BottomNav now has paddingBottom:
+        env(safe-area-inset-bottom) so its own glass background fills
+        that zone. But we also add a solid sentinel bar at position:
+        absolute; bottom:0 behind the nav (zIndex:99) so that even
+        on the very first frame, before the nav renders, the correct
+        dark colour covers the home indicator zone.
+        This is a belt-and-suspenders approach:
+          • BottomNav paddingBottom fills it from inside the nav.
+          • Sentinel bar fills it from behind the nav.
+        Both must use the exact same color as the nav background.
+        ────────────────────────────────────────────────────────────────── */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          // env(safe-area-inset-bottom) is ~34px on iPhone 14/15.
+          // This sentinel is always present from first paint.
+          height: 'env(safe-area-inset-bottom, 0px)',
+          background: 'rgb(14, 12, 6)',
+          zIndex: 99,
+          pointerEvents: 'none',
+        }}
+      />
 
-        PREVIOUS BUG: paddingTop was on the PARENT shell div, but the
-        scroll-area child used position:absolute;inset:0 which reset its own
-        top edge to 0 regardless of parent padding. CSS rules: a child with
-        position:absolute always measures its inset from its containing block
-        edges, NOT from the parent's padding box. So the padding on the
-        parent was completely invisible to the child.
-
-        FIX: paddingTop:env(safe-area-inset-top) is now on the scroll-area
-        itself. Since the scroll-area is position:absolute, it owns its box,
-        and the padding correctly pushes its CONTENT (not its edge) down by
-        the exact pixel height of the iOS status bar.
-        ────────────────────────────────────────────────────────────────────── */}
+      {/* Scroll area: paddingTop pushes content below iOS status bar */}
       <div
         className="scroll-area"
         style={{
@@ -126,9 +142,6 @@ export function AppShell() {
           left: 0,
           right: 0,
           bottom: 0,
-          // THE FIX: safe-area padding lives here, on the scroll container itself.
-          // An absolutely-positioned child ignores its parent's padding entirely.
-          // Padding must be on the element whose content needs to be offset.
           paddingTop: 'env(safe-area-inset-top)',
           overflowY: isSelfScroll ? 'hidden' : 'auto',
           overflowX: 'hidden',
@@ -154,7 +167,7 @@ export function AppShell() {
         </AnimatePresence>
       </div>
 
-      {/* Floating nav — flush to absolute bottom, no safe-area */}
+      {/* Floating nav — sits above the sentinel bar, zIndex:100 */}
       <div
         style={{
           position: 'absolute',
