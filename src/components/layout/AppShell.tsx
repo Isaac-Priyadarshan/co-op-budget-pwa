@@ -34,12 +34,7 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 }
 
 const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
-
-// Screens that self-manage their own internal scroll zones.
 const SELF_SCROLL_SCREENS: ScreenId[] = ['asset']
-
-// Height of floating nav + its bottom margin — used to pad scrollable content
-const NAV_FLOAT_CLEARANCE = 100
 
 export function AppShell() {
   const { activeUser } = useUser()
@@ -98,7 +93,7 @@ export function AppShell() {
           zIndex: 0,
         }}
       />
-      {/* Subtle bottom-corner gold warmth */}
+      {/* Bottom-corner gold warmth */}
       <div
         style={{
           position: 'absolute',
@@ -134,8 +129,7 @@ export function AppShell() {
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             style={{
               minHeight: '100%',
-              // Bottom padding so last content clears the floating nav
-              paddingBottom: NAV_FLOAT_CLEARANCE,
+              paddingBottom: 96,
               overflow: isSelfScroll ? 'hidden' : 'visible',
             }}
           >
@@ -144,15 +138,16 @@ export function AppShell() {
         </AnimatePresence>
       </div>
 
-      {/* Floating nav — sits above content, not in document flow */}
+      {/* Floating nav pill — hugs the bottom */}
       <div
         style={{
           position: 'absolute',
-          bottom: `calc(16px + env(safe-area-inset-bottom))`,
+          // Sit right above the home indicator / safe area, only 8px gap
+          bottom: 'max(8px, env(safe-area-inset-bottom))',
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 100,
-          width: 'calc(100% - 32px)',
+          width: 'calc(100% - 24px)',
           maxWidth: 480,
           pointerEvents: 'auto',
         }}
