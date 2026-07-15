@@ -93,8 +93,6 @@ function BudgetBar({ spent, planned, accent }: { spent: number; planned: number;
 }
 
 // ─── Unbudgeted Spent Bar ─────────────────────────────────────────────────────
-// Shown when a subcategory has no budget set but has real spend.
-// Renders a soft amber pulse bar at fixed 60% width as a visual cue.
 function UnbudgetedBar({ accent }: { accent: string }) {
   return (
     <div style={{ height: 4, borderRadius: 99, background: 'rgba(0,0,0,0.18)', overflow: 'hidden', marginTop: 5 }}>
@@ -122,7 +120,7 @@ function BudgetSheet({
   initialBudget?: number
   accent?: string
   onClose: () => void
-  onSave: (label: string, amount: number) => Promise<void>
+  onSave: (amount: number) => Promise<void>
 }) {
   const [amount, setAmount] = useState(initialBudget ? String(initialBudget) : '')
   const [saving, setSaving] = useState(false)
@@ -140,7 +138,7 @@ function BudgetSheet({
     if (!initialLabel?.trim())        { setErr('No category selected');   return }
     if (!amount || Number(amount) < 0){ setErr('Enter a valid amount');   return }
     setSaving(true); setErr('')
-    try   { await onSave(initialLabel.trim(), Number(amount)) }
+    try   { await onSave(Number(amount)) }
     catch { setErr('Failed to save. Try again.') }
     finally { setSaving(false) }
   }
@@ -223,7 +221,8 @@ function CategoryCard({
   spentBySub: Record<string, number>
   getBudget: (label: string) => number
   delay: number
-  onEditSub: (label: string, budget: number, accent: string) => void
+  // Now receives subcategoryId and parentLabel in addition to label, budget, accent
+  onEditSub: (subId: string, label: string, parentLabel: string, budget: number, accent: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const accent = cat.accent ?? '#FBBF24'
@@ -360,9 +359,7 @@ function CategoryCard({
                   const hasBudget   = subBudget > 0
                   const subOver     = hasBudget && subSpent > subBudget
                   const leftover    = hasBudget ? subBudget - subSpent : 0
-                  // Dot is fully opaque whenever there is real spend OR a budget set
                   const dotOpacity  = hasSpend || hasBudget ? 1 : 0.25
-                  // Dot color: red if over-budget, accent if has spend/budget, muted otherwise
                   const dotColor    = subOver ? '#F87171' : (hasSpend || hasBudget ? accent : `${accent}44`)
 
                   return (
@@ -371,7 +368,8 @@ function CategoryCard({
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: si * 0.04, duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                      onClick={() => onEditSub(sub.label, subBudget, accent)}
+                      // Pass subcategory UUID and parent category label to onEditSub
+                      onClick={() => onEditSub(sub.id, sub.label, cat.label, subBudget, accent)}
                       whileTap={{ scale: 0.98, backgroundColor: `${accent}18` }}
                       style={{
                         padding: '12px 16px',
@@ -395,7 +393,6 @@ function CategoryCard({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ textAlign: 'right' }}>
-                            {/* ── Spent amount ── always show if there's spend, even without a budget */}
                             {(hasSpend || hasBudget) && (
                               <p style={{
                                 fontSize: 13,
@@ -411,8 +408,6 @@ function CategoryCard({
                                 )}
                               </p>
                             )}
-
-                            {/* ── Status label below amount ── */}
                             {hasBudget ? (
                               <p style={{
                                 fontSize: 10,
@@ -427,7 +422,6 @@ function CategoryCard({
                                     : 'Fully used'}
                               </p>
                             ) : hasSpend ? (
-                              // No budget set but has real spend → show "No budget set" nudge
                               <p style={{
                                 fontSize: 10,
                                 color: `${accent}66`,
@@ -446,12 +440,9 @@ function CategoryCard({
                         </div>
                       </div>
 
-                      {/* ── Progress / unbudgeted bar ── */}
                       {hasBudget ? (
-                        // Normal budget bar
                         <BudgetBar spent={subSpent} planned={subBudget} accent={accent} />
                       ) : hasSpend ? (
-                        // No budget but has spend → render a muted striped indicator bar
                         <UnbudgetedBar accent={accent} />
                       ) : null}
                     </motion.div>
@@ -494,9 +485,6 @@ export default function BudgetScreen() {
   const totalSpent = useMemo(() => monthTxs.reduce((s, t) => s + t.amount, 0), [monthTxs])
 
   // ── Spent per parent category ─────────────────────────────────────────────
-  // tx.category now stores the subcategory label (e.g. "Fuel") for new transactions,
-  // or the parent label (e.g. "Transport") for old transactions without a sub selection.
-  // Either way, we walk up to the parent by checking both parent label AND all sub labels.
   const spentByParent = useMemo(() => {
     const map: Record<string, number> = {}
     for (const tx of monthTxs) {
@@ -511,9 +499,6 @@ export default function BudgetScreen() {
   }, [monthTxs, expenseCategories, subcategories])
 
   // ── Spent per subcategory ──────────────────────────────────────────────────
-  // tx.category is now the subcategory label — direct lowercase key match.
-  // Old transactions (stored as parent label) won't match any sub name,
-  // so they only appear in spentByParent, never double-counted here.
   const spentBySub = useMemo(() => {
     const map: Record<string, number> = {}
     for (const tx of monthTxs) {
@@ -543,17 +528,32 @@ export default function BudgetScreen() {
   }, [expenseCategories, subcategories, getBudget, spentBySub])
 
   // ── Edit sheet state ───────────────────────────────────────────────────────
-  const [sheetOpen,   setSheetOpen]   = useState(false)
-  const [sheetLabel,  setSheetLabel]  = useState('')
-  const [sheetBudget, setSheetBudget] = useState<number | undefined>()
-  const [sheetAccent, setSheetAccent] = useState('#FBBF24')
+  const [sheetOpen,        setSheetOpen]        = useState(false)
+  const [sheetSubId,       setSheetSubId]        = useState('')
+  const [sheetLabel,       setSheetLabel]        = useState('')
+  const [sheetParentLabel, setSheetParentLabel]  = useState('')
+  const [sheetBudget,      setSheetBudget]       = useState<number | undefined>()
+  const [sheetAccent,      setSheetAccent]       = useState('#FBBF24')
 
-  const openEditSub = (label: string, budget: number, accent: string) => {
-    setSheetLabel(label); setSheetBudget(budget); setSheetAccent(accent); setSheetOpen(true)
+  // Receives subcategory UUID + both labels so upsertBudget gets everything it needs
+  const openEditSub = (
+    subId: string,
+    label: string,
+    parentLabel: string,
+    budget: number,
+    accent: string
+  ) => {
+    setSheetSubId(subId)
+    setSheetLabel(label)
+    setSheetParentLabel(parentLabel)
+    setSheetBudget(budget)
+    setSheetAccent(accent)
+    setSheetOpen(true)
   }
 
-  const handleSave = async (label: string, amount: number) => {
-    await upsertBudget(label, label, amount)
+  // onSave now only receives amount — all other data is already in state
+  const handleSave = async (amount: number) => {
+    await upsertBudget(sheetSubId, sheetLabel, sheetParentLabel, amount)
     setSheetOpen(false)
   }
 
