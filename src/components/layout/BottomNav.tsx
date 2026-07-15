@@ -72,114 +72,108 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
   }
 
   return (
+    // Inner centred wrapper — maxWidth keeps the pill shape on wide screens
     <div
-      ref={navRef}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
       style={{
-        borderRadius: '24px 24px 0 0',
-        background: 'rgba(14, 12, 6, 0.88)',
-        backdropFilter: 'blur(32px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(32px) saturate(180%)',
-        border: '1px solid rgba(251,191,36,0.18)',
-        borderBottom: 'none',
-        boxShadow: [
-          '0 -4px 24px rgba(0,0,0,0.5)',
-          '0 -1px 0 rgba(251,191,36,0.10)',
-          '0 0 0 0.5px rgba(255,255,255,0.04) inset',
-        ].join(', '),
-        overflow: 'hidden',
-        userSelect: 'none',
-        touchAction: 'pan-y',
-        /*
-         * ─── FIX: env(safe-area-inset-bottom) ─────────────────────────────────
-         * On iPhone X and later, the home indicator zone is
-         * env(safe-area-inset-bottom) tall (~34px on most models).
-         *
-         * Previously paddingBottom was 0, which left a gap between
-         * the bottom of the nav content and the physical screen edge.
-         * iOS fills that gap with whatever is behind the element —
-         * the shell div’s background (#000000) — which shows as a
-         * black bar on first paint before the nav has measured itself.
-         *
-         * Setting paddingBottom: env(safe-area-inset-bottom) makes the
-         * nav’s own background (the dark glass) extend into and fill
-         * the home indicator zone on every paint, including the very
-         * first frame. No flash, no black bar, no race condition.
-         * ────────────────────────────────────────────────────────────
-         */
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        maxWidth: 480,
+        margin: '0 auto',
       }}
     >
-      <AnimatePresence mode="wait" custom={swipeDir}>
-        <motion.div
-          key={pageIndex}
-          custom={swipeDir}
-          variants={variants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
-            padding: '10px 8px 10px',
-            gap: 0,
-          }}
-        >
-          {currentPage.screens.map((screen) => {
-            const isActive = activeScreen === screen.id
-            return (
-              <motion.button
-                key={screen.id}
-                onClick={() => onNavigate(screen.id as ScreenId)}
-                whileTap={{ scale: 0.86 }}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '8px 4px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  borderRadius: 18,
-                  position: 'relative',
-                  width: '100%',
-                }}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="activeTab"
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: 'linear-gradient(135deg, rgba(251,191,36,0.22), rgba(217,119,6,0.14))',
-                      borderRadius: 18,
-                      border: '1px solid rgba(251,191,36,0.32)',
-                      boxShadow: '0 0 16px rgba(251,191,36,0.16)',
-                    }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                )}
-                <span style={{ fontSize: 22, zIndex: 1, lineHeight: 1 }}>{screen.icon}</span>
-                <span
+      <div
+        ref={navRef}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        style={{
+          borderRadius: '24px 24px 0 0',
+          background: 'rgba(14, 12, 6, 0.88)',
+          backdropFilter: 'blur(32px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+          border: '1px solid rgba(251,191,36,0.18)',
+          borderBottom: 'none',
+          boxShadow: [
+            '0 -4px 24px rgba(0,0,0,0.5)',
+            '0 -1px 0 rgba(251,191,36,0.10)',
+            '0 0 0 0.5px rgba(255,255,255,0.04) inset',
+          ].join(', '),
+          overflow: 'hidden',
+          userSelect: 'none',
+          touchAction: 'pan-y',
+          // No paddingBottom here — the AppShell wrapper handles
+          // the safe-area zone via JS-read safeBottom value.
+          // This keeps the glass container a clean rectangle.
+          paddingBottom: 0,
+        }}
+      >
+        <AnimatePresence mode="wait" custom={swipeDir}>
+          <motion.div
+            key={pageIndex}
+            custom={swipeDir}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              padding: '10px 8px 10px',
+              gap: 0,
+            }}
+          >
+            {currentPage.screens.map((screen) => {
+              const isActive = activeScreen === screen.id
+              return (
+                <motion.button
+                  key={screen.id}
+                  onClick={() => onNavigate(screen.id as ScreenId)}
+                  whileTap={{ scale: 0.86 }}
                   style={{
-                    fontSize: 11,
-                    fontWeight: isActive ? 700 : 400,
-                    zIndex: 1,
-                    color: isActive ? '#FBBF24' : 'rgba(255,255,255,0.42)',
-                    letterSpacing: '0.01em',
-                    whiteSpace: 'nowrap',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '8px 4px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    borderRadius: 18,
+                    position: 'relative',
+                    width: '100%',
                   }}
                 >
-                  {screen.label}
-                </span>
-              </motion.button>
-            )
-          })}
-        </motion.div>
-      </AnimatePresence>
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTab"
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'linear-gradient(135deg, rgba(251,191,36,0.22), rgba(217,119,6,0.14))',
+                        borderRadius: 18,
+                        border: '1px solid rgba(251,191,36,0.32)',
+                        boxShadow: '0 0 16px rgba(251,191,36,0.16)',
+                      }}
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  )}
+                  <span style={{ fontSize: 22, zIndex: 1, lineHeight: 1 }}>{screen.icon}</span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: isActive ? 700 : 400,
+                      zIndex: 1,
+                      color: isActive ? '#FBBF24' : 'rgba(255,255,255,0.42)',
+                      letterSpacing: '0.01em',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {screen.label}
+                  </span>
+                </motion.button>
+              )
+            })}
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </div>
   )
 }

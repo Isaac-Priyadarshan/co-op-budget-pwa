@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useUser } from '../../context/UserContext'
@@ -36,10 +36,50 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
 const SELF_SCROLL_SCREENS: ScreenId[] = ['asset']
 
+/**
+ * Read the real safe-area-inset-bottom in JS.
+ * CSS env() can return 0px on the very first synchronous paint of an iOS PWA
+ * because the viewport geometry hasn’t been finalised yet.
+ * Reading it via getComputedStyle on a live element gives the true value
+ * once the browser has committed the layout — and we can use it to set
+ * a hard pixel paddingBottom on the bottom bar so there’s zero reliance
+ * on CSS env() timing.
+ */
+function readSafeAreaBottom(): number {
+  try {
+    const el = document.createElement('div')
+    el.style.cssText =
+      'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);pointer-events:none;visibility:hidden'
+    document.body.appendChild(el)
+    const h = el.getBoundingClientRect().height
+    document.body.removeChild(el)
+    return h
+  } catch {
+    return 0
+  }
+}
+
 export function AppShell() {
   const { activeUser } = useUser()
   const location = useLocation()
   const navigate = useNavigate()
+  // JS-read safe-area value — immune to CSS env() first-paint timing bug
+  const [safeBottom, setSafeBottom] = useState(0)
+  const safeBottomRead = useRef(false)
+
+  useEffect(() => {
+    if (safeBottomRead.current) return
+    safeBottomRead.current = true
+    // Read immediately, then re-read after a short tick in case iOS
+    // hasn’t committed the viewport geometry yet on the very first mount.
+    const v1 = readSafeAreaBottom()
+    setSafeBottom(v1)
+    const t = setTimeout(() => {
+      const v2 = readSafeAreaBottom()
+      if (v2 !== v1) setSafeBottom(v2)
+    }, 80)
+    return () => clearTimeout(t)
+  }, [])
 
   const initialScreen = (): ScreenId => {
     const params = new URLSearchParams(location.search)
@@ -71,7 +111,10 @@ export function AppShell() {
       style={{
         position: 'fixed',
         inset: 0,
-        background: '#000000',
+        // Nav background colour — fills every pixel behind the nav from frame 0.
+        // Previously #000000 which showed as a black flash whenever the nav
+        // hadn’t yet painted its own background.
+        background: 'rgb(14, 12, 6)',
         overflow: 'hidden',
       }}
     >
@@ -102,38 +145,7 @@ export function AppShell() {
         zIndex: 0,
       }} />
 
-      {/*
-        ─── BOTTOM BLACK BAR FIX ──────────────────────────────────────────────
-        iOS PWA issue: on first paint (before JS measures nav height
-        and sets --nav-h), the area below the nav is the shell’s raw
-        #000000 background. The BottomNav now has paddingBottom:
-        env(safe-area-inset-bottom) so its own glass background fills
-        that zone. But we also add a solid sentinel bar at position:
-        absolute; bottom:0 behind the nav (zIndex:99) so that even
-        on the very first frame, before the nav renders, the correct
-        dark colour covers the home indicator zone.
-        This is a belt-and-suspenders approach:
-          • BottomNav paddingBottom fills it from inside the nav.
-          • Sentinel bar fills it from behind the nav.
-        Both must use the exact same color as the nav background.
-        ────────────────────────────────────────────────────────────────── */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          // env(safe-area-inset-bottom) is ~34px on iPhone 14/15.
-          // This sentinel is always present from first paint.
-          height: 'env(safe-area-inset-bottom, 0px)',
-          background: 'rgb(14, 12, 6)',
-          zIndex: 99,
-          pointerEvents: 'none',
-        }}
-      />
-
-      {/* Scroll area: paddingTop pushes content below iOS status bar */}
+      {/* Scroll area */}
       <div
         className="scroll-area"
         style={{
@@ -167,17 +179,37 @@ export function AppShell() {
         </AnimatePresence>
       </div>
 
-      {/* Floating nav — sits above the sentinel bar, zIndex:100 */}
+      {/*
+       * ─── NAV WRAPPER: DEFINITIVE BOTTOM FIX ───────────────────────────────
+       * Previous design: width: calc(100%-24px), centered with left:50%
+       * transform. This left 12px gaps on each side where the shell
+       * background (was #000) showed through as a black bar.
+       *
+       * New design:
+       *   • Full width (left:0, right:0) — no side gaps
+       *   • Shell background is now rgb(14,12,6) — matches nav glass
+       *     exactly, so even the side gaps are the correct colour
+       *   • Nav inner content is still centred with maxWidth:480
+       *     via the BottomNav’s own wrapper
+       *   • paddingBottom uses JS-read safeBottom value (integer px)
+       *     so it never depends on CSS env() first-paint timing
+       *   • CSS env() is kept as the fallback in BottomNav itself
+       * ────────────────────────────────────────────────────────────── */}
       <div
         style={{
           position: 'absolute',
           bottom: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          left: 0,
+          right: 0,
           zIndex: 100,
-          width: 'calc(100% - 24px)',
-          maxWidth: 480,
           pointerEvents: 'auto',
+          // Solid floor: this background paints behind the nav’s
+          // rounded top corners and fills the home indicator zone
+          // from the very first frame, before any JS runs.
+          background: 'rgb(14, 12, 6)',
+          // JS-read safe-area guarantees the home indicator zone
+          // is always covered even on cold boot.
+          paddingBottom: safeBottom > 0 ? safeBottom : undefined,
         }}
       >
         <BottomNav
