@@ -73,12 +73,14 @@ export function AppShell() {
         inset: 0,
         background: '#000000',
         overflow: 'hidden',
+        // TOP safe-area only — keeps content below status bar on iPhone
+        paddingTop: 'env(safe-area-inset-top)',
       }}
     >
       {/* Global gold top-glow */}
       <div style={{
         position: 'absolute',
-        top: '-10%',
+        top: 0,
         left: '50%',
         transform: 'translateX(-50%)',
         width: '140vw',
@@ -131,7 +133,7 @@ export function AppShell() {
         </AnimatePresence>
       </div>
 
-      {/* Floating nav — absolute bottom, zero safe-area, flush to screen edge */}
+      {/* Floating nav — flush to absolute bottom, no safe-area */}
       <div
         style={{
           position: 'absolute',
@@ -142,7 +144,6 @@ export function AppShell() {
           width: 'calc(100% - 24px)',
           maxWidth: 480,
           pointerEvents: 'auto',
-          paddingBottom: 0,
         }}
       >
         <BottomNav
