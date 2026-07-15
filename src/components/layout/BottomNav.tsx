@@ -55,11 +55,22 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
       ref={navRef}
       style={{
         flexShrink: 0,
+        // ── FIX 2: Use padding-bottom for safe-area, but back the entire
+        //    zone with a solid-enough background so the home indicator pill
+        //    area never bleeds the raw #000000 body background through.
+        //
+        //    We do this with a box-shadow trick: spread a solid shadow
+        //    DOWNWARD past the bottom edge of this element — it fills the
+        //    safe-area zone behind the home pill even when env() = 34px.
+        //    The blur(28px) backdrop-filter then blurs everything behind it.
         paddingBottom: 'env(safe-area-inset-bottom)',
-        background: 'rgba(8,6,0,0.94)',
+        background: 'rgba(8,6,0,0.97)',
         backdropFilter: 'blur(28px)',
         WebkitBackdropFilter: 'blur(28px)',
         borderTop: '1px solid rgba(251,191,36,0.12)',
+        // Extend the background visually past the bottom edge
+        // so there's no raw-black bleed below the home indicator.
+        boxShadow: '0 60px 0 0 rgba(8,6,0,0.97)',
       }}
     >
       {/* 3 screen tabs for the active group */}

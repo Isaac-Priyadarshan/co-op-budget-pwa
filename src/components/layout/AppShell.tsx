@@ -45,7 +45,6 @@ export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  // Read ?screen= param on mount to restore the correct tab after back-navigation
   const initialScreen = (): ScreenId => {
     const params = new URLSearchParams(location.search)
     const s = params.get('screen') as ScreenId | null
@@ -55,22 +54,16 @@ export function AppShell() {
 
   const [activeScreen, setActiveScreen] = useState<ScreenId>(initialScreen)
 
-  // If URL changes (e.g. user presses back from a detail route with ?screen=),
-  // sync the active screen from the query param and then clean the URL.
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const s = params.get('screen') as ScreenId | null
     if (s && VALID_SCREENS.includes(s)) {
       setActiveScreen(s)
-      // Clean the ?screen= param from the URL without adding a history entry
       navigate('/', { replace: true })
     }
   }, [location.search])
 
   const ActiveComponent = SCREEN_MAP[activeScreen]
-
-  // When the active screen self-manages scroll, lock the outer wrapper entirely
-  // so it cannot scroll. The screen's own internal overflow:auto zone takes over.
   const isSelfScroll = SELF_SCROLL_SCREENS.includes(activeScreen)
 
   if (!activeUser) {
@@ -86,6 +79,10 @@ export function AppShell() {
         flexDirection: 'column',
         background: '#000000',
         overflow: 'hidden',
+        // ── FIX 1: paddingTop on the OUTER wrapper, not the scroll child ──
+        // This means the #000000 background fills the status-bar zone
+        // instead of showing as a raw black gap behind a transparent child.
+        paddingTop: 'env(safe-area-inset-top)',
       }}
     >
       {/* Global gold top-glow */}
@@ -119,24 +116,16 @@ export function AppShell() {
       />
 
       {/*
-        scroll-area: the container all screens mount into.
-        — When isSelfScroll is true (e.g. AssetScreen), overflow is set to
-          'hidden' so this wrapper is completely locked and cannot scroll.
-          The screen itself owns its internal scroll zone via position:absolute
-          inset:0 with its own overflowY:auto child.
-        — When isSelfScroll is false, overflow remains 'auto' so normal
-          vertical-scrolling screens work exactly as before.
-        — position:relative is always set so that position:absolute children
-          (AssetScreen HOME VIEW) anchor against this div correctly.
-        — height:0 + flex:1 constrains it to exactly the available space
-          between the top safe-area and the BottomNav.
+        scroll-area: paddingTop is now on the outer wrapper above.
+        This div only needs flex:1 + overflow handling.
+        position:relative stays so position:absolute children (AssetScreen)
+        anchor correctly.
       */}
       <div
         className="scroll-area"
         style={{
           flex: 1,
           height: 0,
-          paddingTop: 'env(safe-area-inset-top)',
           overflowY: isSelfScroll ? 'hidden' : 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
@@ -152,10 +141,6 @@ export function AppShell() {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              // height:100% ensures screens using position:absolute inset:0
-              // have a sized parent to anchor against.
-              // overflow:hidden on self-scroll screens prevents the motion.div
-              // itself from becoming a scroll container that fights AssetScreen.
               height: '100%',
               overflow: isSelfScroll ? 'hidden' : 'visible',
             }}
