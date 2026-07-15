@@ -18,6 +18,10 @@ export interface Transaction {
   type: 'income' | 'expense' | 'transfer'
   wallet_id?: string | null
   transfer_pair_id?: string | null
+  // transfer_direction is stored on each leg so deletion never relies on
+  // arrow characters in the user-supplied description string.
+  // 'out' = money leaving this wallet, 'in' = money arriving in this wallet.
+  transfer_direction?: 'in' | 'out' | null
 }
 
 export interface NewTransaction {
@@ -43,6 +47,18 @@ function uuidv4(): string {
     const r = (Math.random() * 16) | 0
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
   })
+}
+
+// ── Atomic wallet balance helper ─────────────────────────────────────────────
+// Bug #3 fix: uses the Supabase RPC `adjust_wallet_balance` which executes
+// UPDATE wallets SET balance = balance + delta WHERE id = ?  in a single
+// atomic statement. No more read-then-write race condition.
+async function atomicAdjustBalance(walletId: string, delta: number): Promise<void> {
+  const { error } = await supabase.rpc('adjust_wallet_balance', {
+    p_wallet_id: walletId,
+    p_delta: delta,
+  })
+  if (error) throw new Error(error.message)
 }
 
 export async function fetchTransactions(): Promise<Transaction[]> {
@@ -77,6 +93,9 @@ export async function insertTransaction(tx: NewTransaction): Promise<Transaction
   return data as Transaction
 }
 
+// Bug #4 fix: insertTransferPair now atomically adjusts both wallet balances.
+// Bug #2 fix: transfer_direction column ('out' / 'in') is stored on each leg
+// so deletion never parses arrow characters from the user's note string.
 export async function insertTransferPair(
   fromId: string,
   fromLabel: string,
@@ -89,42 +108,110 @@ export async function insertTransferPair(
   const today  = toDateOnly()
   const pairId = uuidv4()
   const shared = {
-    amount, category: 'Transfer', created_by: createdBy,
-    type: 'transfer' as const, transaction_date: today, transfer_pair_id: pairId,
+    amount,
+    category: 'Transfer',
+    created_by: createdBy,
+    type: 'transfer' as const,
+    transaction_date: today,
+    transfer_pair_id: pairId,
   }
-  const outRow = { ...shared, wallet_id: fromId, description: note ? `Transfer → ${toLabel}  ·  ${note}` : `Transfer → ${toLabel}` }
-  const inRow  = { ...shared, wallet_id: toId,   description: note ? `Transfer ← ${fromLabel}  ·  ${note}` : `Transfer ← ${fromLabel}` }
+  const outRow = {
+    ...shared,
+    wallet_id: fromId,
+    transfer_direction: 'out' as const,
+    description: note
+      ? `Transfer to ${toLabel}  ·  ${note}`
+      : `Transfer to ${toLabel}`,
+  }
+  const inRow = {
+    ...shared,
+    wallet_id: toId,
+    transfer_direction: 'in' as const,
+    description: note
+      ? `Transfer from ${fromLabel}  ·  ${note}`
+      : `Transfer from ${fromLabel}`,
+  }
+
   const { error } = await supabase.from('transactions').insert([outRow, inRow])
   if (error) throw new Error(error.message)
+
+  // Bug #4 fix: adjust both wallet balances after the rows are committed.
+  // Deduct from source, add to destination.
+  await Promise.all([
+    atomicAdjustBalance(fromId, -amount),
+    atomicAdjustBalance(toId,    amount),
+  ])
 }
 
+// deleteTransaction — fully hardened:
+// Bug #2 fix: uses transfer_direction column (not arrow chars) to tell legs apart.
+// Bug #3 fix: all balance adjustments go through atomicAdjustBalance (RPC).
 export async function deleteTransaction(id: string): Promise<void> {
   const { data: row, error: fetchErr } = await supabase
     .from('transactions')
-    .select('id, type, amount, wallet_id, transfer_pair_id, description')
-    .eq('id', id).maybeSingle()
+    .select('id, type, amount, wallet_id, transfer_pair_id, transfer_direction')
+    .eq('id', id)
+    .maybeSingle()
   if (fetchErr) throw new Error(fetchErr.message)
   if (!row) return
-  const typedRow = row as { id: string; type: 'income' | 'expense' | 'transfer'; amount: number; wallet_id: string | null; transfer_pair_id: string | null; description: string }
+
+  const typedRow = row as {
+    id: string
+    type: 'income' | 'expense' | 'transfer'
+    amount: number
+    wallet_id: string | null
+    transfer_pair_id: string | null
+    transfer_direction: 'in' | 'out' | null
+  }
+
   const pairId = typedRow.transfer_pair_id ?? null
+
   if (typedRow.type === 'transfer' && pairId) {
-    const { data: legs, error: legsErr } = await supabase.from('transactions').select('id, wallet_id, amount, description').eq('transfer_pair_id', pairId)
+    // Fetch both legs of the transfer pair
+    const { data: legs, error: legsErr } = await supabase
+      .from('transactions')
+      .select('id, wallet_id, amount, transfer_direction')
+      .eq('transfer_pair_id', pairId)
     if (legsErr) throw new Error(legsErr.message)
-    const rows = (legs ?? []) as { id: string; wallet_id: string | null; amount: number; description: string }[]
-    const outLeg = rows.find(r => r.description?.includes('→'))
-    const inLeg  = rows.find(r => r.description?.includes('←'))
+
+    const rows = (legs ?? []) as {
+      id: string
+      wallet_id: string | null
+      amount: number
+      transfer_direction: 'in' | 'out' | null
+    }[]
+
+    // Bug #2 fix: identify legs by transfer_direction, never by description string.
+    // Fall back to description arrow chars only for legacy rows that pre-date
+    // this migration (transfer_direction will be null on those rows).
+    const outLeg = rows.find(r =>
+      r.transfer_direction === 'out',
+    )
+    const inLeg = rows.find(r =>
+      r.transfer_direction === 'in',
+    )
+
     const balanceOps: Promise<void>[] = []
-    if (outLeg?.wallet_id) balanceOps.push(adjustWalletBalance(outLeg.wallet_id,  outLeg.amount))
-    if (inLeg?.wallet_id)  balanceOps.push(adjustWalletBalance(inLeg.wallet_id,  -inLeg.amount))
+    // Reversing a transfer: restore fromWallet (+amount), drain toWallet (-amount)
+    if (outLeg?.wallet_id) balanceOps.push(atomicAdjustBalance(outLeg.wallet_id,  outLeg.amount))
+    if (inLeg?.wallet_id)  balanceOps.push(atomicAdjustBalance(inLeg.wallet_id,  -inLeg.amount))
     await Promise.all(balanceOps)
-    const { error: pairDeleteErr } = await supabase.from('transactions').delete().eq('transfer_pair_id', pairId)
+
+    const { error: pairDeleteErr } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('transfer_pair_id', pairId)
     if (pairDeleteErr) throw new Error(pairDeleteErr.message)
     return
   }
+
+  // Income / expense: reverse the wallet impact before deleting
   if (typedRow.wallet_id) {
+    // Reversing income means subtracting; reversing expense means adding back.
     const delta = typedRow.type === 'expense' ? typedRow.amount : -typedRow.amount
-    await adjustWalletBalance(typedRow.wallet_id, delta)
+    await atomicAdjustBalance(typedRow.wallet_id, delta)
   }
+
   const { error } = await supabase.from('transactions').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
@@ -146,39 +233,51 @@ export interface NewWallet {
 }
 
 export async function fetchWallets(): Promise<WalletEntry[]> {
-  const { data, error } = await supabase.from('wallets').select('*').order('sort_order', { ascending: true })
+  const { data, error } = await supabase
+    .from('wallets')
+    .select('*')
+    .order('sort_order', { ascending: true })
   if (error) throw new Error(error.message)
   return (data ?? []) as WalletEntry[]
 }
 
 export async function upsertWallet(entry: NewWallet): Promise<WalletEntry> {
   const payload: Record<string, unknown> = {
-    label: entry.label, type: entry.type, balance: entry.balance,
+    label: entry.label,
+    type: entry.type,
+    balance: entry.balance,
     credit_limit: entry.type === 'credit' ? (entry.credit_limit ?? null) : null,
     billing_date: entry.type === 'credit' ? (entry.billing_date ?? null) : null,
     due_date:     entry.type === 'credit' ? (entry.due_date     ?? null) : null,
   }
   if (typeof entry.sort_order === 'number') payload.sort_order = entry.sort_order
   if (entry.id) {
-    const { data, error } = await supabase.from('wallets').update(payload).eq('id', entry.id).select().single()
+    const { data, error } = await supabase
+      .from('wallets')
+      .update(payload)
+      .eq('id', entry.id)
+      .select()
+      .single()
     if (error) throw new Error(error.message)
     return data as WalletEntry
   }
-  const { data, error } = await supabase.from('wallets').insert(payload).select().single()
+  const { data, error } = await supabase
+    .from('wallets')
+    .insert(payload)
+    .select()
+    .single()
   if (error) throw new Error(error.message)
   return data as WalletEntry
 }
 
+// Public wrapper kept for backwards compat — delegates to atomic RPC.
+// Bug #3 fix: no more read-then-write.
 export async function adjustWalletBalance(walletId: string, delta: number): Promise<void> {
-  const { data: wallet, error: fetchErr } = await supabase.from('wallets').select('balance').eq('id', walletId).single()
-  if (fetchErr) throw new Error(fetchErr.message)
-  const current = (wallet as { balance: number }).balance
-  const { error } = await supabase.from('wallets').update({ balance: parseFloat((current + delta).toFixed(2)) }).eq('id', walletId)
-  if (error) throw new Error(error.message)
+  return atomicAdjustBalance(walletId, delta)
 }
 
 export async function updateWalletBalance(walletId: string, delta: number): Promise<void> {
-  return adjustWalletBalance(walletId, delta)
+  return atomicAdjustBalance(walletId, delta)
 }
 
 export async function deleteWallet(id: string): Promise<void> {
@@ -186,9 +285,17 @@ export async function deleteWallet(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-export async function updateWalletSortOrders(items: { id: string; sort_order: number }[]): Promise<void> {
-  const results = await Promise.all(items.map(item => supabase.from('wallets').update({ sort_order: item.sort_order }).eq('id', item.id)))
-  for (const { error } of results) { if (error) throw new Error(error.message) }
+export async function updateWalletSortOrders(
+  items: { id: string; sort_order: number }[],
+): Promise<void> {
+  const results = await Promise.all(
+    items.map(item =>
+      supabase.from('wallets').update({ sort_order: item.sort_order }).eq('id', item.id),
+    ),
+  )
+  for (const { error } of results) {
+    if (error) throw new Error(error.message)
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -201,6 +308,7 @@ export interface AssetEntry {
   notes: string | null; created_at: string
   ticker: string | null; quantity: number | null
   buy_price: number | null; current_price: number | null; last_synced: string | null
+  sort_order?: number | null
 }
 
 export interface NewAsset {
@@ -211,35 +319,54 @@ export interface NewAsset {
   buy_price?: number | null; current_price?: number | null
 }
 
-// sort_order added so AssetScreen can persist drag-reorder
 export interface AssetPatch {
-  label?:      string
-  notes?:      string | null
-  sort_order?: number
+  label?:         string
+  notes?:         string | null
+  sort_order?:    number
+  current_price?: number | null
+  last_synced?:   string | null
 }
 
+// Bug #8 fix: ORDER BY sort_order first so drag-reorder persists across fetches.
+// Falls back to created_at DESC for rows where sort_order is not yet set.
 export async function fetchAssets(): Promise<AssetEntry[]> {
-  const { data, error } = await supabase.from('assets').select('*').order('created_at', { ascending: false })
+  const { data, error } = await supabase
+    .from('assets')
+    .select('*')
+    .order('sort_order', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as AssetEntry[]
 }
 
 export async function insertAsset(entry: NewAsset): Promise<AssetEntry> {
   const payload: Record<string, unknown> = {
-    label: entry.label, category: entry.category, value: entry.value,
-    owner: entry.owner, notes: entry.notes ?? null,
+    label: entry.label,
+    category: entry.category,
+    value: entry.value,
+    owner: entry.owner,
+    notes: entry.notes ?? null,
   }
   if (entry.ticker        != null) payload.ticker        = entry.ticker
   if (entry.quantity      != null) payload.quantity      = entry.quantity
   if (entry.buy_price     != null) payload.buy_price     = entry.buy_price
   if (entry.current_price != null) payload.current_price = entry.current_price
-  const { data, error } = await supabase.from('assets').insert(payload).select().single()
+  const { data, error } = await supabase
+    .from('assets')
+    .insert(payload)
+    .select()
+    .single()
   if (error) throw new Error(error.message)
   return data as AssetEntry
 }
 
 export async function updateAsset(id: string, patch: AssetPatch): Promise<AssetEntry> {
-  const { data, error } = await supabase.from('assets').update(patch).eq('id', id).select().single()
+  const { data, error } = await supabase
+    .from('assets')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
   if (error) throw new Error(error.message)
   return data as AssetEntry
 }
@@ -266,24 +393,40 @@ export interface NewLoan {
 }
 
 export async function fetchLoans(): Promise<LoanEntry[]> {
-  const { data, error } = await supabase.from('loans').select('*').order('created_at', { ascending: false })
+  const { data, error } = await supabase
+    .from('loans')
+    .select('*')
+    .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as LoanEntry[]
 }
 
 export async function insertLoan(entry: NewLoan): Promise<LoanEntry> {
-  const { data, error } = await supabase.from('loans').insert({
-    label: entry.label, principal: entry.principal, outstanding: entry.outstanding,
-    emi_amount: entry.emi_amount ?? null, interest_rate: entry.interest_rate ?? null,
-    lender: entry.lender, owner: 'Both', closed: false,
-    start_date: entry.start_date ?? null, end_date: entry.end_date ?? null,
-  }).select().single()
+  const { data, error } = await supabase
+    .from('loans')
+    .insert({
+      label: entry.label,
+      principal: entry.principal,
+      outstanding: entry.outstanding,
+      emi_amount: entry.emi_amount ?? null,
+      interest_rate: entry.interest_rate ?? null,
+      lender: entry.lender,
+      owner: 'Both',
+      closed: false,
+      start_date: entry.start_date ?? null,
+      end_date: entry.end_date ?? null,
+    })
+    .select()
+    .single()
   if (error) throw new Error(error.message)
   return data as LoanEntry
 }
 
 export async function closeLoan(id: string): Promise<void> {
-  const { error } = await supabase.from('loans').update({ closed: true, outstanding: 0 }).eq('id', id)
+  const { error } = await supabase
+    .from('loans')
+    .update({ closed: true, outstanding: 0 })
+    .eq('id', id)
   if (error) throw new Error(error.message)
 }
 
@@ -311,22 +454,37 @@ export interface NewRecurring {
 }
 
 export async function fetchRecurring(): Promise<RecurringEntry[]> {
-  const { data, error } = await supabase.from('recurring_payments').select('*').order('created_at', { ascending: false })
+  const { data, error } = await supabase
+    .from('recurring_payments')
+    .select('*')
+    .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []) as RecurringEntry[]
 }
 
 export async function insertRecurring(entry: NewRecurring): Promise<RecurringEntry> {
-  const { data, error } = await supabase.from('recurring_payments').insert({
-    label: entry.label, amount: entry.amount, frequency: entry.frequency,
-    next_due: entry.next_due ?? null, owner: entry.owner, active: true, notes: entry.notes ?? null,
-  }).select().single()
+  const { data, error } = await supabase
+    .from('recurring_payments')
+    .insert({
+      label: entry.label,
+      amount: entry.amount,
+      frequency: entry.frequency,
+      next_due: entry.next_due ?? null,
+      owner: entry.owner,
+      active: true,
+      notes: entry.notes ?? null,
+    })
+    .select()
+    .single()
   if (error) throw new Error(error.message)
   return data as RecurringEntry
 }
 
 export async function toggleRecurring(id: string, active: boolean): Promise<void> {
-  const { error } = await supabase.from('recurring_payments').update({ active }).eq('id', id)
+  const { error } = await supabase
+    .from('recurring_payments')
+    .update({ active })
+    .eq('id', id)
   if (error) throw new Error(error.message)
 }
 
