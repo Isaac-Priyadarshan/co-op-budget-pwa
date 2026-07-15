@@ -221,7 +221,6 @@ function CategoryCard({
   spentBySub: Record<string, number>
   getBudget: (label: string) => number
   delay: number
-  // Now receives subcategoryId and parentLabel in addition to label, budget, accent
   onEditSub: (subId: string, label: string, parentLabel: string, budget: number, accent: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
@@ -368,7 +367,6 @@ function CategoryCard({
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: si * 0.04, duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                      // Pass subcategory UUID and parent category label to onEditSub
                       onClick={() => onEditSub(sub.id, sub.label, cat.label, subBudget, accent)}
                       whileTap={{ scale: 0.98, backgroundColor: `${accent}18` }}
                       style={{
@@ -468,6 +466,8 @@ export default function BudgetScreen() {
   const mEnd   = monthEnd(year, month)
 
   const { transactions, loading: txLoading }              = useTransactions()
+  // expenseCategories is already fetched here — we use it to resolve
+  // the parent category UUID (category_id) at save time.
   const { expenseCategories, subcategories }              = useCategories()
   const { totalPlanned, getBudget, upsertBudget, loading: budgetLoading } = useBudgets(mKey)
 
@@ -535,7 +535,7 @@ export default function BudgetScreen() {
   const [sheetBudget,      setSheetBudget]       = useState<number | undefined>()
   const [sheetAccent,      setSheetAccent]       = useState('#FBBF24')
 
-  // Receives subcategory UUID + both labels so upsertBudget gets everything it needs
+  // openEditSub stores everything the sheet + handleSave will need
   const openEditSub = (
     subId: string,
     label: string,
@@ -551,9 +551,23 @@ export default function BudgetScreen() {
     setSheetOpen(true)
   }
 
-  // onSave now only receives amount — all other data is already in state
+  // ── FIX: resolve parent category UUID from expenseCategories ──────────────
+  // upsertBudget() now requires 5 args:
+  //   (subcategoryId, categoryId, category, parentCategory, amount)
+  // We look up the parent category UUID by matching sheetParentLabel
+  // against the already-loaded expenseCategories list.
   const handleSave = async (amount: number) => {
-    await upsertBudget(sheetSubId, sheetLabel, sheetParentLabel, amount)
+    const parentCat  = expenseCategories.find(
+      c => c.label === sheetParentLabel
+    )
+    const categoryId = parentCat?.id ?? ''
+    await upsertBudget(
+      sheetSubId,       // subcategory UUID
+      categoryId,       // parent category UUID  ← the missing 2nd arg
+      sheetLabel,       // subcategory label
+      sheetParentLabel, // parent category label
+      amount,
+    )
     setSheetOpen(false)
   }
 
