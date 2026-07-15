@@ -5,6 +5,7 @@ export interface BudgetRow {
   id: string
   category: string
   parent_category: string
+  subcategory_id: string | null
   amount: number
   month: string
 }
@@ -28,8 +29,13 @@ export function useBudgets(month: string) {
 
   useEffect(() => { void fetchBudgets() }, [fetchBudgets])
 
-  // Upsert a single subcategory budget for this month
+  // Upsert a single subcategory budget for this month.
+  // subcategoryId: the UUID from the subcategories table (required for the
+  //   UNIQUE (subcategory_id, month) constraint to resolve correctly).
+  // category: the subcategory label (text) stored for display/lookup.
+  // parentCategory: the parent category label (text).
   const upsertBudget = useCallback(async (
+    subcategoryId: string,
     category: string,
     parentCategory: string,
     amount: number
@@ -37,14 +43,16 @@ export function useBudgets(month: string) {
     const { data, error: err } = await supabase
       .from('budgets')
       .upsert(
-        { category, parent_category: parentCategory, amount, month },
-        { onConflict: 'category,month' }
+        { subcategory_id: subcategoryId, category, parent_category: parentCategory, amount, month },
+        { onConflict: 'subcategory_id,month' }
       )
       .select()
       .single()
-    if (err) { console.error(err); return }
+    if (err) { console.error('upsertBudget error:', err); return }
     setBudgets(prev => {
-      const existing = prev.findIndex(b => b.category === category && b.month === month)
+      const existing = prev.findIndex(
+        b => b.subcategory_id === subcategoryId && b.month === month
+      )
       if (existing >= 0) {
         const next = [...prev]
         next[existing] = data as BudgetRow
@@ -54,7 +62,7 @@ export function useBudgets(month: string) {
     })
   }, [month])
 
-  // Get budget amount for a single subcategory
+  // Get budget amount for a single subcategory by its label
   const getBudget = useCallback((category: string): number => {
     return budgets.find(b => b.category === category)?.amount ?? 0
   }, [budgets])
