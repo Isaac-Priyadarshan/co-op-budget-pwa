@@ -47,7 +47,8 @@ interface DataContextValue {
     glow: string,
     bg: string,
   ) => Promise<{ error: string | null }>
-  deleteCategory: (id: string, type: 'expense' | 'income') => Promise<{ error: string | null }>
+  // Bug #7 fix: interface now matches implementation — type param removed.
+  deleteCategory: (id: string) => Promise<{ error: string | null }>
   updateCategory: (
     id: string,
     label: string,
@@ -70,7 +71,9 @@ interface DataContextValue {
   transactions: Transaction[]
   transactionsLoading: boolean
   transactionsError: string | null
-  addTransaction: (tx: NewTransaction) => Promise<void>
+  // Bug #1 fix: addTransaction now returns { error: string | null } so callers
+  // can surface a visible alert if the wallet balance adjustment fails.
+  addTransaction: (tx: NewTransaction) => Promise<{ error: string | null }>
   removeTransaction: (id: string) => Promise<void>
   refreshAll: () => Promise<void>
 }
@@ -87,10 +90,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [transactionsLoading, setTransactionsLoading] = useState(true)
   const [transactionsError, setTransactionsError] = useState<string | null>(null)
 
-  // deletingIds — guards against any resurrection of rows mid-delete.
+  // deletingIds guards against resurrection of rows mid-delete.
   // Populated BEFORE the DELETE await; cleared on success or error.
-  // loadTransactions always strips these IDs, so even if a stale fetch
-  // fires after the delete, the row will not reappear in state.
+  // loadTransactions always strips these IDs so even a stale realtime event
+  // cannot make a deleted row reappear in state.
   const deletingIds = useRef<Set<string>>(new Set())
 
   const applyCategories = useCallback((cats: Category[]) => {
@@ -161,10 +164,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await Promise.all([loadCategories(), loadTransactions()])
   }, [loadCategories, loadTransactions])
 
-  // ── Initial load ──────────────────────────────────────────────────────────────────────────────────
+  // ── Initial load ──────────────────────────────────────────────────────────────────────────
   useEffect(() => { void refreshAll() }, [refreshAll])
 
-  // ── PWA visibilitychange reload guard ────────────────────────────────────────────────────
+  // ── PWA visibilitychange reload guard ──────────────────────────────────
   useEffect(() => {
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -175,7 +178,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [loadTransactions])
 
-  // ── Supabase Realtime channels ───────────────────────────────────────────────────────────────────
+  // ── Supabase Realtime channels ─────────────────────────────────────────────────
   useEffect(() => {
     const categoriesChannel = supabase
       .channel('realtime-categories')
@@ -195,6 +198,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         payload => {
           const newRow = payload.new as Transaction
           if (!newRow?.id) return
+          // Bug #5 fix: guard against resurrected transfer rows.
+          // If the ID is currently mid-delete, discard this realtime INSERT event.
           if (deletingIds.current.has(newRow.id)) return
           setTransactions(prev => {
             if (prev.some(t => t.id === newRow.id)) return prev
@@ -236,7 +241,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [loadCategories])
 
-  // ── Category write ops ──────────────────────────────────────────────────────────────────────────────────────
+  // ── Category write ops ────────────────────────────────────────────────────────
   const addCategory = useCallback(
     async (
       type: 'expense' | 'income',
@@ -247,7 +252,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       bg: string,
     ) => {
       const existing = type === 'expense' ? expenseCategories : incomeCategories
-      const nextSortOrder = existing.length
+
+      // Bug #6 fix: use max existing sort_order + 1 instead of array length.
+      // If you delete index 2 of 5, next item gets max(0,1,3,4)+1 = 5, not 4
+      // (which would collide with the existing item at sort_order 4).
+      const maxSortOrder = existing.reduce(
+        (max, c) => Math.max(max, c.sort_order ?? -1),
+        -1,
+      )
+      const nextSortOrder = maxSortOrder + 1
+
       const { error } = await supabase
         .from('categories')
         .insert([{ type, label, icon, accent, glow, bg, sort_order: nextSortOrder }])
@@ -256,6 +270,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [expenseCategories, incomeCategories],
   )
 
+  // Bug #7 fix: removed unused `type` param from both interface and implementation.
   const deleteCategory = useCallback(async (id: string) => {
     await supabase.from('subcategories').delete().eq('category_id', id)
     const { error } = await supabase.from('categories').delete().eq('id', id)
@@ -276,7 +291,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addSubcategory = useCallback(
     async (categoryId: string, label: string) => {
       const existing = subcategories[categoryId] ?? []
-      const nextSortOrder = existing.length
+
+      // Bug #6 fix (subcategories): same max+1 approach.
+      const maxSortOrder = existing.reduce(
+        (max, s) => Math.max(max, s.sort_order ?? -1),
+        -1,
+      )
+      const nextSortOrder = maxSortOrder + 1
+
       const { error } = await supabase
         .from('subcategories')
         .insert([{ category_id: categoryId, label, sort_order: nextSortOrder }])
@@ -291,7 +313,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateSubcategory = useCallback(async (subcategoryId: string, label: string) => {
-    const { error } = await supabase.from('subcategories').update({ label }).eq('id', subcategoryId)
+    const { error } = await supabase
+      .from('subcategories')
+      .update({ label })
+      .eq('id', subcategoryId)
     return { error: error ? error.message : null }
   }, [])
 
@@ -347,35 +372,36 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [subcategories, loadCategories],
   )
 
-  // ── Transaction write ops ──────────────────────────────────────────────────────────────────────────────────
+  // ── Transaction write ops ───────────────────────────────────────────────────
 
-  // addTransaction — saves the transaction then adjusts the wallet balance.
+  // addTransaction — saves the transaction then atomically adjusts the wallet balance.
   //
   // Balance adjustment logic:
   //   income  → delta = +amount  (wallet balance increases)
   //   expense → delta = −amount  (wallet balance decreases)
   //
-  // If the wallet adjustment fails, the transaction is already committed.
-  // We do NOT roll back the transaction — the source of truth is the
-  // transactions table. The wallet balance can be recalculated manually
-  // if needed. We log the error silently so the user is not blocked.
-  const addTransaction = useCallback(async (tx: NewTransaction) => {
+  // Bug #1 fix: no longer swallows the balance failure silently.
+  // Returns { error: string | null } so the calling screen can render
+  // a visible toast/alert if the balance adjustment fails.
+  // The transaction row is always committed; only the balance sync can fail.
+  const addTransaction = useCallback(async (tx: NewTransaction): Promise<{ error: string | null }> => {
     await insertTransaction(tx)
 
-    // Adjust wallet balance if a wallet was selected
     if (tx.wallet_id) {
       const delta = tx.type === 'income' ? tx.amount : -tx.amount
       try {
         await adjustWalletBalance(tx.wallet_id, delta)
       } catch (e) {
-        // Non-blocking: transaction saved. Balance sync failed silently.
-        // The user's transaction is preserved.
-        console.warn('Wallet balance adjustment failed:', e)
+        // Transaction is saved. Balance sync failed — return error to caller.
+        const message = e instanceof Error ? e.message : 'Wallet balance sync failed'
+        return { error: `Transaction saved, but wallet balance could not be updated: ${message}` }
       }
     }
+
+    return { error: null }
   }, [])
 
-  // removeTransaction — hardened permanent delete with rollback on failure
+  // removeTransaction — hardened permanent delete with optimistic UI rollback.
   const removeTransaction = useCallback(async (id: string) => {
     deletingIds.current.add(id)
 
@@ -390,6 +416,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       deletingIds.current.delete(id)
       setTransactions(prev => prev.filter(t => t.id !== id))
 
+      // Ghost-check: verify the row is truly gone in DB
       const { data: ghost } = await supabase
         .from('transactions')
         .select('id')
@@ -416,7 +443,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // ── Context value ─────────────────────────────────────────────────────────────────────────────────────
+  // ── Context value ──────────────────────────────────────────────────────────────────
   const value = useMemo<DataContextValue>(
     () => ({
       expenseCategories,
