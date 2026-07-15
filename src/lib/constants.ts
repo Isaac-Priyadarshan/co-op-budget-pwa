@@ -5,31 +5,36 @@ export const USERS = {
 
 export type AppUser = typeof USERS[keyof typeof USERS]
 
-// Navigation pages — 4 screens per page, swiped horizontally
+// Navigation pages — 3 screens per page, swiped horizontally
 export const NAV_PAGES = [
   {
     label: 'Core',
     screens: [
-      { id: 'wallet-credit',  label: 'Wallet',    icon: '💳' },
-      { id: 'budget',         label: 'Budget',    icon: '💰' },
-      { id: 'home',           label: 'Home',      icon: '🏠' },
-      { id: 'ledger',         label: 'Ledger',    icon: '📖' },
+      { id: 'budget',           label: 'Budget',    icon: '💰' },
+      { id: 'home',             label: 'Home',      icon: '🏠' },
+      { id: 'ledger',           label: 'Ledger',    icon: '📖' },
     ],
   },
   {
     label: 'Money',
     screens: [
-      { id: 'borrowed',         label: 'Borrowed',   icon: '⬇️' },
-      { id: 'lent',             label: 'Lent',        icon: '⬆️' },
-      { id: 'loans',            label: 'Loans',       icon: '🏦' },
-      { id: 'recurring-payment', label: 'Recurring',  icon: '🔄' },
+      { id: 'borrowed',         label: 'Borrowed',  icon: '⬇️' },
+      { id: 'wallet-credit',    label: 'Wallet',    icon: '💳' },
+      { id: 'lent',             label: 'Lent',      icon: '⬆️' },
+    ],
+  },
+  {
+    label: 'Accounts',
+    screens: [
+      { id: 'loans',            label: 'Loans',     icon: '🏦' },
+      { id: 'account-overview', label: 'Accounts',  icon: '📊' },
+      { id: 'recurring-payment', label: 'Recurring', icon: '🔄' },
     ],
   },
   {
     label: 'Big Picture',
     screens: [
       { id: 'asset',            label: 'Assets',    icon: '💼' },
-      { id: 'account-overview', label: 'Accounts',  icon: '📊' },
       { id: 'overview',         label: 'Overview',  icon: '📈' },
       { id: 'settings',         label: 'Settings',  icon: '⚙️' },
     ],

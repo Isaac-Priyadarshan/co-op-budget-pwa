@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from 'react'
+import { useRef, useLayoutEffect, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { NAV_PAGES, type ScreenId } from '../../lib/constants'
 
@@ -7,8 +7,8 @@ interface BottomNavProps {
   onNavigate: (screen: ScreenId) => void
 }
 
-// Default screen to land on when switching to each page
-const PAGE_DEFAULTS: ScreenId[] = ['home', 'loans', 'overview']
+// Default screen to land on when swiping to each page
+const PAGE_DEFAULTS: ScreenId[] = ['home', 'wallet-credit', 'account-overview', 'overview']
 
 function getPageForScreen(screen: ScreenId): number {
   for (let i = 0; i < NAV_PAGES.length; i++) {
@@ -23,10 +23,15 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
   const navRef = useRef<HTMLDivElement>(null)
   const dragStartX = useRef<number | null>(null)
 
-  const correctPage = getPageForScreen(activeScreen)
-  if (correctPage !== pageIndex) {
-    setPageIndex(correctPage)
-  }
+  // Sync page when activeScreen changes externally
+  useEffect(() => {
+    const correct = getPageForScreen(activeScreen)
+    if (correct !== pageIndex) {
+      setSwipeDir(correct > pageIndex ? 1 : -1)
+      setPageIndex(correct)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeScreen])
 
   useLayoutEffect(() => {
     const el = navRef.current
@@ -97,8 +102,8 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             style={{
               display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr 1fr',
-              padding: '10px 8px 10px',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              padding: '10px 12px 10px',
               gap: 0,
             }}
           >
@@ -113,13 +118,14 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 3,
-                    padding: '8px 2px',
+                    gap: 4,
+                    padding: '8px 4px',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    borderRadius: 14,
+                    borderRadius: 16,
                     position: 'relative',
+                    width: '100%',
                   }}
                 >
                   {isActive && (
@@ -129,25 +135,22 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
                         position: 'absolute',
                         inset: 0,
                         background: 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(217,119,6,0.12))',
-                        borderRadius: 14,
+                        borderRadius: 16,
                         border: '1px solid rgba(251,191,36,0.30)',
-                        boxShadow: '0 0 12px rgba(251,191,36,0.12)',
+                        boxShadow: '0 0 14px rgba(251,191,36,0.14)',
                       }}
                       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                     />
                   )}
-                  <span style={{ fontSize: 19, zIndex: 1, lineHeight: 1 }}>{screen.icon}</span>
+                  <span style={{ fontSize: 22, zIndex: 1, lineHeight: 1 }}>{screen.icon}</span>
                   <span
                     style={{
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: isActive ? 700 : 400,
                       zIndex: 1,
-                      color: isActive ? '#FBBF24' : 'rgba(255,255,255,0.38)',
+                      color: isActive ? '#FBBF24' : 'rgba(255,255,255,0.42)',
                       letterSpacing: '0.01em',
                       whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      maxWidth: 56,
                     }}
                   >
                     {screen.label}
