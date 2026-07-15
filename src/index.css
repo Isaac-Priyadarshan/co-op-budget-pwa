@@ -31,15 +31,34 @@
 }
 
 html {
+  /* ─── CRITICAL: Lock to exactly 16px hard pixels. ───────────────────────
+     Tailwind v4 preflight resets font-size to 1rem on <html>, which
+     resolves to the OS system font scale on Android (125 – 200%).
+     Using a hard `px` value here makes this completely immune to any
+     browser or OS accessibility font-size multiplier.
+     All component font sizes are inline px values, so they are already
+     scale-immune — this just prevents the html root from drifting.       */
+  font-size: 16px;
+
+  /* ─── Disable all OS/browser text auto-scaling ──────────────────────── */
   -webkit-text-size-adjust: none;
   text-size-adjust: none;
+  -moz-text-size-adjust: none;
+
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
+  touch-action: pan-y;
   height: 100%;
 }
 
 body {
+  /* ─── Lock body font-size independently of html ─────────────────────────
+     Belt-and-suspenders: even if a browser ignores the html px lock,
+     the body is also pinned to 16px so the cascade never drifts.         */
+  font-size: 16px;
+  line-height: 1;
+
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
@@ -47,7 +66,6 @@ body {
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
 }
 
 #root {
