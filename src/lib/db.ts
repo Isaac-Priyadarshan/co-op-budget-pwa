@@ -11,6 +11,7 @@ export interface Transaction {
   description: string
   category: string
   category_id?: string | null
+  subcategory_id?: string | null
   created_by: AppUser
   created_at: string
   transaction_date: string
@@ -24,6 +25,7 @@ export interface NewTransaction {
   description: string
   category: string
   category_id?: string | null
+  subcategory_id?: string | null
   created_by: AppUser
   type: 'income' | 'expense' | 'transfer'
   wallet_id?: string | null
@@ -62,8 +64,9 @@ export async function insertTransaction(tx: NewTransaction): Promise<Transaction
     type: tx.type,
     transaction_date: toDateOnly(tx.transaction_date),
   }
-  if (tx.wallet_id) payload.wallet_id = tx.wallet_id
-  if (tx.category_id) payload.category_id = tx.category_id
+  if (tx.wallet_id)       payload.wallet_id       = tx.wallet_id
+  if (tx.category_id)     payload.category_id     = tx.category_id
+  if (tx.subcategory_id)  payload.subcategory_id  = tx.subcategory_id
 
   const { data, error } = await supabase
     .from('transactions')
