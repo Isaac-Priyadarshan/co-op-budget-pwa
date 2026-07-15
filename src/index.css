@@ -1,6 +1,19 @@
 @import "tailwindcss";
 
 :root {
+  /* ─── SAFE AREA CSS VARS ─────────────────────────────────────────────────
+     --sab (safe-area-bottom) and --sat (safe-area-top) are written by the
+     pre-paint <script> in index.html before React hydrates, so they are
+     available on frame 0. The env() fallbacks here are for the rare case
+     where the script hasn't fired yet (e.g. script blocked, or desktop
+     browser where the probe element resolves env() correctly via CSS).
+
+     All layout that needs safe-area spacing must use var(--sab) / var(--sat)
+     NOT env(safe-area-inset-*) directly in inline styles — inline env() is
+     applied by iOS one frame late, causing the visible jump / black flash.  */
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sat: env(safe-area-inset-top, 0px);
+
   --gold-bright:   #FBBF24;
   --gold-mid:      #F59E0B;
   --gold-deep:     #D97706;
@@ -68,28 +81,20 @@ body {
 
   /* ─── FIX (iOS black bar — root cause 2) ────────────────────────────────
      height: 100dvh  →  body always spans full dynamic viewport height.
-     padding-bottom: env(safe-area-inset-bottom)  →  the body's own
-     background (#04050b) now fills the home-indicator zone. Without this
-     padding, the body background stops at the safe-area boundary, and
-     the raw html background (also #04050b, but previously #000000) was
-     visible in that gap as a subtly different shade.
-
-     Note: #root uses position:fixed;inset:0 so it covers the full screen
-     independently. The body padding here is purely so the body's
-     background colour (which shows around/behind #root during transitions
-     and PWA launch) also fills that bottom zone.                         */
+     padding-bottom: var(--sab)  →  uses the pre-painted CSS variable
+     written by the <script> in index.html, so the body background fills
+     the home-indicator zone from frame 0. Previously used env() directly
+     which iOS resolves one frame late.                                    */
   height: 100dvh;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--sab);
 
   overflow: hidden;
   overscroll-behavior: none;
 
   /* ─── FIX (root cause 3 — colour mismatch) ──────────────────────────────
-     Was #000000. manifest.webmanifest background_color is #04050b.
-     iOS uses the manifest background_color for the launch splash and
-     for the area outside the app frame. Unifying both to #04050b
-     eliminates the subtle shade difference visible as a bottom bar on
-     some iPhones at launch and during screen transitions.                */
+     Unified with manifest.webmanifest background_color (#04050b) to
+     eliminate subtle shade difference visible as a bottom bar on some
+     iPhones at launch and during screen transitions.                      */
   background: #04050b;
 
   color: var(--text-primary);
@@ -142,8 +147,9 @@ button, nav, .no-select {
   -webkit-user-select: none;
 }
 
-.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-.pt-safe { padding-top: env(safe-area-inset-top); }
+/* Safe-area utility classes — always reference the pre-painted var, not env() directly */
+.pb-safe { padding-bottom: var(--sab); }
+.pt-safe { padding-top: var(--sat); }
 
 [data-framer-component-type] {
   will-change: transform, opacity;

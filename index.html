@@ -9,60 +9,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- PRIMARY THEME COLOURS -->
-    <!-- theme-color: sets the browser/OS chrome colour around the app -->
     <meta name="theme-color" content="#04050b" />
-    <!-- msapplication-navbutton-color: Windows Phone / Edge legacy -->
     <meta name="msapplication-navbutton-color" content="#04050b" />
 
     <!-- PWA MANIFEST -->
     <link rel="manifest" href="/manifest.webmanifest" />
 
     <!-- ANDROID PWA -->
-    <!-- mobile-web-app-capable: tells Android Chrome this is an installable app -->
     <meta name="mobile-web-app-capable" content="yes" />
 
-    <!-- iOS PWA
-         IMPORTANT: apple-mobile-web-app-capable must appear EXACTLY ONCE.
-         Duplicate meta tags cause Safari to ignore or de-prioritise later
-         occurrences, which can silently break viewport-fit=cover behaviour.
-
-         apple-mobile-web-app-status-bar-style values:
-           'default'             → white/grey status bar (light mode look)
-           'black'               → black status bar, app starts below it (safe area respected)
-           'black-translucent'   → status bar overlays app content; app starts at (0,0).
-                                   Combined with viewport-fit=cover, this is what allows
-                                   our background to extend behind the status bar and
-                                   home indicator. env(safe-area-inset-*) then pads
-                                   the actual content away from those zones.
-    -->
+    <!-- iOS PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="I &amp; J Budget" />
 
-    <!-- iOS TOUCH ICONS (Apple Home Screen icons)
-         iOS uses the largest icon it can find. We provide 4 sizes to cover
-         iPhone SE (120), iPhone (180), iPad (167), iPad Pro (152). -->
+    <!-- iOS TOUCH ICONS -->
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
     <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-167.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
 
-    <!-- iOS SPLASH SCREENS (shown while app is loading after launch from Home Screen)
-         These are device-specific. Without them iOS shows a white flash before
-         the app finishes loading. Sizes must match EXACT device pixel dimensions. -->
-    <!-- iPhone 14 Pro / 15 / 15 Pro (390×844 @3x) -->
+    <!-- iOS SPLASH SCREENS -->
     <link
       rel="apple-touch-startup-image"
       media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"
       href="/icons/splash-390x844.png"
     />
-    <!-- iPhone 14 Plus / 15 Plus (414×896 @2x) -->
     <link
       rel="apple-touch-startup-image"
       media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)"
       href="/icons/splash-390x844.png"
     />
-    <!-- iPhone 13 mini / 12 mini / SE 3rd gen (375×812 @3x) -->
     <link
       rel="apple-touch-startup-image"
       media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)"
@@ -76,6 +53,58 @@
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
 
     <title>I &amp; J Budget</title>
+
+    <!--
+      SAFE-AREA PRE-PAINT SCRIPT
+      ─────────────────────────────────────────────────────────────────────────
+      WHY THIS EXISTS:
+      env(safe-area-inset-bottom/top) are CSS environment variables that iOS
+      resolves during layout. When they are used directly in inline React
+      styles, iOS sometimes applies them one frame late — causing a black
+      flash at the bottom (the raw screen behind the home indicator) on the
+      very first render.
+
+      HOW THIS FIXES IT:
+      This script runs synchronously, before any CSS or React code executes.
+      It creates a temporary off-screen element, measures the computed
+      safe-area-inset values, then writes them as real CSS custom properties
+      (--sab, --sat) on the <html> element. Because this runs before the
+      first paint, var(--sab) and var(--sat) are available with their correct
+      pixel values on frame 0 — no React state update, no layout jump.
+
+      FALLBACK:
+      If the browser doesn't support env() (desktop, Android without safe
+      areas), the probe element returns 0px, and the CSS vars are set to 0.
+      The :root fallback in index.css also guarantees 0px for any edge case
+      where this script is blocked or runs after CSS.
+    -->
+    <script>
+      (function () {
+        try {
+          var probe = document.createElement('div');
+          probe.style.cssText = [
+            'position:fixed',
+            'top:0',
+            'left:0',
+            'width:1px',
+            'height:1px',
+            'pointer-events:none',
+            'visibility:hidden',
+            'padding-top:env(safe-area-inset-top,0px)',
+            'padding-bottom:env(safe-area-inset-bottom,0px)',
+          ].join(';');
+          document.head.appendChild(probe);
+          var cs = window.getComputedStyle(probe);
+          var sat = cs.paddingTop   || '0px';
+          var sab = cs.paddingBottom || '0px';
+          document.documentElement.style.setProperty('--sat', sat);
+          document.documentElement.style.setProperty('--sab', sab);
+          document.head.removeChild(probe);
+        } catch (e) {
+          // Silent fallback — CSS :root vars in index.css provide 0px defaults.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

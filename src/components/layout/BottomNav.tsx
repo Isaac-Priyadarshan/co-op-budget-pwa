@@ -97,7 +97,22 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
           overflow: 'hidden',
           userSelect: 'none',
           touchAction: 'pan-y',
-          paddingBottom: 0,
+          /*
+           * paddingBottom: var(--sab)
+           *
+           * --sab is written onto <html> by the pre-paint <script> in index.html
+           * BEFORE React hydrates, so this value is correct on frame 0.
+           *
+           * This pads the nav glass background down behind the iPhone home
+           * indicator, ensuring no black strip is ever visible between the
+           * nav bar and the bottom edge of the screen — even on the very
+           * first render, app launch, or PWA restore.
+           *
+           * DO NOT replace this with env(safe-area-inset-bottom) directly.
+           * iOS applies inline env() one frame late, which was the original
+           * cause of the intermittent black flash.
+           */
+          paddingBottom: 'var(--sab)',
         }}
       >
         <AnimatePresence mode="wait" custom={swipeDir}>
