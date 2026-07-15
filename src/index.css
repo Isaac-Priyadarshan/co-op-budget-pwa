@@ -49,7 +49,14 @@ html {
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
   touch-action: pan-y;
-  height: 100%;
+
+  /* ─── FIX (iOS black bar — root cause 1) ────────────────────────────────
+     Previously `height: 100%` — this resolves from the document height
+     which on iOS PWA mode does NOT include the area behind the home
+     indicator. Switching to 100dvh (dynamic viewport height) ensures the
+     html element always spans the full rendered screen height, giving
+     body a correct 100% reference to inherit from.                       */
+  height: 100dvh;
 }
 
 body {
@@ -59,26 +66,48 @@ body {
   font-size: 16px;
   line-height: 1;
 
-  height: 100%;
+  /* ─── FIX (iOS black bar — root cause 2) ────────────────────────────────
+     height: 100dvh  →  body always spans full dynamic viewport height.
+     padding-bottom: env(safe-area-inset-bottom)  →  the body's own
+     background (#04050b) now fills the home-indicator zone. Without this
+     padding, the body background stops at the safe-area boundary, and
+     the raw html background (also #04050b, but previously #000000) was
+     visible in that gap as a subtly different shade.
+
+     Note: #root uses position:fixed;inset:0 so it covers the full screen
+     independently. The body padding here is purely so the body's
+     background colour (which shows around/behind #root during transitions
+     and PWA launch) also fills that bottom zone.                         */
+  height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+
   overflow: hidden;
   overscroll-behavior: none;
-  background: #000000;
+
+  /* ─── FIX (root cause 3 — colour mismatch) ──────────────────────────────
+     Was #000000. manifest.webmanifest background_color is #04050b.
+     iOS uses the manifest background_color for the launch splash and
+     for the area outside the app frame. Unifying both to #04050b
+     eliminates the subtle shade difference visible as a bottom bar on
+     some iPhones at launch and during screen transitions.                */
+  background: #04050b;
+
   color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
   -webkit-overflow-scrolling: touch;
 }
 
 #root {
-  /* ─── FIX (Issue 1 — iOS black bar) ─────────────────────────────────────
-     Previously this had BOTH `height: 100dvh` AND `position:fixed;inset:0`.
-     These two strategies fight each other on iOS Safari:
-       • `position:fixed; inset:0` already pins all four edges to the full
-         screen including the area behind the home indicator — correct.
-       • `height: 100dvh` adds an explicit height on top of that, which on
-         some iOS versions resolves BEFORE the dynamic viewport is finalised,
-         causing a 1-34px gap at the bottom filled by body's #000000.
-     Fix: keep only `position:fixed; inset:0`. The height is implicit and
-     always exactly right. Remove `height` entirely.                        */
+  /* ─── position:fixed; inset:0 is the correct strategy for iOS PWA. ───────
+     This pins all four edges to the full screen including the area behind
+     the status bar and home indicator. Combined with viewport-fit=cover
+     in <meta name="viewport"> and apple-mobile-web-app-status-bar-style=
+     black-translucent in index.html, this gives true edge-to-edge rendering.
+
+     IMPORTANT: No explicit height or width here — they are implicit from
+     inset:0 and are always pixel-perfect. Adding height:100dvh on top of
+     position:fixed causes iOS to miscalculate during viewport finalisation,
+     re-introducing the black bar. Leave this block exactly as-is.        */
   position: fixed;
   inset: 0;
   overflow: hidden;
