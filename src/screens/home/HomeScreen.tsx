@@ -492,11 +492,57 @@ function CategoryGrid({
           key={cat.id}
           whileTap={{ scale: 0.93 }}
           onClick={() => navigate(`/entry/${type}/${cat.id}`)}
-          style={{ borderRadius: 18, padding: '14px 8px', background: cat.bg, border: `1px solid ${cat.accent}28`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer', boxShadow: `0 4px 16px ${cat.glow}` }}
+          style={{
+            borderRadius: 18,
+            padding: '14px 8px 12px',
+            background: cat.bg,
+            border: `1px solid ${cat.accent}28`,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            gap: 0,
+            cursor: 'pointer',
+            boxShadow: `0 4px 16px ${cat.glow}`,
+          }}
         >
-          <span style={{ fontSize: 24 }}>{cat.icon}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, color: cat.accent, letterSpacing: '0.07em', textTransform: 'uppercase', textAlign: 'center' }}>{cat.label}</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#F5F5F5', fontVariantNumeric: 'tabular-nums' }}>{formatINR(amounts[cat.id] ?? 0)}</span>
+          {/* Icon — fixed height zone */}
+          <span style={{ fontSize: 26, lineHeight: 1, display: 'block', marginBottom: 8 }}>
+            {cat.icon}
+          </span>
+
+          {/* Label — fixed min-height so all cards reserve the same vertical space for 1-2 line labels */}
+          <span style={{
+            fontSize: 10,
+            fontWeight: 700,
+            color: cat.accent,
+            letterSpacing: '0.07em',
+            textTransform: 'uppercase',
+            textAlign: 'center',
+            lineHeight: 1.35,
+            minHeight: '2.7em',      /* reserves space for exactly 2 lines at fontSize:10 */
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+            padding: '0 2px',
+          }}>
+            {cat.label}
+          </span>
+
+          {/* Amount — always sits at the same vertical position */}
+          <span style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: '#F5F5F5',
+            fontVariantNumeric: 'tabular-nums',
+            marginTop: 6,
+            display: 'block',
+          }}>
+            {formatINR(amounts[cat.id] ?? 0)}
+          </span>
         </motion.div>
       ))}
     </div>
