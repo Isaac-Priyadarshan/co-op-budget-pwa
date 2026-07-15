@@ -92,6 +92,27 @@ function BudgetBar({ spent, planned, accent }: { spent: number; planned: number;
   )
 }
 
+// ─── Unbudgeted Spent Bar ─────────────────────────────────────────────────────
+// Shown when a subcategory has no budget set but has real spend.
+// Renders a soft amber pulse bar at fixed 60% width as a visual cue.
+function UnbudgetedBar({ accent }: { accent: string }) {
+  return (
+    <div style={{ height: 4, borderRadius: 99, background: 'rgba(0,0,0,0.18)', overflow: 'hidden', marginTop: 5 }}>
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: '60%' }}
+        transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+        style={{
+          height: '100%',
+          borderRadius: 99,
+          background: `${accent}55`,
+          backgroundImage: `repeating-linear-gradient(90deg, ${accent}66 0px, ${accent}33 6px, ${accent}66 12px)`,
+        }}
+      />
+    </div>
+  )
+}
+
 // ─── Edit Budget Sheet ────────────────────────────────────────────────────────
 function BudgetSheet({
   open, initialLabel, initialBudget, accent, onClose, onSave,
@@ -333,10 +354,16 @@ function CategoryCard({
                 </div>
               ) : (
                 subs.map((sub, si) => {
-                  const subBudget = getBudget(sub.label) ?? 0
-                  const subSpent  = spentBySub[sub.label.toLowerCase()] ?? 0
-                  const subOver   = subBudget > 0 && subSpent > subBudget
-                  const leftover  = subBudget > 0 ? subBudget - subSpent : 0
+                  const subBudget   = getBudget(sub.label) ?? 0
+                  const subSpent    = spentBySub[sub.label.toLowerCase()] ?? 0
+                  const hasSpend    = subSpent > 0
+                  const hasBudget   = subBudget > 0
+                  const subOver     = hasBudget && subSpent > subBudget
+                  const leftover    = hasBudget ? subBudget - subSpent : 0
+                  // Dot is fully opaque whenever there is real spend OR a budget set
+                  const dotOpacity  = hasSpend || hasBudget ? 1 : 0.25
+                  // Dot color: red if over-budget, accent if has spend/budget, muted otherwise
+                  const dotColor    = subOver ? '#F87171' : (hasSpend || hasBudget ? accent : `${accent}44`)
 
                   return (
                     <motion.div
@@ -360,25 +387,55 @@ function CategoryCard({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{
                             width: 7, height: 7, borderRadius: '50%',
-                            background: subOver ? '#F87171' : accent,
-                            opacity: subBudget > 0 ? 1 : 0.3,
+                            background: dotColor,
+                            opacity: dotOpacity,
                             flexShrink: 0,
                           }} />
                           <p style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>{sub.label}</p>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <div style={{ textAlign: 'right' }}>
-                            <p style={{ fontSize: 13, fontWeight: 800, color: subOver ? '#F87171' : '#f5f7ff', fontVariantNumeric: 'tabular-nums' }}>
-                              {formatINR(subSpent)}
-                              {subBudget > 0 && (
-                                <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.35)' }}> / {formatINR(subBudget)}</span>
-                              )}
-                            </p>
-                            {subBudget > 0 && (
-                              <p style={{ fontSize: 10, color: subOver ? 'rgba(248,113,113,0.7)' : `${accent}99`, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                                {subOver ? `+${formatINR(Math.abs(leftover))} over` : leftover > 0 ? `${formatINR(leftover)} left` : 'Fully used'}
+                            {/* ── Spent amount ── always show if there's spend, even without a budget */}
+                            {(hasSpend || hasBudget) && (
+                              <p style={{
+                                fontSize: 13,
+                                fontWeight: 800,
+                                color: subOver ? '#F87171' : hasSpend ? '#f5f7ff' : 'rgba(255,255,255,0.3)',
+                                fontVariantNumeric: 'tabular-nums',
+                              }}>
+                                {formatINR(subSpent)}
+                                {hasBudget && (
+                                  <span style={{ fontSize: 10, fontWeight: 500, color: 'rgba(255,255,255,0.35)' }}>
+                                    {' / '}{formatINR(subBudget)}
+                                  </span>
+                                )}
                               </p>
                             )}
+
+                            {/* ── Status label below amount ── */}
+                            {hasBudget ? (
+                              <p style={{
+                                fontSize: 10,
+                                color: subOver ? 'rgba(248,113,113,0.7)' : `${accent}99`,
+                                fontVariantNumeric: 'tabular-nums',
+                                textAlign: 'right',
+                              }}>
+                                {subOver
+                                  ? `+${formatINR(Math.abs(leftover))} over`
+                                  : leftover > 0
+                                    ? `${formatINR(leftover)} left`
+                                    : 'Fully used'}
+                              </p>
+                            ) : hasSpend ? (
+                              // No budget set but has real spend → show "No budget set" nudge
+                              <p style={{
+                                fontSize: 10,
+                                color: `${accent}66`,
+                                textAlign: 'right',
+                              }}>
+                                No budget set
+                              </p>
+                            ) : null}
                           </div>
                           <div style={{ width: 26, height: 26, borderRadius: 8, background: `${accent}18`, border: `1px solid ${accent}28`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -389,8 +446,14 @@ function CategoryCard({
                         </div>
                       </div>
 
-                      {/* Sub progress bar */}
-                      {subBudget > 0 && <BudgetBar spent={subSpent} planned={subBudget} accent={accent} />}
+                      {/* ── Progress / unbudgeted bar ── */}
+                      {hasBudget ? (
+                        // Normal budget bar
+                        <BudgetBar spent={subSpent} planned={subBudget} accent={accent} />
+                      ) : hasSpend ? (
+                        // No budget but has spend → render a muted striped indicator bar
+                        <UnbudgetedBar accent={accent} />
+                      ) : null}
                     </motion.div>
                   )
                 })
