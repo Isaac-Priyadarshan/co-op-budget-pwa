@@ -1,40 +1,33 @@
 import { useState, useRef, useLayoutEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { NAV_GROUPS, type ScreenId } from '../../lib/constants'
+import { NAV_PAGES, type ScreenId } from '../../lib/constants'
 
 interface BottomNavProps {
   activeScreen: ScreenId
   onNavigate: (screen: ScreenId) => void
 }
 
-const ICONS: Record<string, string> = {
-  wallet:            '\ud83d\udcb0',
-  home:              '\ud83c\udfe0',
-  'book-open':       '\ud83d\udcd6',
-  'arrow-down-left': '\u2b07\ufe0f',
-  'credit-card':     '\ud83d\udcb3',
-  'arrow-up-right':  '\u2b06\ufe0f',
-  landmark:          '\ud83c\udfe6',
-  'pie-chart':       '\ud83d\udcca',
-  briefcase:         '\ud83d\udcbc',
-  repeat:            '\ud83d\udd04',
-  'bar-chart-2':     '\ud83d\udcc8',
-  settings:          '\u2699\ufe0f',
+// Find which page index contains the given screen
+function getPageForScreen(screen: ScreenId): number {
+  for (let i = 0; i < NAV_PAGES.length; i++) {
+    if (NAV_PAGES[i].screens.some((s) => s.id === screen)) return i
+  }
+  return 0
 }
 
-const GROUP_DEFAULTS: ScreenId[] = [
-  'home',
-  'wallet-credit',
-  'account-overview',
-  'asset',
-]
-
 export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
-  const [activeGroup, setActiveGroup] = useState(0)
+  const [pageIndex, setPageIndex] = useState(() => getPageForScreen(activeScreen))
+  const [swipeDir, setSwipeDir] = useState<1 | -1>(1)
   const navRef = useRef<HTMLDivElement>(null)
+  const dragStartX = useRef<number | null>(null)
 
-  // Measure real nav height and publish it as a CSS variable so all sheets
-  // can use var(--nav-h) for their `bottom` offset — no magic numbers needed.
+  // Sync page when activeScreen changes externally (e.g. deep-link)
+  const correctPage = getPageForScreen(activeScreen)
+  if (correctPage !== pageIndex) {
+    setPageIndex(correctPage)
+  }
+
+  // Publish real nav height as CSS variable --nav-h
   useLayoutEffect(() => {
     const el = navRef.current
     if (!el) return
@@ -48,103 +41,157 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
     return () => ro.disconnect()
   }, [])
 
-  const currentGroup = NAV_GROUPS[activeGroup]
+  function goToPage(idx: number) {
+    if (idx < 0 || idx >= NAV_PAGES.length) return
+    setSwipeDir(idx > pageIndex ? 1 : -1)
+    setPageIndex(idx)
+    onNavigate(NAV_PAGES[idx].screens[0].id as ScreenId)
+  }
+
+  // Touch / pointer swipe handlers
+  function handlePointerDown(e: React.PointerEvent) {
+    dragStartX.current = e.clientX
+  }
+  function handlePointerUp(e: React.PointerEvent) {
+    if (dragStartX.current === null) return
+    const delta = e.clientX - dragStartX.current
+    dragStartX.current = null
+    if (Math.abs(delta) < 40) return // not a swipe
+    if (delta < 0) goToPage(pageIndex + 1) // swipe left → next
+    else goToPage(pageIndex - 1)           // swipe right → prev
+  }
+
+  const currentPage = NAV_PAGES[pageIndex]
+
+  const variants = {
+    enter: (dir: number) => ({ x: dir * 60, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (dir: number) => ({ x: dir * -60, opacity: 0 }),
+  }
 
   return (
     <div
       ref={navRef}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
       style={{
         flexShrink: 0,
-        // ── FIX 2: Use padding-bottom for safe-area, but back the entire
-        //    zone with a solid-enough background so the home indicator pill
-        //    area never bleeds the raw #000000 body background through.
-        //
-        //    We do this with a box-shadow trick: spread a solid shadow
-        //    DOWNWARD past the bottom edge of this element — it fills the
-        //    safe-area zone behind the home pill even when env() = 34px.
-        //    The blur(28px) backdrop-filter then blurs everything behind it.
         paddingBottom: 'env(safe-area-inset-bottom)',
         background: 'rgba(8,6,0,0.97)',
         backdropFilter: 'blur(28px)',
         WebkitBackdropFilter: 'blur(28px)',
         borderTop: '1px solid rgba(251,191,36,0.12)',
-        // Extend the background visually past the bottom edge
-        // so there's no raw-black bleed below the home indicator.
         boxShadow: '0 60px 0 0 rgba(8,6,0,0.97)',
+        userSelect: 'none',
+        touchAction: 'pan-y',
       }}
     >
-      {/* 3 screen tabs for the active group */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '8px 16px 2px' }}>
-        <AnimatePresence mode="wait">
-          {currentGroup.screens.map((screen) => {
-            const isActive = activeScreen === screen.id
-            return (
-              <motion.button
-                key={screen.id}
-                onClick={() => onNavigate(screen.id as ScreenId)}
-                whileTap={{ scale: 0.90 }}
-                style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                  padding: '8px 4px', background: 'none', border: 'none',
-                  cursor: 'pointer', borderRadius: 14, position: 'relative',
-                  transition: 'all 0.18s ease',
-                }}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="activeTab"
+      {/* 4 screen buttons — animate in/out on page change */}
+      <div style={{ overflow: 'hidden', position: 'relative' }}>
+        <AnimatePresence mode="wait" custom={swipeDir}>
+          <motion.div
+            key={pageIndex}
+            custom={swipeDir}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr 1fr',
+              padding: '10px 8px 4px',
+              gap: 0,
+            }}
+          >
+            {currentPage.screens.map((screen) => {
+              const isActive = activeScreen === screen.id
+              return (
+                <motion.button
+                  key={screen.id}
+                  onClick={() => onNavigate(screen.id as ScreenId)}
+                  whileTap={{ scale: 0.88 }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 3,
+                    padding: '8px 2px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    borderRadius: 14,
+                    position: 'relative',
+                  }}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTab"
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(217,119,6,0.12))',
+                        borderRadius: 14,
+                        border: '1px solid rgba(251,191,36,0.30)',
+                        boxShadow: '0 0 12px rgba(251,191,36,0.12)',
+                      }}
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  )}
+                  <span style={{ fontSize: 19, zIndex: 1, lineHeight: 1 }}>{screen.icon}</span>
+                  <span
                     style={{
-                      position: 'absolute', inset: 0,
-                      background: 'linear-gradient(135deg, rgba(251,191,36,0.18), rgba(217,119,6,0.12))',
-                      borderRadius: 14,
-                      border: '1px solid rgba(251,191,36,0.30)',
-                      boxShadow: '0 0 12px rgba(251,191,36,0.12)',
+                      fontSize: 10,
+                      fontWeight: isActive ? 700 : 400,
+                      zIndex: 1,
+                      color: isActive ? '#FBBF24' : 'rgba(255,255,255,0.38)',
+                      letterSpacing: '0.01em',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      maxWidth: 56,
                     }}
-                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                )}
-                <span style={{ fontSize: 20, zIndex: 1 }}>{ICONS[screen.icon]}</span>
-                <span style={{
-                  fontSize: 10, fontWeight: isActive ? 700 : 400, zIndex: 1,
-                  color: isActive ? '#FBBF24' : 'rgba(255,255,255,0.38)',
-                  letterSpacing: '0.02em',
-                }}>
-                  {screen.label}
-                </span>
-              </motion.button>
-            )
-          })}
+                  >
+                    {screen.label}
+                  </span>
+                </motion.button>
+              )
+            })}
+          </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* 4 group selector pills */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', padding: '4px 16px 8px', gap: 8 }}>
-        {NAV_GROUPS.map((group, idx) => {
-          const isActive = activeGroup === idx
-          return (
-            <button
-              key={group.label}
-              onClick={() => { setActiveGroup(idx); onNavigate(GROUP_DEFAULTS[idx]) }}
-              style={{
-                padding: '5px 4px',
-                background: isActive
-                  ? 'linear-gradient(90deg, rgba(251,191,36,0.22), rgba(217,119,6,0.15))'
-                  : 'rgba(255,255,255,0.04)',
-                border: isActive
-                  ? '1px solid rgba(251,191,36,0.38)'
-                  : '1px solid rgba(255,255,255,0.07)',
-                borderRadius: 10,
-                color: isActive ? '#FBBF24' : 'rgba(255,255,255,0.35)',
-                fontSize: 10, fontWeight: isActive ? 700 : 400,
-                cursor: 'pointer', letterSpacing: '0.02em',
-                transition: 'all 0.18s ease',
-                boxShadow: isActive ? '0 0 8px rgba(251,191,36,0.15)' : 'none',
-              }}
-            >
-              {group.label}
-            </button>
-          )
-        })}
+      {/* Page dots — tap to jump to page */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 6,
+          paddingBottom: 8,
+          paddingTop: 2,
+        }}
+      >
+        {NAV_PAGES.map((page, idx) => (
+          <button
+            key={page.label}
+            onClick={() => goToPage(idx)}
+            style={{
+              width: pageIndex === idx ? 22 : 6,
+              height: 6,
+              borderRadius: 999,
+              background: pageIndex === idx
+                ? 'linear-gradient(90deg, #FBBF24, #D97706)'
+                : 'rgba(255,255,255,0.18)',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+              transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
+              boxShadow: pageIndex === idx ? '0 0 8px rgba(251,191,36,0.35)' : 'none',
+            }}
+            aria-label={`Go to ${page.label} navigation`}
+          />
+        ))}
       </div>
     </div>
   )

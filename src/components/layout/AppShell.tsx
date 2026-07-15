@@ -36,8 +36,6 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
 
 // Screens that self-manage their own internal scroll zones.
-// For these, the AppShell scroll-area must be fully locked (overflow:hidden)
-// so the outer wrapper never competes with the screen's own scroll logic.
 const SELF_SCROLL_SCREENS: ScreenId[] = ['asset']
 
 export function AppShell() {
@@ -79,9 +77,6 @@ export function AppShell() {
         flexDirection: 'column',
         background: '#000000',
         overflow: 'hidden',
-        // ── FIX 1: paddingTop on the OUTER wrapper, not the scroll child ──
-        // This means the #000000 background fills the status-bar zone
-        // instead of showing as a raw black gap behind a transparent child.
         paddingTop: 'env(safe-area-inset-top)',
       }}
     >
@@ -115,12 +110,7 @@ export function AppShell() {
         }}
       />
 
-      {/*
-        scroll-area: paddingTop is now on the outer wrapper above.
-        This div only needs flex:1 + overflow handling.
-        position:relative stays so position:absolute children (AssetScreen)
-        anchor correctly.
-      */}
+      {/* Scroll area */}
       <div
         className="scroll-area"
         style={{

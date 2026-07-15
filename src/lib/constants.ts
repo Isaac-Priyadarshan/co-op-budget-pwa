@@ -5,40 +5,39 @@ export const USERS = {
 
 export type AppUser = typeof USERS[keyof typeof USERS]
 
-export const NAV_GROUPS = [
+// Navigation pages — 4 screens per page, swiped horizontally
+export const NAV_PAGES = [
   {
-    label: 'Finance',
+    label: 'Core',
     screens: [
-      { id: 'budget',  label: 'Budget',  icon: 'wallet' },
-      { id: 'home',    label: 'Home',    icon: 'home' },
-      { id: 'ledger',  label: 'Ledger',  icon: 'book-open' },
+      { id: 'wallet-credit',  label: 'Wallet',    icon: '💳' },
+      { id: 'budget',         label: 'Budget',    icon: '💰' },
+      { id: 'home',           label: 'Home',      icon: '🏠' },
+      { id: 'ledger',         label: 'Ledger',    icon: '📖' },
     ],
   },
   {
-    label: 'Tracking',
+    label: 'Money',
     screens: [
-      { id: 'borrowed',      label: 'Borrowed', icon: 'arrow-down-left' },
-      { id: 'wallet-credit', label: 'Wallet',   icon: 'credit-card' },
-      { id: 'lent',          label: 'Lent',     icon: 'arrow-up-right' },
+      { id: 'borrowed',         label: 'Borrowed',   icon: '⬇️' },
+      { id: 'lent',             label: 'Lent',        icon: '⬆️' },
+      { id: 'loans',            label: 'Loans',       icon: '🏦' },
+      { id: 'recurring-payment', label: 'Recurring',  icon: '🔄' },
     ],
   },
   {
-    label: 'Assets',
+    label: 'Big Picture',
     screens: [
-      { id: 'loans',             label: 'Loans',     icon: 'landmark' },
-      { id: 'account-overview',  label: 'Accounts',  icon: 'pie-chart' },
-      { id: 'recurring-payment', label: 'Recurring', icon: 'repeat' },
-    ],
-  },
-  {
-    label: 'More',
-    screens: [
-      { id: 'asset',    label: 'Assets',   icon: 'briefcase' },
-      { id: 'overview', label: 'Overview', icon: 'bar-chart-2' },
-      { id: 'settings', label: 'Settings', icon: 'settings' },
+      { id: 'asset',            label: 'Assets',    icon: '💼' },
+      { id: 'account-overview', label: 'Accounts',  icon: '📊' },
+      { id: 'overview',         label: 'Overview',  icon: '📈' },
+      { id: 'settings',         label: 'Settings',  icon: '⚙️' },
     ],
   },
 ] as const
+
+// Keep NAV_GROUPS as a thin alias so any file that still imports it compiles.
+export const NAV_GROUPS = NAV_PAGES
 
 export type ScreenId =
   | 'budget'
