@@ -79,36 +79,32 @@ export function AppShell() {
       }}
     >
       {/* Global gold top-glow */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '-10%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '140vw',
-          height: '55vw',
-          borderRadius: '50%',
-          background: 'radial-gradient(ellipse, rgba(251,191,36,0.13) 0%, transparent 70%)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+      <div style={{
+        position: 'absolute',
+        top: '-10%',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '140vw',
+        height: '55vw',
+        borderRadius: '50%',
+        background: 'radial-gradient(ellipse, rgba(251,191,36,0.13) 0%, transparent 70%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
       {/* Bottom-corner gold warmth */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '8%',
-          right: '-10%',
-          width: '60vw',
-          height: '60vw',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(251,191,36,0.06) 0%, transparent 70%)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
+      <div style={{
+        position: 'absolute',
+        bottom: '8%',
+        right: '-10%',
+        width: '60vw',
+        height: '60vw',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(251,191,36,0.06) 0%, transparent 70%)',
+        pointerEvents: 'none',
+        zIndex: 0,
+      }} />
 
-      {/* Full-height scroll area — nav floats on top */}
+      {/* Full-height scroll area */}
       <div
         className="scroll-area"
         style={{
@@ -129,7 +125,7 @@ export function AppShell() {
             transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
             style={{
               minHeight: '100%',
-              paddingBottom: 96,
+              paddingBottom: 100,
               overflow: isSelfScroll ? 'hidden' : 'visible',
             }}
           >
@@ -138,18 +134,19 @@ export function AppShell() {
         </AnimatePresence>
       </div>
 
-      {/* Floating nav pill — hugs the bottom */}
+      {/* Floating nav — pinned flush to the very bottom */}
+      {/* Safe-area padding is handled INSIDE BottomNav via paddingBottom */}
       <div
         style={{
           position: 'absolute',
-          // Sit right above the home indicator / safe area, only 8px gap
-          bottom: 'max(8px, env(safe-area-inset-bottom))',
+          bottom: 0,
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 100,
           width: 'calc(100% - 24px)',
           maxWidth: 480,
           pointerEvents: 'auto',
+          paddingBottom: 'env(safe-area-inset-bottom)',
         }}
       >
         <BottomNav
