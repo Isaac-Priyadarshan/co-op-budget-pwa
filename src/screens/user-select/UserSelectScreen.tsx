@@ -288,6 +288,18 @@ export function UserSelectScreen() {
   const [entering, setEntering] = useState(false)
   const quote = useRef(QUOTES[Math.floor(Math.random() * QUOTES.length)]).current
 
+  // Patch <html> and <body> to pure black so the OS nav bar / status bar
+  // never reveals a mismatched surface behind this screen.
+  useEffect(() => {
+    const prev = document.body.style.background
+    document.documentElement.style.background = '#000'
+    document.body.style.background = '#000'
+    return () => {
+      document.documentElement.style.background = ''
+      document.body.style.background = prev
+    }
+  }, [])
+
   useEffect(() => {
     const link = document.createElement('link')
     link.rel = 'stylesheet'
@@ -315,7 +327,9 @@ export function UserSelectScreen() {
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'linear-gradient(180deg, #02030a 0%, #04050e 40%, #060412 100%)',
+          // Gradient now ends at pure #000 — matches the OS nav bar exactly on
+          // every Android gesture-nav and iPhone home-indicator colour.
+          background: 'linear-gradient(180deg, #02030a 0%, #04050e 40%, #060412 75%, #000000 100%)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
