@@ -7,7 +7,9 @@ interface BottomNavProps {
   onNavigate: (screen: ScreenId) => void
 }
 
-// Find which page index contains the given screen
+// Default screen to land on when switching to each page
+const PAGE_DEFAULTS: ScreenId[] = ['home', 'loans', 'overview']
+
 function getPageForScreen(screen: ScreenId): number {
   for (let i = 0; i < NAV_PAGES.length; i++) {
     if (NAV_PAGES[i].screens.some((s) => s.id === screen)) return i
@@ -21,13 +23,11 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
   const navRef = useRef<HTMLDivElement>(null)
   const dragStartX = useRef<number | null>(null)
 
-  // Sync page when activeScreen changes externally (e.g. deep-link)
   const correctPage = getPageForScreen(activeScreen)
   if (correctPage !== pageIndex) {
     setPageIndex(correctPage)
   }
 
-  // Publish real nav height as CSS variable --nav-h
   useLayoutEffect(() => {
     const el = navRef.current
     if (!el) return
@@ -45,10 +45,9 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
     if (idx < 0 || idx >= NAV_PAGES.length) return
     setSwipeDir(idx > pageIndex ? 1 : -1)
     setPageIndex(idx)
-    onNavigate(NAV_PAGES[idx].screens[0].id as ScreenId)
+    onNavigate(PAGE_DEFAULTS[idx])
   }
 
-  // Touch / pointer swipe handlers
   function handlePointerDown(e: React.PointerEvent) {
     dragStartX.current = e.clientX
   }
@@ -56,9 +55,9 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
     if (dragStartX.current === null) return
     const delta = e.clientX - dragStartX.current
     dragStartX.current = null
-    if (Math.abs(delta) < 40) return // not a swipe
-    if (delta < 0) goToPage(pageIndex + 1) // swipe left → next
-    else goToPage(pageIndex - 1)           // swipe right → prev
+    if (Math.abs(delta) < 40) return
+    if (delta < 0) goToPage(pageIndex + 1)
+    else goToPage(pageIndex - 1)
   }
 
   const currentPage = NAV_PAGES[pageIndex]
@@ -86,7 +85,6 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
         touchAction: 'pan-y',
       }}
     >
-      {/* 4 screen buttons — animate in/out on page change */}
       <div style={{ overflow: 'hidden', position: 'relative' }}>
         <AnimatePresence mode="wait" custom={swipeDir}>
           <motion.div
@@ -100,7 +98,7 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr 1fr 1fr',
-              padding: '10px 8px 4px',
+              padding: '10px 8px 10px',
               gap: 0,
             }}
           >
@@ -159,39 +157,6 @@ export function BottomNav({ activeScreen, onNavigate }: BottomNavProps) {
             })}
           </motion.div>
         </AnimatePresence>
-      </div>
-
-      {/* Page dots — tap to jump to page */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 6,
-          paddingBottom: 8,
-          paddingTop: 2,
-        }}
-      >
-        {NAV_PAGES.map((page, idx) => (
-          <button
-            key={page.label}
-            onClick={() => goToPage(idx)}
-            style={{
-              width: pageIndex === idx ? 22 : 6,
-              height: 6,
-              borderRadius: 999,
-              background: pageIndex === idx
-                ? 'linear-gradient(90deg, #FBBF24, #D97706)'
-                : 'rgba(255,255,255,0.18)',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 0,
-              transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
-              boxShadow: pageIndex === idx ? '0 0 8px rgba(251,191,36,0.35)' : 'none',
-            }}
-            aria-label={`Go to ${page.label} navigation`}
-          />
-        ))}
       </div>
     </div>
   )
