@@ -73,8 +73,6 @@ export function AppShell() {
         inset: 0,
         background: '#000000',
         overflow: 'hidden',
-        // TOP safe-area only — keeps content below status bar on iPhone
-        paddingTop: 'env(safe-area-inset-top)',
       }}
     >
       {/* Global gold top-glow */}
@@ -103,12 +101,35 @@ export function AppShell() {
         zIndex: 0,
       }} />
 
-      {/* Full-height scroll area */}
+      {/*
+        ─── ROOT CAUSE FIX ──────────────────────────────────────────────────────
+        The shell div uses position:fixed;inset:0 which extends behind the
+        iOS status bar (viewport-fit=cover + black-translucent in index.html).
+
+        PREVIOUS BUG: paddingTop was on the PARENT shell div, but the
+        scroll-area child used position:absolute;inset:0 which reset its own
+        top edge to 0 regardless of parent padding. CSS rules: a child with
+        position:absolute always measures its inset from its containing block
+        edges, NOT from the parent's padding box. So the padding on the
+        parent was completely invisible to the child.
+
+        FIX: paddingTop:env(safe-area-inset-top) is now on the scroll-area
+        itself. Since the scroll-area is position:absolute, it owns its box,
+        and the padding correctly pushes its CONTENT (not its edge) down by
+        the exact pixel height of the iOS status bar.
+        ────────────────────────────────────────────────────────────────────── */}
       <div
         className="scroll-area"
         style={{
           position: 'absolute',
-          inset: 0,
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          // THE FIX: safe-area padding lives here, on the scroll container itself.
+          // An absolutely-positioned child ignores its parent's padding entirely.
+          // Padding must be on the element whose content needs to be offset.
+          paddingTop: 'env(safe-area-inset-top)',
           overflowY: isSelfScroll ? 'hidden' : 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
