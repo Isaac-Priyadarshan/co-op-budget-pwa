@@ -550,7 +550,6 @@ function MonthNavigator({ year, month, onPrev, onNext, onBackToToday }: MonthNav
                 padding: '3px 10px',
                 lineHeight: 1.6,
                 cursor: 'pointer',
-                // Ensure the tap area is large enough on mobile
                 minHeight: 28,
                 display: 'flex',
                 alignItems: 'center',
@@ -758,22 +757,16 @@ export function HomeScreen() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
 
-      {/* ── STICKY MONTH/YEAR HEADER
-          background is fully transparent so it shows the screen background
-          colour instead of rendering as a blackout bar.
-          backdrop-filter adds a subtle blur for readability when scrolling.  */}
+      {/* ── STICKY MONTH/YEAR HEADER ── */}
       <div
         style={{
           position: 'sticky',
           top: 0,
           zIndex: 10,
           padding: '16px 20px 14px',
-          // FIX #1: was 'rgba(0,0,0,0.45)' which caused the blackout bar.
-          // Now transparent + blur so it inherits the screen background.
           background: 'transparent',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
-          borderBottom: '1px solid rgba(251,191,36,0.08)',
         }}
       >
         <MonthNavigator
