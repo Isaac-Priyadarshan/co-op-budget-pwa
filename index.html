@@ -52,6 +52,23 @@
     <!-- FAVICON -->
     <link rel="icon" type="image/svg+xml" href="/icons/favicon.svg" />
 
+    <!-- ─── INTER FONT — Google Fonts ────────────────────────────────────────
+         Inter is loaded here (in <head>, before any CSS/JS) so it is
+         available on frame 0. preconnect directives eliminate the DNS +
+         TLS handshake latency. font-display=swap ensures text is visible
+         immediately in a fallback font while Inter loads, then swaps in.
+
+         We load weights 300–700 as a variable font range — one request
+         covers all weights the app uses. Inter is identical across
+         Android, iOS, Chrome, Safari, and Firefox — eliminating the
+         system-font variance that caused the "font changed" bug.           -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&display=swap"
+      rel="stylesheet"
+    />
+
     <title>I &amp; J Budget</title>
 
     <!--
