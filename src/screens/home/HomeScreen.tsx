@@ -473,6 +473,7 @@ function MonthNavigator({ year, month, onPrev, onNext, onBackToToday }: MonthNav
     >
       {/* ← Prev */}
       <motion.button
+        type="button"
         whileTap={{ scale: 0.82 }}
         onClick={onPrev}
         aria-label="Previous month"
@@ -523,16 +524,20 @@ function MonthNavigator({ year, month, onPrev, onNext, onBackToToday }: MonthNav
           </motion.span>
         </AnimatePresence>
 
-        {/* ⇌ Back to Current Month — tappable button, only shown when not on current month */}
+        {/* ⇌ Back to Current Month — shown only when not on current month */}
         <AnimatePresence>
           {!isCurrentMonth && (
             <motion.button
+              type="button"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ duration: 0.16 }}
               whileTap={{ scale: 0.92 }}
-              onClick={onBackToToday}
+              onClick={(e) => {
+                e.stopPropagation()
+                onBackToToday()
+              }}
               aria-label="Go back to current month"
               style={{
                 fontSize: 10,
@@ -545,6 +550,11 @@ function MonthNavigator({ year, month, onPrev, onNext, onBackToToday }: MonthNav
                 padding: '3px 10px',
                 lineHeight: 1.6,
                 cursor: 'pointer',
+                // Ensure the tap area is large enough on mobile
+                minHeight: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
               ⇌ Back to Current Month
@@ -555,6 +565,7 @@ function MonthNavigator({ year, month, onPrev, onNext, onBackToToday }: MonthNav
 
       {/* → Next */}
       <motion.button
+        type="button"
         whileTap={{ scale: 0.82 }}
         onClick={onNext}
         aria-label="Next month"
@@ -736,11 +747,11 @@ export function HomeScreen() {
 
   const handlePrev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const handleNext = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
-  const handleBackToToday = () => {
+  const handleBackToToday = useCallback(() => {
     const now = new Date()
     setYear(now.getFullYear())
     setMonth(now.getMonth())
-  }
+  }, [])
 
   const loading = catsLoading || txLoading
 
@@ -748,17 +759,20 @@ export function HomeScreen() {
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
 
       {/* ── STICKY MONTH/YEAR HEADER
-          background uses transparent + blur so it blends with the screen
-          background instead of rendering as a dark blackout bar.          */}
+          background is fully transparent so it shows the screen background
+          colour instead of rendering as a blackout bar.
+          backdrop-filter adds a subtle blur for readability when scrolling.  */}
       <div
         style={{
           position: 'sticky',
           top: 0,
           zIndex: 10,
           padding: '16px 20px 14px',
-          background: 'rgba(0,0,0,0.45)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          // FIX #1: was 'rgba(0,0,0,0.45)' which caused the blackout bar.
+          // Now transparent + blur so it inherits the screen background.
+          background: 'transparent',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           borderBottom: '1px solid rgba(251,191,36,0.08)',
         }}
       >
