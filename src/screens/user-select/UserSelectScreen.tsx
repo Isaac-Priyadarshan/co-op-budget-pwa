@@ -243,7 +243,7 @@ function QuoteDisplay({ quote }: { quote: typeof QUOTES[0] }) {
           textShadow: '0 0 20px rgba(245,158,11,0.5)',
         }}
       >
-        "
+        &quot;
       </motion.span>
 
       <p style={{
@@ -334,8 +334,14 @@ export function UserSelectScreen() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingTop: 'calc(env(safe-area-inset-top) + 48px)',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 36px)',
+          // ── FIX: use var(--sat) / var(--sab) instead of env() directly. ──────
+          // env(safe-area-inset-*) in inline React styles is resolved by iOS
+          // one frame late, causing content to sit under the status bar on the
+          // very first render. var(--sat) and var(--sab) are pre-painted by the
+          // synchronous <script> in index.html before React hydrates, so they
+          // carry the correct pixel value from frame 0 — no layout jump.
+          paddingTop: 'calc(var(--sat) + 48px)',
+          paddingBottom: 'calc(var(--sab) + 36px)',
           overflow: 'hidden',
         }}
       >
