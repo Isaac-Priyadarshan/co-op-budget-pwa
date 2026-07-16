@@ -12,7 +12,16 @@ export function isExcluded(tx: { category?: string; type?: string }): boolean {
   return EXCLUDED_CATEGORIES.some(ec => cat.toLowerCase() === ec.toLowerCase())
 }
 
-export function useTransactions() {
+/**
+ * useTransactions — optionally scoped to a specific month.
+ *
+ * When { month, year } are provided the hook returns only transactions whose
+ * transaction_date falls within that month.  Totals (totalIncome /
+ * totalExpenses / balance) are computed from that filtered set.
+ *
+ * Without arguments the hook returns the full list — used by LedgerScreen.
+ */
+export function useTransactions(filter?: { month: number; year: number }) {
   const {
     transactions,
     transactionsLoading,
@@ -22,27 +31,43 @@ export function useTransactions() {
     refreshAll,
   } = useDataContext()
 
-  // All transactions (unfiltered) — used by LedgerScreen which needs full history
-  // Budget/Home screens use the filtered helpers below via their own monthTxs logic
+  // Client-side month filter applied on top of the already-loaded data.
+  // DataContext keeps all transactions in memory; this memoised slice avoids
+  // redundant re-renders and keeps month filtering O(n) with no extra fetches.
+  const monthTxs = useMemo(() => {
+    if (!filter) return transactions
+    const { month, year } = filter
+    // Build ISO prefix strings for the boundaries of the selected month.
+    // e.g. month=7, year=2026  →  start='2026-07-01', end='2026-07-31'
+    const start = `${year}-${String(month).padStart(2, '0')}-01`
+    // Last day: month+1 day 0 = last day of `month`
+    const lastDay = new Date(year, month, 0).getDate()
+    const end   = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    return transactions.filter(t => {
+      const d = t.transaction_date?.substring(0, 10) ?? ''
+      return d >= start && d <= end
+    })
+  }, [transactions, filter])
 
   const totalIncome = useMemo(
-    () => transactions
+    () => monthTxs
       .filter(t => t.type === 'income' && !isExcluded(t))
       .reduce((s, t) => s + t.amount, 0),
-    [transactions]
+    [monthTxs],
   )
 
   const totalExpenses = useMemo(
-    () => transactions
+    () => monthTxs
       .filter(t => t.type === 'expense' && !isExcluded(t))
       .reduce((s, t) => s + t.amount, 0),
-    [transactions]
+    [monthTxs],
   )
 
   const balance = totalIncome - totalExpenses
 
   return {
-    transactions,          // full list — Ledger still sees everything
+    transactions: monthTxs, // filtered when filter is supplied; full list otherwise
+    allTransactions: transactions, // always the complete list — Ledger uses this
     loading: transactionsLoading,
     error: transactionsError,
     addTransaction,
@@ -51,6 +76,6 @@ export function useTransactions() {
     totalExpenses,
     balance,
     refresh: refreshAll,
-    isExcluded,            // exported so screens can reuse the same guard
+    isExcluded,
   }
 }
