@@ -34,7 +34,7 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 }
 
 const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
-const SELF_SCROLL_SCREENS: ScreenId[] = ['asset']
+const SELF_SCROLL_SCREENS: ScreenId[] = ['asset', 'home']
 
 /* ─────────────────────────────────────────────────────────────────────────
  * measureSafeAreaTop
