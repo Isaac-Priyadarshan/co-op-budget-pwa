@@ -21,6 +21,7 @@ const EXPENSE_ICONS = ['🛒','🍔','🚗','🏠','💊','👗','✈️','🎬'
 const INCOME_ICONS  = ['💼','📈','💰','🏦','🎯','🏆','💻','🤝','📝','🎨','🏗️','🚀','💎','🌱','🎤','📸','🛍️','🧑‍🏫','📊','🏡','💡','🎪','🧾','🔑','🛠️','🎵','📚','🌐','🤑','🏅']
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 interface ManagerProps {
   type: 'expense' | 'income'
@@ -448,44 +449,171 @@ function CategoryManagerSheet({
   )
 }
 
-// ─── Month Navigator — FIXED ──────────────────────────────────────────────────
-// Fixes:
-//  1. Label no longer squeezes or wraps on small screens — uses flex:1 + truncate
-//  2. Glassmorphism pill card so header has visual boundary / doesn't float
-//  3. "Today" dot indicator shows when viewing a non-current month
-//  4. Next-month button is disabled when on the current month (no peeking into the future)
-//  5. Month name animates with a slide direction cue on change
+// ─── Month/Year Picker Sheet ──────────────────────────────────────────────────
+// Full bottom-sheet picker: scroll through any year, tap any month → confirm
+
+interface MonthYearPickerProps {
+  year: number
+  month: number
+  onConfirm: (year: number, month: number) => void
+  onClose: () => void
+}
+
+function MonthYearPickerSheet({ year, month, onConfirm, onClose }: MonthYearPickerProps) {
+  const [pickerYear, setPickerYear] = useState(year)
+  const [pickerMonth, setPickerMonth] = useState(month)
+
+  // Build a sensible year range: 5 years back → 5 years forward
+  const currentYear = new Date().getFullYear()
+  const years: number[] = []
+  for (let y = currentYear - 5; y <= currentYear + 5; y++) years.push(y)
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.22 }}
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+      />
+      <motion.div
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+        style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 61,
+          background: '#0e0c06',
+          border: '1px solid rgba(251,191,36,0.18)', borderBottom: 'none',
+          borderRadius: '24px 24px 0 0',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          boxShadow: '0 -8px 40px rgba(0,0,0,0.7)',
+        }}
+      >
+        {/* Handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 99, background: 'rgba(251,191,36,0.25)' }} />
+        </div>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 20px 20px' }}>
+          <span style={{ fontSize: 17, fontWeight: 700, color: '#F5F5F5' }}>Select Month & Year</span>
+          <motion.button whileTap={{ scale: 0.88 }} onClick={onClose}
+            style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: 14 }}
+          >✕</motion.button>
+        </div>
+
+        <div style={{ padding: '0 20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Year row — scrollable horizontal list */}
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(251,191,36,0.6)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Year</p>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, scrollbarWidth: 'none' }}>
+              {years.map(y => (
+                <motion.button
+                  key={y}
+                  whileTap={{ scale: 0.88 }}
+                  onClick={() => setPickerYear(y)}
+                  style={{
+                    flexShrink: 0,
+                    height: 40,
+                    padding: '0 16px',
+                    borderRadius: 12,
+                    fontSize: 14,
+                    fontWeight: pickerYear === y ? 800 : 500,
+                    cursor: 'pointer',
+                    background: pickerYear === y
+                      ? 'linear-gradient(135deg, rgba(251,191,36,0.22), rgba(217,119,6,0.16))'
+                      : 'rgba(255,255,255,0.04)',
+                    border: pickerYear === y
+                      ? '1px solid rgba(251,191,36,0.45)'
+                      : '1px solid rgba(255,255,255,0.08)',
+                    color: pickerYear === y ? '#FBBF24' : 'rgba(245,245,245,0.6)',
+                    boxShadow: pickerYear === y ? '0 0 12px rgba(251,191,36,0.18)' : 'none',
+                    transition: 'all 0.16s',
+                  }}
+                >
+                  {y}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          {/* Month grid — 4×3 */}
+          <div>
+            <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(251,191,36,0.6)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>Month</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              {MONTH_SHORT.map((name, idx) => (
+                <motion.button
+                  key={idx}
+                  whileTap={{ scale: 0.88 }}
+                  onClick={() => setPickerMonth(idx)}
+                  style={{
+                    height: 44,
+                    borderRadius: 14,
+                    fontSize: 13,
+                    fontWeight: pickerMonth === idx ? 800 : 500,
+                    cursor: 'pointer',
+                    background: pickerMonth === idx
+                      ? 'linear-gradient(135deg, rgba(251,191,36,0.22), rgba(217,119,6,0.16))'
+                      : 'rgba(255,255,255,0.04)',
+                    border: pickerMonth === idx
+                      ? '1px solid rgba(251,191,36,0.45)'
+                      : '1px solid rgba(255,255,255,0.08)',
+                    color: pickerMonth === idx ? '#FBBF24' : 'rgba(245,245,245,0.6)',
+                    boxShadow: pickerMonth === idx ? '0 0 12px rgba(251,191,36,0.15)' : 'none',
+                    transition: 'all 0.16s',
+                  }}
+                >
+                  {name}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          {/* Confirm button */}
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => { onConfirm(pickerYear, pickerMonth); onClose() }}
+            style={{
+              width: '100%', height: 52, borderRadius: 16,
+              background: 'linear-gradient(135deg, #F59E0B, #FBBF24)',
+              border: 'none', color: '#000', fontSize: 15, fontWeight: 800,
+              cursor: 'pointer', boxShadow: '0 4px 20px rgba(251,191,36,0.35)',
+            }}
+          >
+            View {MONTH_NAMES[pickerMonth]} {pickerYear}
+          </motion.button>
+        </div>
+      </motion.div>
+    </>
+  )
+}
+
+// ─── Month Navigator ──────────────────────────────────────────────────────────
+// Changes vs previous version:
+//  1. Rectangle (border + background pill card) REMOVED — label floats clean
+//  2. Future months ALLOWED — next arrow is never disabled
+//  3. Month/Year label is now a tappable button → opens MonthYearPickerSheet
+//  4. "Back to Today" badge still appears when not on current month
 
 interface MonthNavProps {
   year: number
   month: number
   onPrev: () => void
   onNext: () => void
+  onOpenPicker: () => void
 }
 
-function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
+function MonthNavigator({ year, month, onPrev, onNext, onOpenPicker }: MonthNavProps) {
   const today = new Date()
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()
-  const isFutureMonth =
-    year > today.getFullYear() ||
-    (year === today.getFullYear() && month >= today.getMonth())
 
   return (
     <div style={{ marginBottom: 24 }}>
-      {/* Pill card wrapper */}
+      {/* No pill card — bare flex row, no border, no background */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 8,
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(251,191,36,0.18)',
-          borderRadius: 20,
-          padding: '10px 12px',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
         }}
       >
         {/* ← Prev */}
@@ -494,16 +622,11 @@ function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
           onClick={onPrev}
           aria-label="Previous month"
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 14,
+            width: 40, height: 40, borderRadius: 14,
             background: 'linear-gradient(135deg, rgba(251,191,36,0.14), rgba(217,119,6,0.10))',
             border: '1px solid rgba(251,191,36,0.30)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0,
           }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -511,15 +634,22 @@ function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
           </svg>
         </motion.button>
 
-        {/* Month / Year label — centre zone, no-wrap, no squeeze */}
-        <div
+        {/* Month / Year label — tappable, no box */}
+        <motion.button
+          whileTap={{ scale: 0.94 }}
+          onClick={onOpenPicker}
+          aria-label="Select month and year"
           style={{
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 2,
+            gap: 4,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '4px 0',
             minWidth: 0,
           }}
         >
@@ -531,37 +661,39 @@ function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
               style={{
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: 700,
                 color: '#F5F5F5',
                 letterSpacing: '-0.01em',
                 lineHeight: 1.1,
                 whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                maxWidth: '100%',
                 display: 'block',
-                textAlign: 'center',
               }}
             >
               {MONTH_NAMES[month]} {year}
             </motion.span>
           </AnimatePresence>
 
-          {/* "Today" reset badge — only visible when not on current month */}
+          {/* Subtle "tap to change" hint line */}
+          <span style={{
+            fontSize: 10,
+            color: 'rgba(251,191,36,0.45)',
+            letterSpacing: '0.06em',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            lineHeight: 1,
+          }}>
+            tap to change
+          </span>
+
+          {/* "Back to Today" badge — only when not on current month */}
           <AnimatePresence>
             {!isCurrentMonth && (
-              <motion.button
+              <motion.span
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.8 }}
                 transition={{ duration: 0.16 }}
-                whileTap={{ scale: 0.88 }}
-                onClick={() => {
-                  // Handled by parent via a reset prop — we use a custom event here
-                  // since MonthNavigator is pure. Parent HomeScreen listens.
-                  window.dispatchEvent(new CustomEvent('monthnavigator:reset'))
-                }}
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
@@ -572,42 +704,30 @@ function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
                   border: '1px solid rgba(251,191,36,0.25)',
                   borderRadius: 99,
                   padding: '2px 8px',
-                  cursor: 'pointer',
                   lineHeight: 1.6,
+                  marginTop: 2,
                 }}
               >
-                Back to Today
-              </motion.button>
+                ← back to today
+              </motion.span>
             )}
           </AnimatePresence>
-        </div>
+        </motion.button>
 
-        {/* → Next — disabled on current or future month */}
+        {/* → Next — always enabled, future months are allowed */}
         <motion.button
-          whileTap={isFutureMonth ? undefined : { scale: 0.82 }}
-          onClick={isFutureMonth ? undefined : onNext}
+          whileTap={{ scale: 0.82 }}
+          onClick={onNext}
           aria-label="Next month"
-          aria-disabled={isFutureMonth}
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 14,
-            background: isFutureMonth
-              ? 'rgba(255,255,255,0.03)'
-              : 'linear-gradient(135deg, rgba(251,191,36,0.14), rgba(217,119,6,0.10))',
-            border: isFutureMonth
-              ? '1px solid rgba(255,255,255,0.07)'
-              : '1px solid rgba(251,191,36,0.30)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: isFutureMonth ? 'not-allowed' : 'pointer',
-            flexShrink: 0,
-            opacity: isFutureMonth ? 0.32 : 1,
-            transition: 'opacity 0.18s, background 0.18s',
+            width: 40, height: 40, borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(251,191,36,0.14), rgba(217,119,6,0.10))',
+            border: '1px solid rgba(251,191,36,0.30)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0,
           }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isFutureMonth ? 'rgba(255,255,255,0.3)' : '#FBBF24'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </motion.button>
@@ -646,12 +766,9 @@ function CategoryGrid({
             boxShadow: `0 4px 16px ${cat.glow}`,
           }}
         >
-          {/* Icon — fixed height zone */}
           <span style={{ fontSize: 26, lineHeight: 1, display: 'block', marginBottom: 8 }}>
             {cat.icon}
           </span>
-
-          {/* Label — fixed min-height so all cards reserve the same vertical space for 1-2 line labels */}
           <span style={{
             fontSize: 10,
             fontWeight: 700,
@@ -671,8 +788,6 @@ function CategoryGrid({
           }}>
             {cat.label}
           </span>
-
-          {/* Amount — always sits at the same vertical position */}
           <span style={{
             fontSize: 11,
             fontWeight: 700,
@@ -741,16 +856,7 @@ export function HomeScreen() {
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [managerOpen, setManagerOpen] = useState<'expense' | 'income' | null>(null)
-
-  // Listen for the "Back to Today" reset event emitted by MonthNavigator
-  useState(() => {
-    const handler = () => {
-      setYear(today.getFullYear())
-      setMonth(today.getMonth())
-    }
-    window.addEventListener('monthnavigator:reset', handler)
-    return () => window.removeEventListener('monthnavigator:reset', handler)
-  })
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const {
     expenseCategories, incomeCategories, subcategories, loading: catsLoading,
@@ -793,13 +899,20 @@ export function HomeScreen() {
 
   const handlePrev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const handleNext = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
+  const handlePickerConfirm = (y: number, m: number) => { setYear(y); setMonth(m) }
 
   const loading = catsLoading || txLoading
 
   return (
     <div style={{ minHeight: '100%', padding: '20px 20px 32px' }}>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}>
-        <MonthNavigator year={year} month={month} onPrev={handlePrev} onNext={handleNext} />
+        <MonthNavigator
+          year={year}
+          month={month}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          onOpenPicker={() => setPickerOpen(true)}
+        />
 
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -812,6 +925,18 @@ export function HomeScreen() {
           </>
         )}
       </motion.div>
+
+      <AnimatePresence>
+        {pickerOpen && (
+          <MonthYearPickerSheet
+            key="month-year-picker"
+            year={year}
+            month={month}
+            onConfirm={handlePickerConfirm}
+            onClose={() => setPickerOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {managerOpen && (
