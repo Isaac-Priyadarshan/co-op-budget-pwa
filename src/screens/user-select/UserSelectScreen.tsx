@@ -327,19 +327,20 @@ export function UserSelectScreen() {
         style={{
           position: 'fixed',
           inset: 0,
-          // Gradient now ends at pure #000 — matches the OS nav bar exactly on
-          // every Android gesture-nav and iPhone home-indicator colour.
+          // Gradient ends at pure #000 — matches the OS nav bar on every
+          // Android gesture-nav and iPhone home-indicator colour.
           background: 'linear-gradient(180deg, #02030a 0%, #04050e 40%, #060412 75%, #000000 100%)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'space-between',
-          // ── FIX: use var(--sat) / var(--sab) instead of env() directly. ──────
-          // env(safe-area-inset-*) in inline React styles is resolved by iOS
-          // one frame late, causing content to sit under the status bar on the
-          // very first render. var(--sat) and var(--sab) are pre-painted by the
-          // synchronous <script> in index.html before React hydrates, so they
-          // carry the correct pixel value from frame 0 — no layout jump.
+          // ── BUG 3 FIX ────────────────────────────────────────────────────────
+          // Previously: paddingTop: 'calc(var(--sat) + 48px)'
+          // #root no longer applies padding-top: var(--sat) (Bug 2 removed it),
+          // so this screen is now the ONLY consumer of --sat for its own layout.
+          // calc(var(--sat) + 48px) is correct: --sat clears the status bar /
+          // notch / Dynamic Island, and the extra +48px is intentional decorative
+          // breathing room above the title. Single application. No doubling.
           paddingTop: 'calc(var(--sat) + 48px)',
           paddingBottom: 'calc(var(--sab) + 36px)',
           overflow: 'hidden',

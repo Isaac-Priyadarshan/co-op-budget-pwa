@@ -104,18 +104,20 @@ body {
 
 #root {
   /* ─── position:fixed; inset:0 is the correct strategy for iOS PWA. ───────
-     This pins all four edges to the full screen including the area behind
+     Pins all four edges to the full screen including the area behind
      the status bar and home indicator. Combined with viewport-fit=cover
      in <meta name="viewport"> and apple-mobile-web-app-status-bar-style=
      black-translucent in index.html, this gives true edge-to-edge rendering.
 
-     FIX (safe-area top — all 13 screens): padding-top: var(--sat) pushes
-     ALL screen content below the status bar / notch / Dynamic Island from
-     frame 0. --sat is pre-painted by the index.html script before React
-     hydrates, so there is zero layout jump or flash on any device.
+     SAFE-AREA TOP — single source of truth:
+     --sat is consumed ONLY by AppShell's scroll-area (top: var(--sat))
+     and by screens that manage their own full-screen layout
+     (e.g. UserSelectScreen paddingTop: calc(var(--sat) + 48px)).
 
-     This single rule fixes every screen at once. Do NOT add .pt-safe to
-     individual screen wrappers — it will double-pad the top.
+     DO NOT add padding-top: var(--sat) here — AppShell already uses
+     top: var(--sat) on its scroll-area div. Having both causes every
+     screen to receive --sat twice, pushing content down by 2× the
+     status-bar / notch height (Bug 2).
 
      IMPORTANT: No explicit height or width here — they are implicit from
      inset:0 and are always pixel-perfect. Adding height:100dvh on top of
@@ -124,7 +126,6 @@ body {
   position: fixed;
   inset: 0;
   overflow: hidden;
-  padding-top: var(--sat);
 }
 
 .scroll-area {
@@ -161,9 +162,8 @@ button, nav, .no-select {
 
    .pb-safe  →  use on sticky bottom bars, nav, modals inside scroll areas.
    .pt-safe  →  use ONLY on components that need extra top safe-area padding
-               INSIDE a scrollable region (e.g. a sticky header inside
-               .scroll-area). Do NOT apply to top-level screen wrappers —
-               #root already applies padding-top: var(--sat) globally.     */
+               INSIDE a scrollable region that does NOT already sit below
+               AppShell's scroll-area top:var(--sat) offset.              */
 .pb-safe { padding-bottom: var(--sab); }
 .pt-safe { padding-top: var(--sat); }
 
