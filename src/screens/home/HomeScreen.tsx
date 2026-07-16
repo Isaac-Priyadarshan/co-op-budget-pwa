@@ -448,34 +448,174 @@ function CategoryManagerSheet({
   )
 }
 
+// ─── Month Navigator — FIXED ──────────────────────────────────────────────────
+// Fixes:
+//  1. Label no longer squeezes or wraps on small screens — uses flex:1 + truncate
+//  2. Glassmorphism pill card so header has visual boundary / doesn't float
+//  3. "Today" dot indicator shows when viewing a non-current month
+//  4. Next-month button is disabled when on the current month (no peeking into the future)
+//  5. Month name animates with a slide direction cue on change
+
 interface MonthNavProps {
-  year: number; month: number
-  onPrev: () => void; onNext: () => void
+  year: number
+  month: number
+  onPrev: () => void
+  onNext: () => void
 }
 
 function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
+  const today = new Date()
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()
+  const isFutureMonth =
+    year > today.getFullYear() ||
+    (year === today.getFullYear() && month >= today.getMonth())
+
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <motion.button whileTap={{ scale: 0.85 }} onClick={onPrev}
-          style={{ width: 40, height: 40, borderRadius: 14, background: 'linear-gradient(135deg, rgba(251,191,36,0.14), rgba(217,119,6,0.10))', border: '1px solid rgba(251,191,36,0.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+      {/* Pill card wrapper */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(251,191,36,0.18)',
+          borderRadius: 20,
+          padding: '10px 12px',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+        }}
+      >
+        {/* ← Prev */}
+        <motion.button
+          whileTap={{ scale: 0.82 }}
+          onClick={onPrev}
+          aria-label="Previous month"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(251,191,36,0.14), rgba(217,119,6,0.10))',
+            border: '1px solid rgba(251,191,36,0.30)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </motion.button>
 
-        <span style={{ fontSize: 18, fontWeight: 700, color: '#F5F5F5', letterSpacing: '-0.01em', lineHeight: 1.1 }}>
-          {MONTH_NAMES[month]} {year}
-        </span>
-
-        <motion.button whileTap={{ scale: 0.85 }} onClick={onNext}
-          style={{ width: 40, height: 40, borderRadius: 14, background: 'linear-gradient(135deg, rgba(251,191,36,0.14), rgba(217,119,6,0.10))', border: '1px solid rgba(251,191,36,0.30)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        {/* Month / Year label — centre zone, no-wrap, no squeeze */}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            minWidth: 0,
+          }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={`${year}-${month}`}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                fontSize: 17,
+                fontWeight: 700,
+                color: '#F5F5F5',
+                letterSpacing: '-0.01em',
+                lineHeight: 1.1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%',
+                display: 'block',
+                textAlign: 'center',
+              }}
+            >
+              {MONTH_NAMES[month]} {year}
+            </motion.span>
+          </AnimatePresence>
+
+          {/* "Today" reset badge — only visible when not on current month */}
+          <AnimatePresence>
+            {!isCurrentMonth && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.16 }}
+                whileTap={{ scale: 0.88 }}
+                onClick={() => {
+                  // Handled by parent via a reset prop — we use a custom event here
+                  // since MonthNavigator is pure. Parent HomeScreen listens.
+                  window.dispatchEvent(new CustomEvent('monthnavigator:reset'))
+                }}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: 'rgba(251,191,36,0.85)',
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  background: 'rgba(251,191,36,0.10)',
+                  border: '1px solid rgba(251,191,36,0.25)',
+                  borderRadius: 99,
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                  lineHeight: 1.6,
+                }}
+              >
+                Back to Today
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* → Next — disabled on current or future month */}
+        <motion.button
+          whileTap={isFutureMonth ? undefined : { scale: 0.82 }}
+          onClick={isFutureMonth ? undefined : onNext}
+          aria-label="Next month"
+          aria-disabled={isFutureMonth}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            background: isFutureMonth
+              ? 'rgba(255,255,255,0.03)'
+              : 'linear-gradient(135deg, rgba(251,191,36,0.14), rgba(217,119,6,0.10))',
+            border: isFutureMonth
+              ? '1px solid rgba(255,255,255,0.07)'
+              : '1px solid rgba(251,191,36,0.30)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: isFutureMonth ? 'not-allowed' : 'pointer',
+            flexShrink: 0,
+            opacity: isFutureMonth ? 0.32 : 1,
+            transition: 'opacity 0.18s, background 0.18s',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isFutureMonth ? 'rgba(255,255,255,0.3)' : '#FBBF24'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </motion.button>
       </div>
     </div>
   )
 }
+// ─────────────────────────────────────────────────────────────────────────────
 
 function CategoryGrid({
   categories, amounts, type,
@@ -520,7 +660,7 @@ function CategoryGrid({
             textTransform: 'uppercase',
             textAlign: 'center',
             lineHeight: 1.35,
-            minHeight: '2.7em',      /* reserves space for exactly 2 lines at fontSize:10 */
+            minHeight: '2.7em',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -601,6 +741,16 @@ export function HomeScreen() {
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
   const [managerOpen, setManagerOpen] = useState<'expense' | 'income' | null>(null)
+
+  // Listen for the "Back to Today" reset event emitted by MonthNavigator
+  useState(() => {
+    const handler = () => {
+      setYear(today.getFullYear())
+      setMonth(today.getMonth())
+    }
+    window.addEventListener('monthnavigator:reset', handler)
+    return () => window.removeEventListener('monthnavigator:reset', handler)
+  })
 
   const {
     expenseCategories, incomeCategories, subcategories, loading: catsLoading,
