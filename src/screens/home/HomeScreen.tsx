@@ -21,7 +21,6 @@ const EXPENSE_ICONS = ['🛒','🍔','🚗','🏠','💊','👗','✈️','🎬'
 const INCOME_ICONS  = ['💼','📈','💰','🏦','🎯','🏆','💻','🤝','📝','🎨','🏗️','🚀','💎','🌱','🎤','📸','🛍️','🧑‍🏫','📊','🏡','💡','🎪','🧾','🔑','🛠️','🎵','📚','🌐','🤑','🏅']
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 interface ManagerProps {
   type: 'expense' | 'income'
@@ -450,18 +449,16 @@ function CategoryManagerSheet({
 }
 
 // ─── Month Navigator ──────────────────────────────────────────────────────────
-// - No tap-to-change: label is a plain display div, not a button
-// - No picker sheet: MonthYearPickerSheet is removed entirely
-// - "Back to Today" badge still appears when not on current month
 
 interface MonthNavProps {
   year: number
   month: number
   onPrev: () => void
   onNext: () => void
+  onBackToToday: () => void
 }
 
-function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
+function MonthNavigator({ year, month, onPrev, onNext, onBackToToday }: MonthNavProps) {
   const today = new Date()
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()
 
@@ -492,7 +489,7 @@ function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
         </svg>
       </motion.button>
 
-      {/* Month / Year — plain display, no click */}
+      {/* Month / Year label + Back to Current Month badge */}
       <div
         style={{
           flex: 1,
@@ -526,29 +523,32 @@ function MonthNavigator({ year, month, onPrev, onNext }: MonthNavProps) {
           </motion.span>
         </AnimatePresence>
 
-        {/* "Back to Today" badge — only when not on current month */}
+        {/* ⇌ Back to Current Month — tappable button, only shown when not on current month */}
         <AnimatePresence>
           {!isCurrentMonth && (
-            <motion.span
+            <motion.button
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ duration: 0.16 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={onBackToToday}
+              aria-label="Go back to current month"
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: 'rgba(251,191,36,0.85)',
+                color: 'rgba(251,191,36,0.90)',
                 letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                background: 'rgba(251,191,36,0.10)',
-                border: '1px solid rgba(251,191,36,0.25)',
+                background: 'rgba(251,191,36,0.12)',
+                border: '1px solid rgba(251,191,36,0.30)',
                 borderRadius: 99,
-                padding: '2px 8px',
+                padding: '3px 10px',
                 lineHeight: 1.6,
+                cursor: 'pointer',
               }}
             >
-              ← back to today
-            </motion.span>
+              ⇌ Back to Current Month
+            </motion.button>
           )}
         </AnimatePresence>
       </div>
@@ -736,27 +736,29 @@ export function HomeScreen() {
 
   const handlePrev = () => { if (month === 0) { setMonth(11); setYear(y => y - 1) } else setMonth(m => m - 1) }
   const handleNext = () => { if (month === 11) { setMonth(0); setYear(y => y + 1) } else setMonth(m => m + 1) }
+  const handleBackToToday = () => {
+    const now = new Date()
+    setYear(now.getFullYear())
+    setMonth(now.getMonth())
+  }
 
   const loading = catsLoading || txLoading
 
   return (
-    // ── Outer shell: full height, flex column, no padding (header handles its own)
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
 
-      {/* ── STICKY MONTH/YEAR HEADER ─────────────────────────────────────────
-          position:sticky + top:0 keeps this bar pinned at the top of the
-          AppShell scroll-area. z-index:10 ensures it floats above content
-          cards while scrolling. The blurred background gives a premium
-          glass-card feel matching the app theme.                           */}
+      {/* ── STICKY MONTH/YEAR HEADER
+          background uses transparent + blur so it blends with the screen
+          background instead of rendering as a dark blackout bar.          */}
       <div
         style={{
           position: 'sticky',
           top: 0,
           zIndex: 10,
           padding: '16px 20px 14px',
-          background: 'rgba(4,5,11,0.85)',
-          backdropFilter: 'blur(14px)',
-          WebkitBackdropFilter: 'blur(14px)',
+          background: 'rgba(0,0,0,0.45)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           borderBottom: '1px solid rgba(251,191,36,0.08)',
         }}
       >
@@ -765,6 +767,7 @@ export function HomeScreen() {
           month={month}
           onPrev={handlePrev}
           onNext={handleNext}
+          onBackToToday={handleBackToToday}
         />
       </div>
 
