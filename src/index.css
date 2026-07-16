@@ -109,6 +109,14 @@ body {
      in <meta name="viewport"> and apple-mobile-web-app-status-bar-style=
      black-translucent in index.html, this gives true edge-to-edge rendering.
 
+     FIX (safe-area top — all 13 screens): padding-top: var(--sat) pushes
+     ALL screen content below the status bar / notch / Dynamic Island from
+     frame 0. --sat is pre-painted by the index.html script before React
+     hydrates, so there is zero layout jump or flash on any device.
+
+     This single rule fixes every screen at once. Do NOT add .pt-safe to
+     individual screen wrappers — it will double-pad the top.
+
      IMPORTANT: No explicit height or width here — they are implicit from
      inset:0 and are always pixel-perfect. Adding height:100dvh on top of
      position:fixed causes iOS to miscalculate during viewport finalisation,
@@ -116,6 +124,7 @@ body {
   position: fixed;
   inset: 0;
   overflow: hidden;
+  padding-top: var(--sat);
 }
 
 .scroll-area {
@@ -147,7 +156,14 @@ button, nav, .no-select {
   -webkit-user-select: none;
 }
 
-/* Safe-area utility classes — always reference the pre-painted var, not env() directly */
+/* ─── SAFE-AREA UTILITY CLASSES ──────────────────────────────────────────
+   Always reference the pre-painted CSS var, never env() directly.
+
+   .pb-safe  →  use on sticky bottom bars, nav, modals inside scroll areas.
+   .pt-safe  →  use ONLY on components that need extra top safe-area padding
+               INSIDE a scrollable region (e.g. a sticky header inside
+               .scroll-area). Do NOT apply to top-level screen wrappers —
+               #root already applies padding-top: var(--sat) globally.     */
 .pb-safe { padding-bottom: var(--sab); }
 .pt-safe { padding-top: var(--sat); }
 
