@@ -75,7 +75,7 @@ export function AppShell() {
         overflow: 'hidden',
       }}
     >
-      {/* Global gold top-glow */}
+      {/* Global gold top-glow — starts below the status bar */}
       <div style={{
         position: 'absolute',
         top: 0,
@@ -103,21 +103,33 @@ export function AppShell() {
       }} />
 
       {/*
-       * Scroll area.
-       * paddingTop uses var(--sat) — the pre-painted CSS variable written by
-       * the <script> in index.html before React hydrates. This replaces the
-       * previous env(safe-area-inset-top) inline style which iOS applied one
-       * frame late, causing a visible layout jump on launch.
-       */}
+        SCROLL AREA
+        ─────────────────────────────────────────────────────────────────────
+        top: var(--sat)  →  the scroll area itself starts BELOW the status
+        bar / notch / Dynamic Island. This is the correct approach because
+        the outer shell is position:fixed with inset:0 (which ignores any
+        padding-top on #root). By setting `top` — not paddingTop — on this
+        element, we physically push the scroll viewport down by exactly the
+        safe-area-inset-top value from frame 0.
+
+        --sat is pre-painted by the synchronous <script> in index.html
+        using height-based probing (not padding-based), which is the only
+        method iOS WebKit resolves synchronously before the first paint.
+
+        DO NOT change top:var(--sat) back to paddingTop:var(--sat) here.
+        paddingTop shifts content but keeps the scroll origin at y=0,
+        meaning fast-scroll momentum can still expose content behind the
+        status bar. top:var(--sat) moves the entire scrollable region down,
+        which is physically impossible to scroll past.
+      */}
       <div
         className="scroll-area"
         style={{
           position: 'absolute',
-          top: 0,
+          top: 'var(--sat)',
           left: 0,
           right: 0,
           bottom: 0,
-          paddingTop: 'var(--sat)',
           overflowY: isSelfScroll ? 'hidden' : 'auto',
           overflowX: 'hidden',
           WebkitOverflowScrolling: 'touch' as React.CSSProperties['WebkitOverflowScrolling'],
@@ -143,10 +155,10 @@ export function AppShell() {
       </div>
 
       {/*
-       * NAV WRAPPER — flush at absolute bottom of screen.
-       * The nav glass sits at bottom: 0; the iPhone home indicator
-       * overlaps it naturally — this is the intended behaviour.
-       */}
+        NAV WRAPPER — flush at absolute bottom of screen.
+        The nav glass sits at bottom:0; the iPhone home indicator
+        overlaps it naturally — this is the intended behaviour.
+      */}
       <div
         style={{
           position: 'absolute',

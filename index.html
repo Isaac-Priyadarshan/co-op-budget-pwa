@@ -59,49 +59,68 @@
       ─────────────────────────────────────────────────────────────────────────
       WHY THIS EXISTS:
       env(safe-area-inset-bottom/top) are CSS environment variables that iOS
-      resolves during layout. When they are used directly in inline React
-      styles, iOS sometimes applies them one frame late — causing a black
-      flash at the bottom (the raw screen behind the home indicator) on the
-      very first render.
+      resolves during layout. When used directly in inline React styles, iOS
+      applies them one frame late — causing content to sit under the status
+      bar / Dynamic Island on the very first render.
 
       HOW THIS FIXES IT:
-      This script runs synchronously, before any CSS or React code executes.
-      It creates a temporary off-screen element, measures the computed
-      safe-area-inset values, then writes them as real CSS custom properties
-      (--sab, --sat) on the <html> element. Because this runs before the
-      first paint, var(--sab) and var(--sat) are available with their correct
-      pixel values on frame 0 — no React state update, no layout jump.
+      This script runs synchronously before any CSS or React code executes.
+      It creates two temporary probe elements and measures their HEIGHTS
+      (not padding). Setting height:env(...) is resolved by iOS synchronously
+      at the time getComputedStyle is called — unlike padding-top:env()
+      which iOS defers to the next layout pass.
+
+      The resolved pixel values are written as --sat and --sab on <html>
+      so they are available with correct values on frame 0.
 
       FALLBACK:
-      If the browser doesn't support env() (desktop, Android without safe
-      areas), the probe element returns 0px, and the CSS vars are set to 0.
-      The :root fallback in index.css also guarantees 0px for any edge case
-      where this script is blocked or runs after CSS.
+      If env() is unsupported (desktop, Android without cutout),
+      the probe height resolves to 0 and vars are set to 0px.
+      The :root fallback in index.css also guarantees 0px.
     -->
     <script>
       (function () {
         try {
-          var probe = document.createElement('div');
-          probe.style.cssText = [
+          // ── TOP safe area probe ─────────────────────────────────────────
+          // Use height:env(safe-area-inset-top) — height is resolved
+          // synchronously by iOS WebKit; padding is deferred one frame.
+          var probeTop = document.createElement('div');
+          probeTop.style.cssText = [
             'position:fixed',
             'top:0',
             'left:0',
-            'width:1px',
-            'height:1px',
+            'width:0',
+            'height:env(safe-area-inset-top,0px)',
             'pointer-events:none',
             'visibility:hidden',
-            'padding-top:env(safe-area-inset-top,0px)',
-            'padding-bottom:env(safe-area-inset-bottom,0px)',
           ].join(';');
-          document.head.appendChild(probe);
-          var cs = window.getComputedStyle(probe);
-          var sat = cs.paddingTop   || '0px';
-          var sab = cs.paddingBottom || '0px';
-          document.documentElement.style.setProperty('--sat', sat);
-          document.documentElement.style.setProperty('--sab', sab);
-          document.head.removeChild(probe);
+          document.head.appendChild(probeTop);
+          var sat = probeTop.getBoundingClientRect().height || 0;
+          document.head.removeChild(probeTop);
+
+          // ── BOTTOM safe area probe ──────────────────────────────────────
+          var probeBot = document.createElement('div');
+          probeBot.style.cssText = [
+            'position:fixed',
+            'bottom:0',
+            'left:0',
+            'width:0',
+            'height:env(safe-area-inset-bottom,0px)',
+            'pointer-events:none',
+            'visibility:hidden',
+          ].join(';');
+          document.head.appendChild(probeBot);
+          var sab = probeBot.getBoundingClientRect().height || 0;
+          document.head.removeChild(probeBot);
+
+          // Write as real CSS custom properties on <html>.
+          // All layout code uses var(--sat) / var(--sab) — never env() inline.
+          document.documentElement.style.setProperty('--sat', sat + 'px');
+          document.documentElement.style.setProperty('--sab', sab + 'px');
         } catch (e) {
-          // Silent fallback — CSS :root vars in index.css provide 0px defaults.
+          // Silent fallback — :root vars in index.css provide 0px defaults.
+          document.documentElement.style.setProperty('--sat', '0px');
+          document.documentElement.style.setProperty('--sab', '0px');
         }
       })();
     </script>
