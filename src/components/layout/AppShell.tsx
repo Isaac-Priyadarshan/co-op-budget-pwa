@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useUser } from '../../context/UserContext'
@@ -36,10 +36,108 @@ const SCREEN_MAP: Record<ScreenId, React.ComponentType> = {
 const VALID_SCREENS = Object.keys(SCREEN_MAP) as ScreenId[]
 const SELF_SCROLL_SCREENS: ScreenId[] = ['asset']
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * measureSafeAreaTop
+ * ─────────────────────────────────────────────────────────────────────────
+ * Returns the resolved pixel value of env(safe-area-inset-top) by creating
+ * a temporary position:fixed probe element and reading its rendered height.
+ *
+ * WHY height and not padding:
+ *   iOS WebKit resolves `height: env(...)` synchronously at
+ *   getBoundingClientRect() time. `padding-top: env(...)` is deferred to
+ *   the next layout pass, making it unreliable for first-frame measurement.
+ *
+ * WHY this is needed in AppShell (not just index.html):
+ *   The index.html script's deferred rAF may fire AFTER React's first paint
+ *   in some iOS PWA cold-start scenarios. This useEffect runs post-mount,
+ *   guaranteeing --sat is correct before the scroll area's `top` is used.
+ */
+function measureSafeAreaTop(): number {
+  try {
+    const probe = document.createElement('div')
+    probe.style.cssText = [
+      'position:fixed',
+      'top:0',
+      'left:0',
+      'width:1px',
+      'height:env(safe-area-inset-top,0px)',
+      'pointer-events:none',
+      'visibility:hidden',
+      'z-index:-1',
+    ].join(';')
+    document.documentElement.appendChild(probe)
+    const h = probe.getBoundingClientRect().height || 0
+    document.documentElement.removeChild(probe)
+    return h
+  } catch {
+    return 0
+  }
+}
+
 export function AppShell() {
   const { activeUser } = useUser()
   const location = useLocation()
   const navigate = useNavigate()
+
+  /*
+   * satReady — toggled to true once we have confirmed --sat is set to the
+   * real value. Used to gate the first render so the scroll area never
+   * flashes at top:0 even for one frame.
+   */
+  const [satReady, setSatReady] = useState<boolean>(() => {
+    // If index.html's synchronous probe already wrote a non-zero value,
+    // we can trust it immediately and skip the useEffect re-probe flash.
+    const existing = getComputedStyle(document.documentElement)
+      .getPropertyValue('--sat')
+      .trim()
+    return existing !== '' && existing !== '0px'
+  })
+
+  /*
+   * SAFE-AREA MOUNT GUARD
+   * ─────────────────────────────────────────────────────────────────────
+   * Runs once after React mounts. At this point the DOM is fully painted
+   * and iOS WebKit has finalised viewport geometry — so the probe will
+   * always return the correct value.
+   *
+   * Steps:
+   *  1. Measure env(safe-area-inset-top) via height probe.
+   *  2. Read the current --sat value that index.html wrote.
+   *  3. If they differ (index.html sync probe got 0, real value is e.g. 59px)
+   *     → patch --sat and trigger a re-render via setSatReady(true).
+   *  4. If they match → just confirm satReady so the shell renders normally.
+   */
+  const patchSat = useCallback(() => {
+    const measured = measureSafeAreaTop()
+    const existing = parseFloat(
+      getComputedStyle(document.documentElement)
+        .getPropertyValue('--sat')
+        .trim() || '0'
+    )
+    if (measured !== existing) {
+      document.documentElement.style.setProperty('--sat', measured + 'px')
+    }
+    setSatReady(true)
+  }, [])
+
+  useEffect(() => {
+    /*
+     * Two-rAF approach:
+     *   - First rAF: after layout (geometry finalised, env() resolves correctly)
+     *   - Second rAF: after paint (belt-and-suspenders for slower iOS devices)
+     * The actual patch only writes to the DOM if the value changed,
+     * so there is no redundant style recalculation on Android / desktop.
+     */
+    let raf1: number
+    let raf2: number
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(patchSat)
+    })
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+    }
+  }, [patchSat])
 
   const initialScreen = (): ScreenId => {
     const params = new URLSearchParams(location.search)
@@ -64,6 +162,25 @@ export function AppShell() {
 
   if (!activeUser) {
     return <UserSelectScreen />
+  }
+
+  /*
+   * While we are waiting for the post-mount SAT confirmation, render the
+   * shell with opacity:0. This prevents a ~1-frame flash where the scroll
+   * area sits at top:0 before --sat is patched. The invisible shell still
+   * mounts, so the useEffect fires immediately — the delay is imperceptible.
+   */
+  if (!satReady) {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgb(14, 12, 6)',
+          opacity: 0,
+        }}
+      />
+    )
   }
 
   return (
@@ -105,22 +222,19 @@ export function AppShell() {
       {/*
         SCROLL AREA
         ─────────────────────────────────────────────────────────────────────
-        top: var(--sat)  →  the scroll area itself starts BELOW the status
-        bar / notch / Dynamic Island. This is the correct approach because
-        the outer shell is position:fixed with inset:0 (which ignores any
-        padding-top on #root). By setting `top` — not paddingTop — on this
-        element, we physically push the scroll viewport down by exactly the
-        safe-area-inset-top value from frame 0.
+        top: var(--sat)  →  the scroll area starts BELOW the status bar /
+        notch / Dynamic Island. We use top (not paddingTop) because:
+          • top physically moves the scroll viewport origin down — content
+            is impossible to scroll behind the status bar.
+          • paddingTop shifts content but keeps scroll origin at y=0,
+            meaning fast momentum scrolls can still expose content behind
+            the status bar.
 
-        --sat is pre-painted by the synchronous <script> in index.html
-        using height-based probing (not padding-based), which is the only
-        method iOS WebKit resolves synchronously before the first paint.
-
-        DO NOT change top:var(--sat) back to paddingTop:var(--sat) here.
-        paddingTop shifts content but keeps the scroll origin at y=0,
-        meaning fast-scroll momentum can still expose content behind the
-        status bar. top:var(--sat) moves the entire scrollable region down,
-        which is physically impossible to scroll past.
+        --sat is guaranteed correct at this point because:
+          1. index.html sync probe wrote the initial value.
+          2. index.html rAF deferred probe patched it after first layout.
+          3. AppShell useEffect double-rAF patched it after React mount.
+          4. satReady gate ensures this JSX never renders until step 3 done.
       */}
       <div
         className="scroll-area"

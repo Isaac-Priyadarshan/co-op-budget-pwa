@@ -55,72 +55,100 @@
     <title>I &amp; J Budget</title>
 
     <!--
-      SAFE-AREA PRE-PAINT SCRIPT
+      SAFE-AREA PRE-PAINT SCRIPT  (v2 — two-layer defence)
       ─────────────────────────────────────────────────────────────────────────
-      WHY THIS EXISTS:
-      env(safe-area-inset-bottom/top) are CSS environment variables that iOS
-      resolves during layout. When used directly in inline React styles, iOS
-      applies them one frame late — causing content to sit under the status
-      bar / Dynamic Island on the very first render.
+      LAYER 1 — Synchronous probe (runs before any CSS / React):
+        Creates a position:fixed div with height:env(safe-area-inset-top).
+        iOS WebKit resolves height synchronously at getBoundingClientRect()
+        time (unlike padding, which is deferred one frame).
+        Writes --sat / --sab onto <html> so layout code never uses env() inline.
 
-      HOW THIS FIXES IT:
-      This script runs synchronously before any CSS or React code executes.
-      It creates two temporary probe elements and measures their HEIGHTS
-      (not padding). Setting height:env(...) is resolved by iOS synchronously
-      at the time getComputedStyle is called — unlike padding-top:env()
-      which iOS defers to the next layout pass.
-
-      The resolved pixel values are written as --sat and --sab on <html>
-      so they are available with correct values on frame 0.
+      LAYER 2 — Deferred re-probe via requestAnimationFrame:
+        On iOS PWA (Home Screen / standalone) the viewport geometry is NOT
+        finalised when the synchronous probe runs — getBoundingClientRect()
+        returns 0. The rAF callback fires after the first layout pass when
+        geometry IS correct. If --sat was written as 0px by the sync probe
+        (or if the value actually changed), we re-measure and patch it.
+        This is the primary fix for the status-bar-overflow regression.
 
       FALLBACK:
-      If env() is unsupported (desktop, Android without cutout),
-      the probe height resolves to 0 and vars are set to 0px.
-      The :root fallback in index.css also guarantees 0px.
+        If env() is unsupported (desktop, Android without cutout) the probe
+        height resolves to 0 and vars stay at 0px — correct behaviour.
+        The :root fallback in index.css also guarantees 0px.
     -->
     <script>
       (function () {
-        try {
-          // ── TOP safe area probe ─────────────────────────────────────────
-          // Use height:env(safe-area-inset-top) — height is resolved
-          // synchronously by iOS WebKit; padding is deferred one frame.
-          var probeTop = document.createElement('div');
-          probeTop.style.cssText = [
-            'position:fixed',
-            'top:0',
-            'left:0',
-            'width:0',
-            'height:env(safe-area-inset-top,0px)',
-            'pointer-events:none',
-            'visibility:hidden',
-          ].join(';');
-          document.head.appendChild(probeTop);
-          var sat = probeTop.getBoundingClientRect().height || 0;
-          document.head.removeChild(probeTop);
+        /* ── Shared probe helper ───────────────────────────────────────── */
+        function measureSafeArea() {
+          var result = { sat: 0, sab: 0 };
+          try {
+            /* TOP probe */
+            var pt = document.createElement('div');
+            pt.style.cssText = [
+              'position:fixed',
+              'top:0',
+              'left:0',
+              'width:1px',
+              'height:env(safe-area-inset-top,0px)',
+              'pointer-events:none',
+              'visibility:hidden',
+              'z-index:-1',
+            ].join(';');
+            document.documentElement.appendChild(pt);
+            result.sat = pt.getBoundingClientRect().height || 0;
+            document.documentElement.removeChild(pt);
 
-          // ── BOTTOM safe area probe ──────────────────────────────────────
-          var probeBot = document.createElement('div');
-          probeBot.style.cssText = [
-            'position:fixed',
-            'bottom:0',
-            'left:0',
-            'width:0',
-            'height:env(safe-area-inset-bottom,0px)',
-            'pointer-events:none',
-            'visibility:hidden',
-          ].join(';');
-          document.head.appendChild(probeBot);
-          var sab = probeBot.getBoundingClientRect().height || 0;
-          document.head.removeChild(probeBot);
+            /* BOTTOM probe */
+            var pb = document.createElement('div');
+            pb.style.cssText = [
+              'position:fixed',
+              'bottom:0',
+              'left:0',
+              'width:1px',
+              'height:env(safe-area-inset-bottom,0px)',
+              'pointer-events:none',
+              'visibility:hidden',
+              'z-index:-1',
+            ].join(';');
+            document.documentElement.appendChild(pb);
+            result.sab = pb.getBoundingClientRect().height || 0;
+            document.documentElement.removeChild(pb);
+          } catch (e) { /* silent */ }
+          return result;
+        }
 
-          // Write as real CSS custom properties on <html>.
-          // All layout code uses var(--sat) / var(--sab) — never env() inline.
-          document.documentElement.style.setProperty('--sat', sat + 'px');
-          document.documentElement.style.setProperty('--sab', sab + 'px');
-        } catch (e) {
-          // Silent fallback — :root vars in index.css provide 0px defaults.
-          document.documentElement.style.setProperty('--sat', '0px');
-          document.documentElement.style.setProperty('--sab', '0px');
+        /* ── LAYER 1: Synchronous probe ────────────────────────────────── */
+        var m1 = measureSafeArea();
+        document.documentElement.style.setProperty('--sat', m1.sat + 'px');
+        document.documentElement.style.setProperty('--sab', m1.sab + 'px');
+
+        /* ── LAYER 2: Deferred re-probe after first layout ─────────────── */
+        /*
+         * On iOS PWA (standalone / Home Screen launch), the synchronous
+         * probe above executes before WebKit finalises viewport geometry,
+         * so getBoundingClientRect() returns 0 and --sat is written as 0px.
+         *
+         * requestAnimationFrame fires AFTER the first layout pass, at which
+         * point env(safe-area-inset-top) resolves to the correct pixel value
+         * (59px on iPhone 14 Pro, 47px on iPhone SE, etc.).
+         *
+         * We re-measure and patch --sat / --sab unconditionally so any race
+         * between the sync probe and viewport finalisation is always resolved.
+         */
+        if (typeof requestAnimationFrame !== 'undefined') {
+          requestAnimationFrame(function () {
+            /* One rAF = after layout. Double-rAF = after paint. */
+            /* Single rAF is sufficient — geometry is ready after layout. */
+            var m2 = measureSafeArea();
+            /* Only write if the value actually changed to avoid redundant
+               style recalculations on devices where sync probe was correct. */
+            if (m2.sat !== m1.sat) {
+              document.documentElement.style.setProperty('--sat', m2.sat + 'px');
+            }
+            if (m2.sab !== m1.sab) {
+              document.documentElement.style.setProperty('--sab', m2.sab + 'px');
+            }
+          });
         }
       })();
     </script>
